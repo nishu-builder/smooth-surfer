@@ -7,7 +7,7 @@ importScripts("settings.js", "storage.js");
     loadSecrets,
     loadSettings
   } = self.SmoothSurferStorage;
-  const MODEL = "claude-3-5-haiku-20241022";
+  const MODEL = "claude-haiku-4-5";
   const ANTHROPIC_VERSION = "2023-06-01";
   const MAX_CACHE_ENTRIES = 400;
   const resultCache = new Map();
