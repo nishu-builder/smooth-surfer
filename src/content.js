@@ -3,6 +3,23 @@
 
   const { loadSettings, watchSettings } = window.SmoothSurferStorage;
   const SCAN_DEBOUNCE_MS = 120;
+  const WORK_SITE_HOSTS = [
+    "app.asana.com",
+    "atlassian.net",
+    "bitbucket.org",
+    "calendar.google.com",
+    "docs.google.com",
+    "drive.google.com",
+    "figma.com",
+    "github.com",
+    "github.dev",
+    "gitlab.com",
+    "graphite.dev",
+    "linear.app",
+    "mail.google.com",
+    "notion.so",
+    "slack.com"
+  ];
 
   let settings = window.SmoothSurferSettings.normalizeSettings();
   let observer = null;
@@ -92,7 +109,7 @@
     );
     root.classList.toggle(
       "smooth-surfer-soften-distracting",
-      settings.enabled && settings.softenDistractingElements
+      settings.enabled && settings.softenDistractingElements && !isWorkSite()
     );
   }
 
@@ -133,7 +150,7 @@
   }
 
   function scanCommonPage() {
-    if (!settings.enabled) {
+    if (!settings.enabled || isWorkSite()) {
       restoreHiddenElementsByKind("sticky-video");
       removeScrollPause();
       return;
@@ -486,6 +503,12 @@
     return String(text || "")
       .replace(/\s+/g, " ")
       .trim();
+  }
+
+  function isWorkSite() {
+    const host = window.location.hostname.toLowerCase().replace(/\.test$/, "");
+
+    return WORK_SITE_HOSTS.some((workHost) => host === workHost || host.endsWith("." + workHost));
   }
 
 })();

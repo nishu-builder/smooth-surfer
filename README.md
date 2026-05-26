@@ -72,6 +72,8 @@ Open the Smooth Surfer toolbar popup to configure:
 - `Pause deep scrolling`: pauses after roughly eight screenfuls of scrolling.
 - `Gray distracting media`: grayscales media in feed-like surfaces.
 
+The broad `Everywhere` effects intentionally skip common work and productivity sites such as GitHub, Graphite, Linear, Asana, Notion, Slack, Google Docs, and similar tools.
+
 Claude Haiku mode requires an Anthropic API key. The key is stored in `chrome.storage.local`. Toggle settings and criteria are stored in `chrome.storage.sync`.
 
 ## Privacy

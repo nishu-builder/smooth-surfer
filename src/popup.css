@@ -134,7 +134,8 @@ input[type="checkbox"]:focus-visible,
 button:focus-visible,
 input[type="text"]:focus-visible,
 input[type="password"]:focus-visible,
-select:focus-visible {
+select:focus-visible,
+summary:focus-visible {
   outline: 2px solid #2d66d3;
   outline-offset: 2px;
 }
@@ -193,34 +194,66 @@ input:disabled {
 }
 
 .pills {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: 6px;
   min-width: 0;
   min-height: 28px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .pill {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 22px;
-  align-items: center;
-  gap: 6px;
+  display: block;
   width: 100%;
   min-width: 0;
   max-width: 100%;
   border: 1px solid rgba(23, 31, 42, 0.16);
-  border-radius: 999px;
+  border-radius: 18px;
   background: #eef4f2;
   color: #17202e;
-  padding: 4px 5px 4px 9px;
+  overflow: hidden;
 }
 
-.pill span {
+.pill summary {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) 22px;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 4px 5px 4px 8px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.pill summary::-webkit-details-marker {
+  display: none;
+}
+
+.pill summary::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid #5b6677;
+  transform-origin: 2px 4px;
+}
+
+.pill[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.pill-label {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.pill[open] .pill-label {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .pill button {

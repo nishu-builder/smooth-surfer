@@ -75,6 +75,9 @@
       return;
     }
 
+    event.preventDefault();
+    event.stopPropagation();
+
     const phrase = button.dataset.removePhrase;
     saveSettings({
       twitterFilterCriteria: settings.twitterFilterCriteria.filter((item) => item !== phrase)
@@ -127,11 +130,17 @@
     }
 
     settings.twitterFilterCriteria.forEach((phrase) => {
-      const pill = document.createElement("div");
+      const pill = document.createElement("details");
       pill.className = "pill";
+      pill.dataset.criterion = "";
+
+      const summary = document.createElement("summary");
 
       const label = document.createElement("span");
+      label.className = "pill-label";
+      label.dataset.criterionLabel = "";
       label.textContent = phrase;
+      label.title = phrase;
 
       const removeButton = document.createElement("button");
       removeButton.type = "button";
@@ -140,7 +149,8 @@
       removeButton.textContent = "x";
       removeButton.disabled = !settings.enabled || !settings.twitterFilterContent;
 
-      pill.append(label, removeButton);
+      summary.append(label, removeButton);
+      pill.append(summary);
       phraseList.append(pill);
     });
   }

@@ -119,7 +119,7 @@ const chrome = spawn(chromePath, [
   "--disable-sync",
   "--disable-component-update",
   "--allow-file-access-from-files",
-  "--host-resolver-rules=MAP youtube.com.test 127.0.0.1,MAP twitter.com.test 127.0.0.1",
+  "--host-resolver-rules=MAP youtube.com.test 127.0.0.1,MAP twitter.com.test 127.0.0.1,MAP github.com.test 127.0.0.1",
   "about:blank"
 ]);
 
@@ -178,10 +178,17 @@ try {
     input.value = "high-pressure AI investing hype";
     document.querySelector("[data-phrase-form]").requestSubmit();
     await new Promise((resolve) => setTimeout(resolve, 50));
+    const criterion = document.querySelector("[data-criterion]");
+    const criterionLabel = document.querySelector("[data-criterion-label]");
+    const closedWhiteSpace = getComputedStyle(criterionLabel).whiteSpace;
+    criterion.open = true;
     return {
       hasFilterLabel: Boolean(filterLabel),
       hasOldFilterLabel: document.body.textContent.includes("Filter AI-upside FOMO"),
       hasEvaluator: Boolean(document.querySelector("[data-setting='twitterClassifierMode']")),
+      hasCriteriaDisclosure: criterion.tagName === "DETAILS",
+      closedWhiteSpace,
+      openWhiteSpace: getComputedStyle(criterionLabel).whiteSpace,
       noHorizontalOverflow: document.documentElement.scrollWidth <= document.documentElement.clientWidth &&
         document.body.scrollWidth <= document.body.clientWidth,
       checkboxWidth: Math.round(document.querySelector("input[type='checkbox']").getBoundingClientRect().width),
@@ -195,6 +202,9 @@ try {
   assert.equal(popupState.hasFilterLabel, true);
   assert.equal(popupState.hasOldFilterLabel, false);
   assert.equal(popupState.hasEvaluator, true);
+  assert.equal(popupState.hasCriteriaDisclosure, true);
+  assert.equal(popupState.closedWhiteSpace, "nowrap");
+  assert.equal(popupState.openWhiteSpace, "normal");
   assert.equal(popupState.noHorizontalOverflow, true);
   assert.ok(popupState.checkboxWidth <= 22);
   assert.ok(popupState.bodyWidth >= 300);
@@ -235,6 +245,21 @@ try {
 
   assert.equal(scrollPauseState.wasVisible, true);
   assert.equal(scrollPauseState.isPaused, false);
+
+  await navigate(client, `http://github.com.test:${fixturePort}/work-content.html`);
+  await evaluate(client, `window.scrollTo(0, window.innerHeight * 9); window.dispatchEvent(new Event("scroll"))`);
+  await evaluate(client, `new Promise((resolve) => setTimeout(resolve, 400))`);
+  const workSiteState = await evaluate(client, `(() => ({
+    isPaused: document.documentElement.classList.contains("smooth-surfer-scroll-paused"),
+    hasPausePrompt: Boolean(document.querySelector(".smooth-surfer-scroll-pause")),
+    stickyHidden: document.querySelector("#sticky-player").dataset.smoothSurferHiddenKind === "sticky-video",
+    thumbFilter: getComputedStyle(document.querySelector("#work-image")).filter
+  }))()`);
+
+  assert.equal(workSiteState.isPaused, false);
+  assert.equal(workSiteState.hasPausePrompt, false);
+  assert.equal(workSiteState.stickyHidden, false);
+  assert.equal(workSiteState.thumbFilter, "none");
 
   await navigate(client, `http://twitter.com.test:${fixturePort}/home`);
   await waitForExpression(
@@ -389,6 +414,11 @@ function createFixtureServer() {
         return;
       }
 
+      if (requestUrl.pathname === "/work-content.html") {
+        sendHtml(response, workContentFixture());
+        return;
+      }
+
       if (requestUrl.pathname.startsWith("/src/")) {
         await sendRepoFile(response, requestUrl.pathname.slice(1));
         return;
@@ -479,6 +509,32 @@ function twitterContentFixture() {
           </article>
         </div>
       </main>
+      <script src="/src/settings.js"></script>
+      <script src="/src/storage.js"></script>
+      <script src="/src/filter-rules.js"></script>
+      <script src="/src/content.js"></script>
+    </body>
+  </html>`;
+}
+
+function workContentFixture() {
+  return `<!doctype html>
+  <html>
+    <head>
+      <meta charset="utf-8">
+      <link rel="stylesheet" href="/src/styles.css">
+      <style>
+        body { min-height: 7200px; margin: 0; }
+        article { margin: 20px; }
+        #sticky-player { position: fixed; right: 20px; bottom: 20px; width: 220px; height: 140px; }
+        #sticky-player video { width: 100%; height: 100%; }
+      </style>
+    </head>
+    <body>
+      <article>
+        <img id="work-image" alt="" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==">
+      </article>
+      <div id="sticky-player"><video></video></div>
       <script src="/src/settings.js"></script>
       <script src="/src/storage.js"></script>
       <script src="/src/filter-rules.js"></script>
