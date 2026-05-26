@@ -182,11 +182,15 @@ try {
     const criterionLabel = document.querySelector("[data-criterion-label]");
     const closedWhiteSpace = getComputedStyle(criterionLabel).whiteSpace;
     criterion.open = true;
+    const toggleCount = document.querySelectorAll(".switch-row input[type='checkbox']").length;
+    const describedToggleCount = document.querySelectorAll(".switch-row[data-description] input[type='checkbox']").length;
     return {
       hasFilterLabel: Boolean(filterLabel),
       hasOldFilterLabel: document.body.textContent.includes("Filter AI-upside FOMO"),
       hasEvaluator: Boolean(document.querySelector("[data-setting='twitterClassifierMode']")),
       hasCriteriaDisclosure: criterion.tagName === "DETAILS",
+      toggleCount,
+      describedToggleCount,
       closedWhiteSpace,
       openWhiteSpace: getComputedStyle(criterionLabel).whiteSpace,
       noHorizontalOverflow: document.documentElement.scrollWidth <= document.documentElement.clientWidth &&
@@ -203,6 +207,7 @@ try {
   assert.equal(popupState.hasOldFilterLabel, false);
   assert.equal(popupState.hasEvaluator, true);
   assert.equal(popupState.hasCriteriaDisclosure, true);
+  assert.equal(popupState.describedToggleCount, popupState.toggleCount);
   assert.equal(popupState.closedWhiteSpace, "nowrap");
   assert.equal(popupState.openWhiteSpace, "normal");
   assert.equal(popupState.noHorizontalOverflow, true);
@@ -211,6 +216,8 @@ try {
   assert.ok(popupState.popupWidth >= 300);
   assert.ok(popupState.popupWidth <= 340);
   assert.match(popupState.pillText, /high-pressure AI investing hype/);
+  assert.match(popupState.pillText, /missed upside/);
+  assert.match(popupState.pillText, /one short sentence/);
   assert.ok(
     popupState.stored.twitterFilterCriteria.includes("high-pressure AI investing hype")
   );
@@ -270,12 +277,14 @@ try {
     followingClicked: document.querySelector("#following-tab").dataset.clicked === "true",
     baitHidden: document.querySelector("#bait-cell").dataset.smoothSurferHiddenKind === "tweet",
     tagSpamHidden: document.querySelector("#tag-spam-cell").dataset.smoothSurferHiddenKind === "tweet",
+    linkedinHidden: document.querySelector("#linkedin-cell").dataset.smoothSurferHiddenKind === "tweet",
     trendDisplay: getComputedStyle(document.querySelector("#trend-module")).display
   }))()`);
 
   assert.equal(twitterContentState.followingClicked, true);
   assert.equal(twitterContentState.baitHidden, true);
   assert.equal(twitterContentState.tagSpamHidden, true);
+  assert.equal(twitterContentState.linkedinHidden, true);
   assert.equal(twitterContentState.trendDisplay, "none");
 
   client.close();
@@ -506,6 +515,15 @@ function twitterContentFixture() {
         <div data-testid="cellInnerDiv" id="tag-spam-cell">
           <article data-testid="tweet">
             <div data-testid="tweetText">#AI #NVDA #BTC #stocks #money this is the move</div>
+          </article>
+        </div>
+        <div data-testid="cellInnerDiv" id="linkedin-cell">
+          <article data-testid="tweet">
+            <div data-testid="tweetText">After years of trying, I almost gave up.<br>
+Then I learned one simple thing.<br>
+Consistency beats intensity when nobody is watching.<br>
+Trust compounds slowly before results appear.<br>
+That changed everything for my work.</div>
           </article>
         </div>
       </main>

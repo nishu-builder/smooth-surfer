@@ -3,10 +3,19 @@
 
   const STORAGE_KEY = "smoothSurferSettings";
   const SECRETS_KEY = "smoothSurferSecrets";
+  const LEGACY_UPSIDE_FOMO_CRITERION =
+    "AI hype that pressures the reader with FOMO, loss framing, or financial upside.";
+  const UPSIDE_FOMO_CRITERION =
+    "Content that aims primarily to evoke a sense of FOMO at missed upside, financial or otherwise.";
+  const ENGAGEMENT_BAIT_CRITERION =
+    "Engagement bait that asks for replies, likes, reposts, follows, bookmarks, or quote tweets.";
+  const TAG_OVERLOAD_CRITERION = "Promotional posts overloaded with hashtags or cashtags.";
+  const LINKEDIN_STYLE_CRITERION = "LinkedIn-style posts with one short sentence per paragraph.";
   const DEFAULT_FILTER_CRITERIA = [
-    "AI hype that pressures the reader with FOMO, loss framing, or financial upside.",
-    "Engagement bait that asks for replies, likes, reposts, follows, bookmarks, or quote tweets.",
-    "Promotional posts overloaded with hashtags or cashtags."
+    UPSIDE_FOMO_CRITERION,
+    ENGAGEMENT_BAIT_CRITERION,
+    TAG_OVERLOAD_CRITERION,
+    LINKEDIN_STYLE_CRITERION
   ];
   const DEFAULT_SETTINGS = {
     enabled: true,
@@ -75,7 +84,7 @@
     next.twitterFilterContent = Boolean(next.twitterFilterContent);
     next.twitterClassifierMode =
       next.twitterClassifierMode === "anthropic-haiku" ? "anthropic-haiku" : "local-rules";
-    next.twitterFilterCriteria = normalizeCriteria(source.twitterFilterCriteria || DEFAULT_FILTER_CRITERIA);
+    next.twitterFilterCriteria = normalizeFilterCriteria(source.twitterFilterCriteria || DEFAULT_FILTER_CRITERIA);
     next.twitterHideTrends = Boolean(next.twitterHideTrends);
     next.twitterEnforceFollowing = Boolean(next.twitterEnforceFollowing);
     next.hideStickyVideoPlayers = Boolean(next.hideStickyVideoPlayers);
@@ -83,6 +92,20 @@
     next.softenDistractingElements = Boolean(next.softenDistractingElements);
 
     return next;
+  }
+
+  function normalizeFilterCriteria(value) {
+    const normalizedCriteria = normalizeCriteria(value);
+    const hadLegacyCriterion = normalizedCriteria.includes(LEGACY_UPSIDE_FOMO_CRITERION);
+    const criteria = normalizedCriteria.map((criterion) =>
+      criterion === LEGACY_UPSIDE_FOMO_CRITERION ? UPSIDE_FOMO_CRITERION : criterion
+    );
+
+    if (hadLegacyCriterion && !criteria.includes(LINKEDIN_STYLE_CRITERION)) {
+      criteria.push(LINKEDIN_STYLE_CRITERION);
+    }
+
+    return normalizeCriteria(criteria);
   }
 
   function normalizeSecrets(value) {

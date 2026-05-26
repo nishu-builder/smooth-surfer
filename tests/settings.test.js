@@ -27,3 +27,30 @@ assert.equal(defaults.hideStickyVideoPlayers, true);
 assert.equal(defaults.pauseDeepScrolling, true);
 assert.equal(defaults.softenDistractingElements, true);
 assert.ok(defaults.twitterFilterCriteria.some((criterion) => criterion.includes("Engagement bait")));
+assert.ok(defaults.twitterFilterCriteria.some((criterion) => criterion.includes("missed upside")));
+assert.ok(defaults.twitterFilterCriteria.some((criterion) => criterion.includes("one short sentence")));
+
+const migrated = settings.normalizeSettings({
+  twitterFilterCriteria: [
+    "AI hype that pressures the reader with FOMO, loss framing, or financial upside.",
+    "Custom criterion"
+  ]
+});
+assert.ok(migrated.twitterFilterCriteria.some((criterion) => criterion.includes("missed upside")));
+assert.ok(migrated.twitterFilterCriteria.some((criterion) => criterion.includes("one short sentence")));
+assert.equal(
+  migrated.twitterFilterCriteria.includes(
+    "AI hype that pressures the reader with FOMO, loss framing, or financial upside."
+  ),
+  false
+);
+
+const removedPreset = settings.normalizeSettings({
+  twitterFilterCriteria: settings.DEFAULT_FILTER_CRITERIA.filter(
+    (criterion) => !criterion.includes("one short sentence")
+  )
+});
+assert.equal(
+  removedPreset.twitterFilterCriteria.some((criterion) => criterion.includes("one short sentence")),
+  false
+);

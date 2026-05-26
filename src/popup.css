@@ -73,6 +73,7 @@ p {
 }
 
 .switch-row {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 18px;
   align-items: center;
@@ -92,6 +93,31 @@ p {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 600;
+}
+
+.switch-row[data-description]::after {
+  content: attr(data-description);
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  display: none;
+  width: min(260px, calc(100vw - 32px));
+  border: 1px solid rgba(23, 31, 42, 0.16);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgba(12, 18, 28, 0.16);
+  color: #3f4a5c;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  padding: 8px;
+  white-space: normal;
+}
+
+.switch-row[data-description]:hover::after,
+.switch-row[data-description]:focus-within::after {
+  display: block;
 }
 
 .field-row {

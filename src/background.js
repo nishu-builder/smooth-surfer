@@ -116,7 +116,9 @@ importScripts("settings.js", "storage.js", "filter-rules.js");
   function buildClassifierPrompt(text, criteria) {
     const criteriaLines = criteria.length
       ? criteria.map((criterion, index) => `${index + 1}. ${criterion}`).join("\n")
-      : "1. AI hype that pressures the reader with FOMO, loss framing, or financial upside.";
+      : self.SmoothSurferSettings.DEFAULT_FILTER_CRITERIA.map(
+          (criterion, index) => `${index + 1}. ${criterion}`
+        ).join("\n");
 
     return `Decide whether this X/Twitter post should be hidden.
 

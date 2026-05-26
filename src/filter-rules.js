@@ -12,6 +12,7 @@
   const ENGAGEMENT_BAIT_PATTERN =
     /\b(reply|comment|drop|like|repost|retweet|quote tweet|bookmark|follow|tag)\b.{0,40}\b(if|for|to|below|this|your|you|someone|friend)\b|\b(agree\?|thoughts\?|what would you do|which one are you|am i wrong|change my mind)\b/i;
   const TAG_PATTERN = /(^|\s)[#$][\p{L}\p{N}_]+/gu;
+  const SENTENCE_END_PATTERN = /[.!?]["')\]]?$/;
 
   function normalizeText(text) {
     return String(text || "")
@@ -55,10 +56,12 @@
 
     if (hasAi && hasFomo && hasFinancialUpside) {
       reasons.push("AI financial-upside FOMO");
+    } else if (hasFomo && hasFinancialUpside) {
+      reasons.push("missed-upside FOMO");
     } else if (hasAi && hasLossFrame && hasFinancialUpside) {
       reasons.push("AI financial loss framing");
-    } else if (hasAi && hasFomo && hasLossFrame) {
-      reasons.push("AI urgency/loss framing");
+    } else if (hasFomo && hasLossFrame) {
+      reasons.push("urgency/loss framing");
     }
 
     if (ENGAGEMENT_BAIT_PATTERN.test(normalized)) {
@@ -69,6 +72,10 @@
       reasons.push("hashtag/cashtag overload");
     }
 
+    if (isLinkedInStylePost(text)) {
+      reasons.push("LinkedIn-style one-sentence paragraphs");
+    }
+
     return {
       blocked: reasons.length > 0,
       reasons
@@ -77,6 +84,33 @@
 
   function countTags(text) {
     return (text.match(TAG_PATTERN) || []).length;
+  }
+
+  function isLinkedInStylePost(text) {
+    const paragraphs = String(text || "")
+      .split(/\n+/)
+      .map((paragraph) => paragraph.replace(/\s+/g, " ").trim())
+      .filter(Boolean);
+
+    if (paragraphs.length < 5) {
+      return false;
+    }
+
+    const shortParagraphs = paragraphs.filter((paragraph) => countWords(paragraph) <= 16);
+    const sentenceParagraphs = paragraphs.filter(
+      (paragraph) => SENTENCE_END_PATTERN.test(paragraph) && countWords(paragraph) <= 18
+    );
+    const totalWords = paragraphs.reduce((sum, paragraph) => sum + countWords(paragraph), 0);
+
+    return (
+      totalWords >= 24 &&
+      shortParagraphs.length / paragraphs.length >= 0.75 &&
+      sentenceParagraphs.length >= 4
+    );
+  }
+
+  function countWords(text) {
+    return normalizeText(text).split(/\s+/).filter(Boolean).length;
   }
 
   const api = {

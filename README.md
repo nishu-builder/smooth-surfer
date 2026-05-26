@@ -9,14 +9,14 @@ It is intentionally simple: no build step, no bundled dependencies, no analytics
 - Grayscale YouTube thumbnails.
 - Hide YouTube watch-page recommendation surfaces without blanking the home feed.
 - Hide promoted X/Twitter feed posts.
-- Filter X/Twitter posts that match your own criteria.
+- Filter X/Twitter posts that match built-in presets or your own criteria.
 - Prefer the X/Twitter Following timeline over For You.
 - Hide X/Twitter trends.
 - Pause very deep scrolling with a small “Surf break” prompt.
 - Hide sticky floating video players.
 - Gray distracting feed media.
 - Choose a local rules evaluator or Claude Haiku (`claude-3-5-haiku-20241022`) for semantic classification.
-- Add and remove filter criteria as popup pills.
+- Expand, add, and remove filter criteria as popup pills.
 
 The project is not meant to stop at these sites. The architecture is intentionally small so new web-smoothing effects can be added without turning the extension into a framework.
 
