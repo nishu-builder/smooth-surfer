@@ -142,7 +142,7 @@ try {
   assert.match(youtubeStyles.viewModelThumbFilter, /grayscale/);
 
   await client.send("Emulation.setDeviceMetricsOverride", {
-    width: 260,
+    width: 360,
     height: 720,
     deviceScaleFactor: 1,
     mobile: false
@@ -166,6 +166,7 @@ try {
         document.body.scrollWidth <= document.body.clientWidth,
       checkboxWidth: Math.round(document.querySelector("input[type='checkbox']").getBoundingClientRect().width),
       popupWidth: Math.round(document.querySelector(".popup").getBoundingClientRect().width),
+      bodyWidth: Math.round(document.body.getBoundingClientRect().width),
       pillText: document.querySelector("[data-phrase-list]").textContent,
       stored: JSON.parse(localStorage.getItem("feedDockSettings"))
     };
@@ -176,7 +177,9 @@ try {
   assert.equal(popupState.hasEvaluator, true);
   assert.equal(popupState.noHorizontalOverflow, true);
   assert.ok(popupState.checkboxWidth <= 22);
-  assert.ok(popupState.popupWidth <= 260);
+  assert.ok(popupState.bodyWidth >= 300);
+  assert.ok(popupState.popupWidth >= 300);
+  assert.ok(popupState.popupWidth <= 340);
   assert.match(popupState.pillText, /high-pressure AI investing hype/);
   assert.ok(
     popupState.stored.twitterFilterCriteria.includes("high-pressure AI investing hype")
