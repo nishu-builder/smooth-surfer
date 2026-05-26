@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/nishu-builder/smooth-surfer/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/nishu-builder/smooth-surfer/actions/workflows/ci.yml)
 
-![Smooth Surfer icon](icons/icon128.png)
+<img src="assets/smooth-surfer-icon.png" alt="Smooth Surfer icon" width="420">
 
 Smooth Surfer is a small Chrome extension for browsing with less feed noise. It hides or softens selected YouTube, X/Twitter, and generic feed distractions from the toolbar popup.
 
