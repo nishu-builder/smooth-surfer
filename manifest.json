@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "Feed Dock",
+  "version": "0.1.0",
+  "description": "Docked controls for quieting YouTube and X/Twitter feeds.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://www.youtube.com/*",
+    "https://youtube.com/*",
+    "https://m.youtube.com/*",
+    "https://x.com/*",
+    "https://www.x.com/*",
+    "https://twitter.com/*",
+    "https://www.twitter.com/*",
+    "https://mobile.twitter.com/*"
+  ],
+  "action": {
+    "default_title": "Feed Dock"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://youtube.com/*",
+        "https://m.youtube.com/*",
+        "https://x.com/*",
+        "https://www.x.com/*",
+        "https://twitter.com/*",
+        "https://www.twitter.com/*",
+        "https://mobile.twitter.com/*"
+      ],
+      "css": ["src/styles.css"],
+      "js": ["src/filter-rules.js", "src/content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+html.feed-dock-youtube-gray ytd-thumbnail img,
+html.feed-dock-youtube-gray ytd-playlist-thumbnail img,
+html.feed-dock-youtube-gray ytd-moving-thumbnail-renderer img,
+html.feed-dock-youtube-gray a#thumbnail img,
+html.feed-dock-youtube-gray ytm-thumbnail-cover img {
+  filter: grayscale(1) !important;
+  transition: filter 120ms ease-in-out !important;
+}
+
+html.feed-dock-youtube-hide-recs ytd-watch-next-secondary-results-renderer,
+html.feed-dock-youtube-hide-recs #related,
+html.feed-dock-youtube-hide-recs ytd-browse[page-subtype="home"] ytd-rich-grid-renderer,
+html.feed-dock-youtube-hide-recs ytd-browse[page-subtype="home"] ytd-rich-section-renderer,
+html.feed-dock-youtube-hide-recs ytd-reel-shelf-renderer {
+  display: none !important;
+}
+
+.feed-dock-hidden {
+  display: none !important;
+}
