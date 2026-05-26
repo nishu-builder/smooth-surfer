@@ -24,9 +24,7 @@ assert.equal(benign.blocked, false);
 
 const custom = rules.classifyTweetText("This newsletter keeps pushing my secret course.", "secret course");
 assert.equal(custom.blocked, true);
-assert.match(custom.reasons.join(" "), /custom criterion/);
+assert.match(custom.reasons.join(" "), /criterion/);
 
 const customArray = rules.classifyTweetText("Mute the hype cycle please.", ["hype cycle"]);
 assert.equal(customArray.blocked, true);
-
-assert.deepEqual(rules.splitCustomPatterns("one\ntwo, three"), ["one", "two", "three"]);

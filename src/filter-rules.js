@@ -16,7 +16,7 @@
       .trim();
   }
 
-  function splitCustomPatterns(value) {
+  function normalizeCriteria(value) {
     if (Array.isArray(value)) {
       return value.map(String).map((item) => item.trim()).filter(Boolean);
     }
@@ -27,21 +27,21 @@
       .filter(Boolean);
   }
 
-  function findCustomMatches(text, customPatterns) {
+  function findCriterionMatches(text, criteria) {
     const normalized = normalizeText(text).toLowerCase();
 
-    return splitCustomPatterns(customPatterns).filter((pattern) =>
-      normalized.includes(pattern.toLowerCase())
+    return normalizeCriteria(criteria).filter((criterion) =>
+      normalized.includes(criterion.toLowerCase())
     );
   }
 
-  function classifyTweetText(text, customPatterns) {
+  function classifyTweetText(text, criteria) {
     const normalized = normalizeText(text);
     const reasons = [];
-    const customMatches = findCustomMatches(normalized, customPatterns);
+    const criterionMatches = findCriterionMatches(normalized, criteria);
 
-    if (customMatches.length > 0) {
-      reasons.push("custom criterion: " + customMatches.join(", "));
+    if (criterionMatches.length > 0) {
+      reasons.push("criterion: " + criterionMatches.join(", "));
     }
 
     const hasAi = AI_PATTERN.test(normalized);
@@ -65,7 +65,6 @@
 
   const api = {
     classifyTweetText,
-    splitCustomPatterns,
     normalizeText
   };
 

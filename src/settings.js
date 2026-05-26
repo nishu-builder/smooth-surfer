@@ -13,13 +13,13 @@
     twitterHideAds: true,
     twitterFilterContent: true,
     twitterClassifierMode: "local-rules",
-    twitterFilterCriteria: DEFAULT_FILTER_CRITERIA
+    twitterFilterCriteria: [...DEFAULT_FILTER_CRITERIA]
   };
   const DEFAULT_SECRETS = {
     anthropicApiKey: ""
   };
 
-  function normalizePatternList(value) {
+  function normalizeCriteria(value) {
     const items = Array.isArray(value)
       ? value
       : String(value || "")
@@ -47,13 +47,6 @@
     const source = value || {};
     const next = { ...DEFAULT_SETTINGS, ...source };
 
-    if (
-      typeof source.twitterFilterFomoAi === "boolean" &&
-      typeof source.twitterFilterContent !== "boolean"
-    ) {
-      next.twitterFilterContent = source.twitterFilterFomoAi;
-    }
-
     next.enabled = Boolean(next.enabled);
     next.youtubeGrayscaleThumbnails = Boolean(next.youtubeGrayscaleThumbnails);
     next.youtubeHideRecommendations = Boolean(next.youtubeHideRecommendations);
@@ -61,9 +54,7 @@
     next.twitterFilterContent = Boolean(next.twitterFilterContent);
     next.twitterClassifierMode =
       next.twitterClassifierMode === "anthropic-haiku" ? "anthropic-haiku" : "local-rules";
-    next.twitterFilterCriteria = normalizePatternList(
-      source.twitterFilterCriteria || source.twitterCustomPatterns || DEFAULT_FILTER_CRITERIA
-    );
+    next.twitterFilterCriteria = normalizeCriteria(source.twitterFilterCriteria || DEFAULT_FILTER_CRITERIA);
 
     return next;
   }
@@ -84,7 +75,7 @@
     SECRETS_KEY,
     STORAGE_KEY,
     normalizeSecrets,
-    normalizePatternList,
+    normalizeCriteria,
     normalizeSettings
   };
 

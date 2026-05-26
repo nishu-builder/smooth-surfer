@@ -1,10 +1,10 @@
 (function installFeedDock() {
   "use strict";
 
-  const { DEFAULT_SETTINGS, STORAGE_KEY, normalizeSettings } = window.FeedDockSettings;
+  const { loadSettings, watchSettings } = window.FeedDockStorage;
   const SCAN_DEBOUNCE_MS = 120;
 
-  let settings = { ...DEFAULT_SETTINGS };
+  let settings = window.FeedDockSettings.normalizeSettings();
   let observer = null;
   let scanTimer = 0;
   const modelClassifications = new Map();
@@ -15,23 +15,17 @@
 
   function start() {
     loadSettings().then((loadedSettings) => {
-      settings = normalizeSettings(loadedSettings);
+      settings = loadedSettings;
       whenBodyReady(() => {
         applyEffects();
-        startObserver();
+        startTwitterObserver();
       });
     });
 
-    if (hasChromeStorage()) {
-      chrome.storage.onChanged.addListener((changes, areaName) => {
-        if (areaName !== "sync" || !changes[STORAGE_KEY]) {
-          return;
-        }
-
-        settings = normalizeSettings(changes[STORAGE_KEY].newValue);
-        applyEffects();
-      });
-    }
+    watchSettings((nextSettings) => {
+      settings = nextSettings;
+      applyEffects();
+    });
   }
 
   function getPlatform() {
@@ -46,32 +40,6 @@
     }
 
     return "unknown";
-  }
-
-  function hasChromeStorage() {
-    return (
-      typeof chrome !== "undefined" &&
-      chrome.storage &&
-      chrome.storage.sync &&
-      typeof chrome.storage.sync.get === "function"
-    );
-  }
-
-  function loadSettings() {
-    if (hasChromeStorage()) {
-      return new Promise((resolve) => {
-        chrome.storage.sync.get({ [STORAGE_KEY]: DEFAULT_SETTINGS }, (result) => {
-          resolve(result[STORAGE_KEY]);
-        });
-      });
-    }
-
-    try {
-      const stored = window.localStorage.getItem(STORAGE_KEY);
-      return Promise.resolve(stored ? JSON.parse(stored) : DEFAULT_SETTINGS);
-    } catch (error) {
-      return Promise.resolve(DEFAULT_SETTINGS);
-    }
   }
 
   function whenBodyReady(callback) {
@@ -101,8 +69,8 @@
     );
   }
 
-  function startObserver() {
-    if (observer || !document.body) {
+  function startTwitterObserver() {
+    if (platform !== "twitter" || observer || !document.body) {
       return;
     }
 
@@ -159,23 +127,19 @@
       if (reasons.length > 0) {
         hideTweet(container, reasons);
       } else if (settings.twitterFilterContent && settings.twitterClassifierMode === "anthropic-haiku") {
-        requestModelClassification(container, getTweetText(article), reasons);
+        requestModelClassification(container, getTweetText(article));
       } else {
         restoreTweet(container);
       }
     });
   }
 
-  function requestModelClassification(container, text, immediateReasons) {
+  function requestModelClassification(container, text) {
     const key = getClassificationKey(text);
     const cached = modelClassifications.get(key);
 
-    if (immediateReasons.length > 0) {
-      hideTweet(container, immediateReasons);
-    }
-
     if (cached) {
-      applyModelClassification(container, cached, immediateReasons);
+      applyModelClassification(container, cached);
       return;
     }
 
@@ -191,7 +155,7 @@
         reasons: []
       };
       modelClassifications.set(key, fallback);
-      applyModelClassification(container, fallback, immediateReasons);
+      applyModelClassification(container, fallback);
       return;
     }
 
@@ -209,20 +173,14 @@
 
         const result = response || { blocked: false, reasons: [] };
         modelClassifications.set(key, result);
-        applyModelClassification(container, result, immediateReasons);
+        applyModelClassification(container, result);
       }
     );
   }
 
-  function applyModelClassification(container, classification, immediateReasons) {
-    const reasons = [...immediateReasons];
-
+  function applyModelClassification(container, classification) {
     if (classification.blocked) {
-      reasons.push(...classification.reasons);
-    }
-
-    if (reasons.length > 0) {
-      hideTweet(container, reasons);
+      hideTweet(container, classification.reasons);
     } else {
       restoreTweet(container);
     }

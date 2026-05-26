@@ -24,6 +24,7 @@ for (const file of [
   manifest.background.service_worker,
   "src/popup.css",
   "src/popup.js",
+  "src/storage.js",
   ...contentScript.css,
   ...contentScript.js
 ]) {

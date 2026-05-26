@@ -4,13 +4,17 @@
   const {
     DEFAULT_SECRETS,
     DEFAULT_SETTINGS,
-    SECRETS_KEY,
-    STORAGE_KEY,
-    normalizePatternList,
+    normalizeCriteria,
     normalizeSecrets,
     normalizeSettings
   } =
     window.FeedDockSettings;
+  const {
+    loadSecrets,
+    loadSettings,
+    saveSecrets: writeSecrets,
+    saveSettings: writeSettings
+  } = window.FeedDockStorage;
 
   let settings = { ...DEFAULT_SETTINGS };
   let secrets = { ...DEFAULT_SECRETS };
@@ -58,7 +62,7 @@
     }
 
     saveSettings({
-      twitterFilterCriteria: normalizePatternList([...settings.twitterFilterCriteria, phrase])
+      twitterFilterCriteria: normalizeCriteria([...settings.twitterFilterCriteria, phrase])
     });
     phraseInput.value = "";
     phraseInput.focus();
@@ -77,90 +81,16 @@
     });
   });
 
-  function hasChromeStorage() {
-    return (
-      typeof chrome !== "undefined" &&
-      chrome.storage &&
-      chrome.storage.sync &&
-      typeof chrome.storage.sync.get === "function"
-    );
-  }
-
-  function hasChromeLocalStorage() {
-    return (
-      typeof chrome !== "undefined" &&
-      chrome.storage &&
-      chrome.storage.local &&
-      typeof chrome.storage.local.get === "function"
-    );
-  }
-
-  function loadSettings() {
-    if (hasChromeStorage()) {
-      return new Promise((resolve) => {
-        chrome.storage.sync.get({ [STORAGE_KEY]: DEFAULT_SETTINGS }, (result) => {
-          resolve(result[STORAGE_KEY]);
-        });
-      });
-    }
-
-    try {
-      const stored = window.localStorage.getItem(STORAGE_KEY);
-      return Promise.resolve(stored ? JSON.parse(stored) : DEFAULT_SETTINGS);
-    } catch (error) {
-      return Promise.resolve(DEFAULT_SETTINGS);
-    }
-  }
-
-  function loadSecrets() {
-    if (hasChromeLocalStorage()) {
-      return new Promise((resolve) => {
-        chrome.storage.local.get({ [SECRETS_KEY]: DEFAULT_SECRETS }, (result) => {
-          resolve(result[SECRETS_KEY]);
-        });
-      });
-    }
-
-    try {
-      const stored = window.localStorage.getItem(SECRETS_KEY);
-      return Promise.resolve(stored ? JSON.parse(stored) : DEFAULT_SECRETS);
-    } catch (error) {
-      return Promise.resolve(DEFAULT_SECRETS);
-    }
-  }
-
   function saveSettings(partial) {
     settings = normalizeSettings({ ...settings, ...partial });
     render();
-
-    if (hasChromeStorage()) {
-      chrome.storage.sync.set({ [STORAGE_KEY]: settings }, () => setStatus("Saved"));
-      return;
-    }
-
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-      setStatus("Saved");
-    } catch (error) {
-      setStatus("Not saved");
-    }
+    writeSettings(settings).then(() => setStatus("Saved"), () => setStatus("Not saved"));
   }
 
   function saveSecrets(partial) {
     secrets = normalizeSecrets({ ...secrets, ...partial });
     render();
-
-    if (hasChromeLocalStorage()) {
-      chrome.storage.local.set({ [SECRETS_KEY]: secrets }, () => setStatus("Saved"));
-      return;
-    }
-
-    try {
-      window.localStorage.setItem(SECRETS_KEY, JSON.stringify(secrets));
-      setStatus("Saved");
-    } catch (error) {
-      setStatus("Not saved");
-    }
+    writeSecrets(secrets).then(() => setStatus("Saved"), () => setStatus("Not saved"));
   }
 
   function render() {

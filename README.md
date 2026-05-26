@@ -1,17 +1,27 @@
 # Feed Dock
 
-Feed Dock is a Chrome Manifest V3 extension for controlling YouTube and X/Twitter feed effects from the Chrome toolbar.
+Feed Dock is a Chrome Manifest V3 extension that quiets YouTube and X/Twitter from the toolbar.
 
-It is built as a no-bundle extension: clone the repo, load the folder in Chrome, and reload the extension after edits.
+The extension is intentionally simple: no build step, no bundled dependencies, no analytics, and no page-resident control panel. Load the folder in Chrome, click the toolbar button, and choose the effects you want.
 
 ## Features
 
-- YouTube: grayscale video thumbnails.
-- YouTube: hide recommendation surfaces on watch pages without blanking the home feed.
-- X/Twitter: hide promoted feed posts.
-- X/Twitter: hide tweets that match your filter criteria.
-- X/Twitter: use either local rules or Claude Haiku (`claude-3-5-haiku-20241022`) for semantic classification.
-- X/Twitter: optional criteria pills for additional tweet filtering.
+- Grayscale YouTube thumbnails.
+- Hide YouTube watch-page recommendation surfaces without blanking the home feed.
+- Hide promoted X/Twitter feed posts.
+- Filter X/Twitter posts that match your own criteria.
+- Choose a local rules evaluator or Claude Haiku (`claude-3-5-haiku-20241022`) for semantic classification.
+- Add and remove filter criteria as popup pills.
+
+## Status
+
+This repo is private today, but the project is structured as if it will be public soon. It is source-loadable for development and personal use. It is not packaged for the Chrome Web Store yet.
+
+## Requirements
+
+- Google Chrome or another Chromium browser with Manifest V3 support.
+- Node.js for running checks.
+- Optional: an Anthropic API key if you want Claude Haiku classification.
 
 ## Install From Source
 
@@ -26,17 +36,15 @@ Load it in Chrome:
 
 1. Open `chrome://extensions`.
 2. Enable `Developer mode`.
-3. Choose `Load unpacked`.
+3. Click `Load unpacked`.
 4. Select the cloned `feed-dock-extension` folder.
 5. Pin Feed Dock from Chrome's extensions menu if you want the button visible in the toolbar.
 
-Click the Feed Dock button in Chrome's toolbar to open the controls. Toggle settings and criteria are saved with `chrome.storage.sync`.
-
-After pulling updates or editing files, return to `chrome://extensions` and click the reload button on Feed Dock. Refresh any open YouTube or X/Twitter tabs so the updated content scripts run.
+After pulling updates or editing files, click the reload button for Feed Dock on `chrome://extensions`, then refresh any open YouTube or X/Twitter tabs.
 
 ## Configuration
 
-The popup includes these controls:
+Open the Feed Dock toolbar popup to configure:
 
 - `Enabled`: master switch for all effects.
 - `Gray thumbnails`: grayscales YouTube thumbnails.
@@ -45,30 +53,65 @@ The popup includes these controls:
 - `Filter out content`: hides X/Twitter posts that match your criteria.
 - `Evaluator`: choose `Local rules` or `Claude Haiku`.
 
-Claude Haiku mode requires an Anthropic API key in the popup. The key is stored in `chrome.storage.local`, and tweet text is sent to Anthropic only when Haiku mode is selected.
+Claude Haiku mode requires an Anthropic API key. The key is stored in `chrome.storage.local`. Toggle settings and criteria are stored in `chrome.storage.sync`.
 
-## Privacy Notes
+## Privacy
 
 - YouTube effects run locally through CSS.
-- Local X/Twitter rules run locally in the content script and background worker.
+- Local X/Twitter filtering runs locally in the extension.
 - Claude Haiku mode sends tweet text and your filter criteria to Anthropic for classification.
-- Anthropic API keys are not injected into YouTube or X/Twitter pages.
+- Your Anthropic API key is never injected into YouTube or X/Twitter pages.
+- The extension does not include analytics or telemetry.
+
+## Architecture
+
+```text
+manifest.json         Chrome extension manifest
+popup.html            Toolbar popup shell
+src/popup.js          Popup UI state and events
+src/popup.css         Popup styling
+src/content.js        YouTube/X content effects
+src/background.js     Haiku classification service worker
+src/settings.js       Settings defaults and normalization
+src/storage.js        Shared Chrome/local storage helpers
+src/filter-rules.js   Local X/Twitter filter rules
+src/styles.css        Page-injected CSS effects
+tests/                Node and Chrome smoke tests
+```
+
+There is no bundler. Files are loaded directly by Chrome, which keeps debugging and source loading straightforward.
 
 ## Development
 
-Run the checks:
+Run the full check suite:
 
 ```sh
 npm run check
 ```
 
-The check command validates JavaScript syntax, manifest references, filter settings, popup behavior, and a Chrome smoke test for the YouTube selector regression that previously hid the whole home feed.
+The check command validates JavaScript syntax, manifest references, settings normalization, local filter behavior, popup behavior, and a Chrome smoke test for the YouTube selector regression that previously hid the whole home feed.
 
-## Release Readiness
+## Troubleshooting
 
-Before making the repo public or packaging for the Chrome Web Store:
+- If changes do not appear, reload the extension on `chrome://extensions` and refresh the target tab.
+- If the toolbar popup looks stale, close and reopen it after reloading the extension.
+- If YouTube thumbnails are not grayscale, confirm `Enabled` and `Gray thumbnails` are checked, then refresh YouTube.
+- If Claude Haiku mode does not filter anything, confirm the API key is saved and that `Evaluator` is set to `Claude Haiku`.
+
+## Release Checklist
+
+Before publishing publicly or submitting to the Chrome Web Store:
 
 - Add extension icons.
-- Add screenshots of the popup and effects.
-- Add a Chrome Web Store privacy disclosure matching the `Privacy Notes` section.
-- Consider replacing direct Anthropic API-key entry with a safer hosted proxy if broader distribution is planned.
+- Add screenshots or a short demo.
+- Add Chrome Web Store privacy disclosures matching the `Privacy` section.
+- Decide whether direct user-provided Anthropic keys are acceptable or whether a hosted proxy is needed.
+- Add CI for `npm run check`.
+
+## Contributing
+
+Keep changes small and easy to inspect. Prefer direct browser APIs, plain JavaScript, and tests that cover the real DOM shapes that caused bugs.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

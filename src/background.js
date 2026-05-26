@@ -1,16 +1,12 @@
-importScripts("settings.js", "filter-rules.js");
+importScripts("settings.js", "storage.js", "filter-rules.js");
 
 (function installFeedDockBackground() {
   "use strict";
 
   const {
-    DEFAULT_SETTINGS,
-    DEFAULT_SECRETS,
-    SECRETS_KEY,
-    STORAGE_KEY,
-    normalizeSecrets,
-    normalizeSettings
-  } = self.FeedDockSettings;
+    loadSecrets,
+    loadSettings
+  } = self.FeedDockStorage;
   const MODEL = "claude-3-5-haiku-20241022";
   const ANTHROPIC_VERSION = "2023-06-01";
   const MAX_CACHE_ENTRIES = 400;
@@ -36,8 +32,8 @@ importScripts("settings.js", "filter-rules.js");
   });
 
   async function classifyTweetContent(text) {
-    const settings = await getSyncObject(STORAGE_KEY, DEFAULT_SETTINGS, normalizeSettings);
-    const secrets = await getLocalObject(SECRETS_KEY, DEFAULT_SECRETS, normalizeSecrets);
+    const settings = await loadSettings();
+    const secrets = await loadSecrets();
     const normalizedText = self.FeedDockRules.normalizeText(text).slice(0, 2000);
     const cacheKey = JSON.stringify({
       mode: settings.twitterClassifierMode,
@@ -152,22 +148,6 @@ ${text}`;
         return { blocked: false, reasons: [] };
       }
     }
-  }
-
-  function getSyncObject(key, defaults, normalize) {
-    return new Promise((resolve) => {
-      chrome.storage.sync.get({ [key]: defaults }, (result) => {
-        resolve(normalize(result[key]));
-      });
-    });
-  }
-
-  function getLocalObject(key, defaults, normalize) {
-    return new Promise((resolve) => {
-      chrome.storage.local.get({ [key]: defaults }, (result) => {
-        resolve(normalize(result[key]));
-      });
-    });
   }
 
   function setCached(key, value) {

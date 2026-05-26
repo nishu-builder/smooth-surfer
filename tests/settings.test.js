@@ -3,17 +3,13 @@
 const assert = require("node:assert/strict");
 const settings = require("../src/settings");
 
-assert.deepEqual(settings.normalizePatternList("one\ntwo, two"), ["one", "two"]);
-assert.deepEqual(settings.normalizePatternList([" Alpha ", "alpha", "Beta phrase"]), [
+assert.deepEqual(settings.normalizeCriteria("one\ntwo, two"), ["one", "two"]);
+assert.deepEqual(settings.normalizeCriteria([" Alpha ", "alpha", "Beta phrase"]), [
   "Alpha",
   "Beta phrase"
 ]);
 
-assert.equal(
-  settings.normalizeSettings({ twitterFilterFomoAi: false }).twitterFilterContent,
-  false
-);
-assert.deepEqual(settings.normalizeSettings({ twitterCustomPatterns: "one, two" }).twitterFilterCriteria, [
+assert.deepEqual(settings.normalizeSettings({ twitterFilterCriteria: "one, two" }).twitterFilterCriteria, [
   "one",
   "two"
 ]);

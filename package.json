@@ -3,7 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "description": "Chrome toolbar extension for YouTube and X/Twitter feed effects.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/nishu-builder/feed-dock-extension.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nishu-builder/feed-dock-extension/issues"
+  },
+  "homepage": "https://github.com/nishu-builder/feed-dock-extension#readme",
   "scripts": {
-    "check": "node --check src/settings.js && node --check src/filter-rules.js && node --check src/background.js && node --check src/content.js && node --check src/popup.js && node tests/settings.test.js && node tests/filter-rules.test.js && node tests/manifest.test.js && node tests/chrome-smoke.test.mjs"
+    "check": "node --check src/settings.js && node --check src/storage.js && node --check src/filter-rules.js && node --check src/background.js && node --check src/content.js && node --check src/popup.js && node tests/settings.test.js && node tests/filter-rules.test.js && node tests/manifest.test.js && node tests/chrome-smoke.test.mjs"
   }
 }
