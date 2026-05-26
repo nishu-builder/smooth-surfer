@@ -41,7 +41,7 @@
     const customMatches = findCustomMatches(normalized, customPatterns);
 
     if (customMatches.length > 0) {
-      reasons.push("custom phrase: " + customMatches.join(", "));
+      reasons.push("custom criterion: " + customMatches.join(", "));
     }
 
     const hasAi = AI_PATTERN.test(normalized);

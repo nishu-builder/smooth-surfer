@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Feed Dock</title>
+    <link rel="stylesheet" href="src/popup.css">
+  </head>
+  <body>
+    <main class="popup">
+      <header>
+        <div>
+          <h1>Feed Dock</h1>
+          <p data-status>Ready</p>
+        </div>
+        <label class="switch-row compact">
+          <span>Enabled</span>
+          <input type="checkbox" data-setting="enabled">
+        </label>
+      </header>
+
+      <section>
+        <h2>YouTube</h2>
+        <label class="switch-row">
+          <span>Gray thumbnails</span>
+          <input type="checkbox" data-setting="youtubeGrayscaleThumbnails">
+        </label>
+        <label class="switch-row">
+          <span>Hide recommendations</span>
+          <input type="checkbox" data-setting="youtubeHideRecommendations">
+        </label>
+      </section>
+
+      <section>
+        <h2>X / Twitter</h2>
+        <label class="switch-row">
+          <span>Remove feed ads</span>
+          <input type="checkbox" data-setting="twitterHideAds">
+        </label>
+        <label class="switch-row">
+          <span>Filter out content</span>
+          <input type="checkbox" data-setting="twitterFilterContent">
+        </label>
+
+        <label class="field-row">
+          <span>Evaluator</span>
+          <select data-setting="twitterClassifierMode">
+            <option value="local-rules">Local rules</option>
+            <option value="anthropic-haiku">Claude Haiku</option>
+          </select>
+        </label>
+        <label class="field-row" data-api-key-row>
+          <span>Anthropic key</span>
+          <input type="password" data-secret="anthropicApiKey" placeholder="sk-ant-...">
+        </label>
+        <form class="phrase-form" data-phrase-form>
+          <input type="text" data-phrase-input placeholder="Add filter criterion">
+          <button type="submit">Add</button>
+        </form>
+        <div class="pills" data-phrase-list aria-live="polite"></div>
+      </section>
+    </main>
+
+    <script src="src/settings.js"></script>
+    <script src="src/popup.js"></script>
+  </body>
+</html>
