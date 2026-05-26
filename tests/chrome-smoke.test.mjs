@@ -93,6 +93,8 @@ await writeFile(
         <div id="related">Related videos should be hidden</div>
       </ytd-watch-flexy>
       <ytd-thumbnail><img id="thumb" alt="" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="></ytd-thumbnail>
+      <a id="watch-thumb" href="/watch?v=abc"><img id="core-watch-thumb" class="yt-core-image" alt="" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="></a>
+      <yt-thumbnail-view-model><img id="view-model-thumb" alt="" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="></yt-thumbnail-view-model>
     </body>
   </html>`,
   "utf8"
@@ -125,7 +127,9 @@ try {
       homeSection: display("#home-section"),
       secondary: display("#secondary"),
       related: display("#related"),
-      thumbFilter: getComputedStyle(document.querySelector("#thumb")).filter
+      thumbFilter: getComputedStyle(document.querySelector("#thumb")).filter,
+      coreWatchThumbFilter: getComputedStyle(document.querySelector("#core-watch-thumb")).filter,
+      viewModelThumbFilter: getComputedStyle(document.querySelector("#view-model-thumb")).filter
     };
   })()`);
 
@@ -134,7 +138,15 @@ try {
   assert.equal(youtubeStyles.secondary, "none");
   assert.equal(youtubeStyles.related, "none");
   assert.match(youtubeStyles.thumbFilter, /grayscale/);
+  assert.match(youtubeStyles.coreWatchThumbFilter, /grayscale/);
+  assert.match(youtubeStyles.viewModelThumbFilter, /grayscale/);
 
+  await client.send("Emulation.setDeviceMetricsOverride", {
+    width: 260,
+    height: 720,
+    deviceScaleFactor: 1,
+    mobile: false
+  });
   await navigate(client, pathToFileURL(path.join(root, "popup.html")).href);
   await waitForExpression(client, `Boolean(document.querySelector("[data-phrase-input]"))`);
   const popupState = await evaluate(client, `(async () => {
@@ -150,6 +162,10 @@ try {
       hasFilterLabel: Boolean(filterLabel),
       hasOldFilterLabel: document.body.textContent.includes("Filter AI-upside FOMO"),
       hasEvaluator: Boolean(document.querySelector("[data-setting='twitterClassifierMode']")),
+      noHorizontalOverflow: document.documentElement.scrollWidth <= document.documentElement.clientWidth &&
+        document.body.scrollWidth <= document.body.clientWidth,
+      checkboxWidth: Math.round(document.querySelector("input[type='checkbox']").getBoundingClientRect().width),
+      popupWidth: Math.round(document.querySelector(".popup").getBoundingClientRect().width),
       pillText: document.querySelector("[data-phrase-list]").textContent,
       stored: JSON.parse(localStorage.getItem("feedDockSettings"))
     };
@@ -158,6 +174,9 @@ try {
   assert.equal(popupState.hasFilterLabel, true);
   assert.equal(popupState.hasOldFilterLabel, false);
   assert.equal(popupState.hasEvaluator, true);
+  assert.equal(popupState.noHorizontalOverflow, true);
+  assert.ok(popupState.checkboxWidth <= 22);
+  assert.ok(popupState.popupWidth <= 260);
   assert.match(popupState.pillText, /high-pressure AI investing hype/);
   assert.ok(
     popupState.stored.twitterFilterCriteria.includes("high-pressure AI investing hype")

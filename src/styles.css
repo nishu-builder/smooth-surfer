@@ -2,6 +2,14 @@ html.feed-dock-youtube-gray ytd-thumbnail img,
 html.feed-dock-youtube-gray ytd-playlist-thumbnail img,
 html.feed-dock-youtube-gray ytd-moving-thumbnail-renderer img,
 html.feed-dock-youtube-gray a#thumbnail img,
+html.feed-dock-youtube-gray a[href*="/watch"] img.yt-core-image,
+html.feed-dock-youtube-gray a[href*="/shorts/"] img.yt-core-image,
+html.feed-dock-youtube-gray ytd-rich-item-renderer img.yt-core-image,
+html.feed-dock-youtube-gray ytd-rich-grid-media img.yt-core-image,
+html.feed-dock-youtube-gray ytd-video-renderer img.yt-core-image,
+html.feed-dock-youtube-gray ytd-compact-video-renderer img.yt-core-image,
+html.feed-dock-youtube-gray yt-thumbnail-view-model img,
+html.feed-dock-youtube-gray yt-thumbnail-view-model yt-image img,
 html.feed-dock-youtube-gray ytm-thumbnail-cover img {
   filter: grayscale(1) !important;
   transition: filter 120ms ease-in-out !important;
