@@ -1,10 +1,10 @@
-# Feed Dock
+# Smooth Surfer
 
-Feed Dock is a Chrome Manifest V3 extension that quiets YouTube and X/Twitter from the toolbar.
+Smooth Surfer is a Chrome extension for browsing with only the waves you want.
 
-The extension is intentionally simple: no build step, no bundled dependencies, no analytics, and no page-resident control panel. Load the folder in Chrome, click the toolbar button, and choose the effects you want.
+It is intentionally simple: no build step, no bundled dependencies, no analytics, and no page-resident control panel. Load the folder in Chrome, click the toolbar button, and choose the waves you want to smooth out.
 
-## Features
+## Current Waves
 
 - Grayscale YouTube thumbnails.
 - Hide YouTube watch-page recommendation surfaces without blanking the home feed.
@@ -12,6 +12,8 @@ The extension is intentionally simple: no build step, no bundled dependencies, n
 - Filter X/Twitter posts that match your own criteria.
 - Choose a local rules evaluator or Claude Haiku (`claude-3-5-haiku-20241022`) for semantic classification.
 - Add and remove filter criteria as popup pills.
+
+The project is not meant to stop at these sites. The architecture is intentionally small so new web-smoothing effects can be added without turning the extension into a framework.
 
 ## Status
 
@@ -28,8 +30,8 @@ This repo is private today, but the project is structured as if it will be publi
 Clone the repo:
 
 ```sh
-git clone git@github.com:nishu-builder/feed-dock-extension.git
-cd feed-dock-extension
+git clone git@github.com:nishu-builder/smooth-surfer.git
+cd smooth-surfer
 ```
 
 Load it in Chrome:
@@ -37,14 +39,14 @@ Load it in Chrome:
 1. Open `chrome://extensions`.
 2. Enable `Developer mode`.
 3. Click `Load unpacked`.
-4. Select the cloned `feed-dock-extension` folder.
-5. Pin Feed Dock from Chrome's extensions menu if you want the button visible in the toolbar.
+4. Select the cloned `smooth-surfer` folder.
+5. Pin Smooth Surfer from Chrome's extensions menu if you want the button visible in the toolbar.
 
-After pulling updates or editing files, click the reload button for Feed Dock on `chrome://extensions`, then refresh any open YouTube or X/Twitter tabs.
+After pulling updates or editing files, click the reload button for Smooth Surfer on `chrome://extensions`, then refresh any open YouTube or X/Twitter tabs.
 
 ## Configuration
 
-Open the Feed Dock toolbar popup to configure:
+Open the Smooth Surfer toolbar popup to configure:
 
 - `Enabled`: master switch for all effects.
 - `Gray thumbnails`: grayscales YouTube thumbnails.

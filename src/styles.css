@@ -1,27 +1,27 @@
-html.feed-dock-youtube-gray ytd-thumbnail img,
-html.feed-dock-youtube-gray ytd-playlist-thumbnail img,
-html.feed-dock-youtube-gray ytd-moving-thumbnail-renderer img,
-html.feed-dock-youtube-gray a#thumbnail img,
-html.feed-dock-youtube-gray a[href*="/watch"] img.yt-core-image,
-html.feed-dock-youtube-gray a[href*="/shorts/"] img.yt-core-image,
-html.feed-dock-youtube-gray ytd-rich-item-renderer img.yt-core-image,
-html.feed-dock-youtube-gray ytd-rich-grid-media img.yt-core-image,
-html.feed-dock-youtube-gray ytd-video-renderer img.yt-core-image,
-html.feed-dock-youtube-gray ytd-compact-video-renderer img.yt-core-image,
-html.feed-dock-youtube-gray yt-thumbnail-view-model img,
-html.feed-dock-youtube-gray yt-thumbnail-view-model yt-image img,
-html.feed-dock-youtube-gray ytm-thumbnail-cover img {
+html.smooth-surfer-youtube-gray ytd-thumbnail img,
+html.smooth-surfer-youtube-gray ytd-playlist-thumbnail img,
+html.smooth-surfer-youtube-gray ytd-moving-thumbnail-renderer img,
+html.smooth-surfer-youtube-gray a#thumbnail img,
+html.smooth-surfer-youtube-gray a[href*="/watch"] img.yt-core-image,
+html.smooth-surfer-youtube-gray a[href*="/shorts/"] img.yt-core-image,
+html.smooth-surfer-youtube-gray ytd-rich-item-renderer img.yt-core-image,
+html.smooth-surfer-youtube-gray ytd-rich-grid-media img.yt-core-image,
+html.smooth-surfer-youtube-gray ytd-video-renderer img.yt-core-image,
+html.smooth-surfer-youtube-gray ytd-compact-video-renderer img.yt-core-image,
+html.smooth-surfer-youtube-gray yt-thumbnail-view-model img,
+html.smooth-surfer-youtube-gray yt-thumbnail-view-model yt-image img,
+html.smooth-surfer-youtube-gray ytm-thumbnail-cover img {
   filter: grayscale(1) !important;
   transition: filter 120ms ease-in-out !important;
 }
 
-html.feed-dock-youtube-hide-recs ytd-watch-next-secondary-results-renderer,
-html.feed-dock-youtube-hide-recs ytd-watch-flexy #secondary,
-html.feed-dock-youtube-hide-recs ytd-watch-flexy #related,
-html.feed-dock-youtube-hide-recs ytd-reel-shelf-renderer {
+html.smooth-surfer-youtube-hide-recs ytd-watch-next-secondary-results-renderer,
+html.smooth-surfer-youtube-hide-recs ytd-watch-flexy #secondary,
+html.smooth-surfer-youtube-hide-recs ytd-watch-flexy #related,
+html.smooth-surfer-youtube-hide-recs ytd-reel-shelf-renderer {
   display: none !important;
 }
 
-.feed-dock-hidden {
+.smooth-surfer-hidden {
   display: none !important;
 }

@@ -1,4 +1,4 @@
-(function installFeedDockPopup() {
+(function installSmoothSurferPopup() {
   "use strict";
 
   const {
@@ -8,13 +8,13 @@
     normalizeSecrets,
     normalizeSettings
   } =
-    window.FeedDockSettings;
+    window.SmoothSurferSettings;
   const {
     loadSecrets,
     loadSettings,
     saveSecrets: writeSecrets,
     saveSettings: writeSettings
-  } = window.FeedDockStorage;
+  } = window.SmoothSurferStorage;
 
   let settings = { ...DEFAULT_SETTINGS };
   let secrets = { ...DEFAULT_SECRETS };

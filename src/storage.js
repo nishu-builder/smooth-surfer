@@ -1,4 +1,4 @@
-(function createFeedDockStorage(root) {
+(function createSmoothSurferStorage(root) {
   "use strict";
 
   const {
@@ -8,7 +8,7 @@
     STORAGE_KEY,
     normalizeSecrets,
     normalizeSettings
-  } = root.FeedDockSettings;
+  } = root.SmoothSurferSettings;
 
   function loadSettings() {
     return read("sync", STORAGE_KEY, DEFAULT_SETTINGS, normalizeSettings);
@@ -103,7 +103,7 @@
     }
   }
 
-  root.FeedDockStorage = {
+  root.SmoothSurferStorage = {
     loadSecrets,
     loadSettings,
     saveSecrets,

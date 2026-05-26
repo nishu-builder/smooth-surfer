@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Feed Dock",
+  "name": "Smooth Surfer",
   "version": "0.1.0",
-  "description": "Toolbar controls for quieting YouTube and X/Twitter feeds.",
+  "description": "Surf the web with only the waves you want.",
   "permissions": ["storage"],
   "host_permissions": [
     "https://www.youtube.com/*",
@@ -19,7 +19,7 @@
     "service_worker": "src/background.js"
   },
   "action": {
-    "default_title": "Feed Dock",
+    "default_title": "Smooth Surfer",
     "default_popup": "popup.html"
   },
   "content_scripts": [

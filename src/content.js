@@ -1,10 +1,10 @@
-(function installFeedDock() {
+(function installSmoothSurfer() {
   "use strict";
 
-  const { loadSettings, watchSettings } = window.FeedDockStorage;
+  const { loadSettings, watchSettings } = window.SmoothSurferStorage;
   const SCAN_DEBOUNCE_MS = 120;
 
-  let settings = window.FeedDockSettings.normalizeSettings();
+  let settings = window.SmoothSurferSettings.normalizeSettings();
   let observer = null;
   let scanTimer = 0;
   const modelClassifications = new Map();
@@ -60,11 +60,11 @@
     const root = document.documentElement;
 
     root.classList.toggle(
-      "feed-dock-youtube-gray",
+      "smooth-surfer-youtube-gray",
       settings.enabled && platform === "youtube" && settings.youtubeGrayscaleThumbnails
     );
     root.classList.toggle(
-      "feed-dock-youtube-hide-recs",
+      "smooth-surfer-youtube-hide-recs",
       settings.enabled && platform === "youtube" && settings.youtubeHideRecommendations
     );
   }
@@ -114,7 +114,7 @@
       }
 
       if (settings.twitterFilterContent && settings.twitterClassifierMode === "local-rules") {
-        const classification = window.FeedDockRules.classifyTweetText(
+        const classification = window.SmoothSurferRules.classifyTweetText(
           getTweetText(article),
           settings.twitterFilterCriteria
         );
@@ -143,11 +143,11 @@
       return;
     }
 
-    if (container.dataset.feedDockPendingKey === key) {
+    if (container.dataset.smoothSurferPendingKey === key) {
       return;
     }
 
-    container.dataset.feedDockPendingKey = key;
+    container.dataset.smoothSurferPendingKey = key;
 
     if (!hasChromeRuntime()) {
       const fallback = {
@@ -165,7 +165,7 @@
         text
       },
       (response) => {
-        delete container.dataset.feedDockPendingKey;
+        delete container.dataset.smoothSurferPendingKey;
 
         if (chrome.runtime.lastError) {
           return;
@@ -190,7 +190,7 @@
     return JSON.stringify({
       mode: settings.twitterClassifierMode,
       criteria: settings.twitterFilterCriteria,
-      text: window.FeedDockRules.normalizeText(text)
+      text: window.SmoothSurferRules.normalizeText(text)
     });
   }
 
@@ -228,23 +228,23 @@
   }
 
   function hideTweet(container, reasons) {
-    container.classList.add("feed-dock-hidden");
-    container.dataset.feedDockHidden = "true";
-    container.dataset.feedDockReasons = reasons.join("; ");
+    container.classList.add("smooth-surfer-hidden");
+    container.dataset.smoothSurferHidden = "true";
+    container.dataset.smoothSurferReasons = reasons.join("; ");
   }
 
   function restoreTweet(container) {
-    if (container.dataset.feedDockHidden !== "true") {
+    if (container.dataset.smoothSurferHidden !== "true") {
       return;
     }
 
-    container.classList.remove("feed-dock-hidden");
-    delete container.dataset.feedDockHidden;
-    delete container.dataset.feedDockReasons;
+    container.classList.remove("smooth-surfer-hidden");
+    delete container.dataset.smoothSurferHidden;
+    delete container.dataset.smoothSurferReasons;
   }
 
   function restoreHiddenTweets() {
-    document.querySelectorAll('[data-feed-dock-hidden="true"]').forEach((element) => {
+    document.querySelectorAll('[data-smooth-surfer-hidden="true"]').forEach((element) => {
       restoreTweet(element);
     });
   }

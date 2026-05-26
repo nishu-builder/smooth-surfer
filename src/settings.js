@@ -1,8 +1,8 @@
-(function createFeedDockSettings(root) {
+(function createSmoothSurferSettings(root) {
   "use strict";
 
-  const STORAGE_KEY = "feedDockSettings";
-  const SECRETS_KEY = "feedDockSecrets";
+  const STORAGE_KEY = "smoothSurferSettings";
+  const SECRETS_KEY = "smoothSurferSecrets";
   const DEFAULT_FILTER_CRITERIA = [
     "AI hype that pressures the reader with FOMO, loss framing, or financial upside."
   ];
@@ -79,7 +79,7 @@
     normalizeSettings
   };
 
-  root.FeedDockSettings = api;
+  root.SmoothSurferSettings = api;
 
   if (typeof module !== "undefined" && module.exports) {
     module.exports = api;

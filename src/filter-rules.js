@@ -1,4 +1,4 @@
-(function createFeedDockRules(root) {
+(function createSmoothSurferRules(root) {
   "use strict";
 
   const AI_PATTERN =
@@ -68,7 +68,7 @@
     normalizeText
   };
 
-  root.FeedDockRules = api;
+  root.SmoothSurferRules = api;
 
   if (typeof module !== "undefined" && module.exports) {
     module.exports = api;

@@ -1,12 +1,12 @@
 importScripts("settings.js", "storage.js", "filter-rules.js");
 
-(function installFeedDockBackground() {
+(function installSmoothSurferBackground() {
   "use strict";
 
   const {
     loadSecrets,
     loadSettings
-  } = self.FeedDockStorage;
+  } = self.SmoothSurferStorage;
   const MODEL = "claude-3-5-haiku-20241022";
   const ANTHROPIC_VERSION = "2023-06-01";
   const MAX_CACHE_ENTRIES = 400;
@@ -34,7 +34,7 @@ importScripts("settings.js", "storage.js", "filter-rules.js");
   async function classifyTweetContent(text) {
     const settings = await loadSettings();
     const secrets = await loadSecrets();
-    const normalizedText = self.FeedDockRules.normalizeText(text).slice(0, 2000);
+    const normalizedText = self.SmoothSurferRules.normalizeText(text).slice(0, 2000);
     const cacheKey = JSON.stringify({
       mode: settings.twitterClassifierMode,
       criteria: settings.twitterFilterCriteria,
@@ -55,7 +55,7 @@ importScripts("settings.js", "storage.js", "filter-rules.js");
   }
 
   function classifyWithRules(text, criteria) {
-    const result = self.FeedDockRules.classifyTweetText(text, criteria);
+    const result = self.SmoothSurferRules.classifyTweetText(text, criteria);
     return {
       ...result,
       classifier: "local-rules"

@@ -70,7 +70,7 @@ class CdpClient {
   }
 }
 
-const tmpDir = await mkdtemp(path.join(os.tmpdir(), "feed-dock-chrome-"));
+const tmpDir = await mkdtemp(path.join(os.tmpdir(), "smooth-surfer-chrome-"));
 const profileDir = path.join(tmpDir, "profile");
 const fixturePath = path.join(tmpDir, "youtube-fixture.html");
 const port = await getFreePort();
@@ -78,7 +78,7 @@ const port = await getFreePort();
 await writeFile(
   fixturePath,
   `<!doctype html>
-  <html class="feed-dock-youtube-hide-recs feed-dock-youtube-gray">
+  <html class="smooth-surfer-youtube-hide-recs smooth-surfer-youtube-gray">
     <head>
       <meta charset="utf-8">
       <link rel="stylesheet" href="${pathToFileURL(path.join(root, "src/styles.css")).href}">
@@ -168,7 +168,7 @@ try {
       popupWidth: Math.round(document.querySelector(".popup").getBoundingClientRect().width),
       bodyWidth: Math.round(document.body.getBoundingClientRect().width),
       pillText: document.querySelector("[data-phrase-list]").textContent,
-      stored: JSON.parse(localStorage.getItem("feedDockSettings"))
+      stored: JSON.parse(localStorage.getItem("smoothSurferSettings"))
     };
   })()`);
 
