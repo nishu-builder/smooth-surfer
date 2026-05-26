@@ -1,7 +1,12 @@
 (function installSmoothSurfer() {
   "use strict";
 
-  const { loadSettings, watchSettings } = window.SmoothSurferStorage;
+  const {
+    loadSecrets,
+    loadSettings,
+    watchSecrets,
+    watchSettings
+  } = window.SmoothSurferStorage;
   const SCAN_DEBOUNCE_MS = 120;
   const WORK_SITE_HOSTS = [
     "app.asana.com",
@@ -22,6 +27,7 @@
   ];
 
   let settings = window.SmoothSurferSettings.normalizeSettings();
+  let secrets = window.SmoothSurferSettings.normalizeSecrets();
   let observer = null;
   let scanTimer = 0;
   let scrollPause = null;
@@ -33,8 +39,9 @@
   start();
 
   function start() {
-    loadSettings().then((loadedSettings) => {
+    Promise.all([loadSettings(), loadSecrets()]).then(([loadedSettings, loadedSecrets]) => {
       settings = loadedSettings;
+      secrets = loadedSecrets;
       whenBodyReady(() => {
         applyEffects();
         startPageObserver();
@@ -43,6 +50,13 @@
 
     watchSettings((nextSettings) => {
       settings = nextSettings;
+      modelClassifications.clear();
+      applyEffects();
+    });
+
+    watchSecrets((nextSecrets) => {
+      secrets = nextSecrets;
+      modelClassifications.clear();
       applyEffects();
     });
   }
@@ -233,7 +247,9 @@
   function scanTwitterPage() {
     enforceTwitterFollowing();
 
-    if (!settings.enabled || (!settings.twitterHideAds && !settings.twitterFilterContent)) {
+    const canFilterContent = canFilterTwitterContent();
+
+    if (!settings.enabled || (!settings.twitterHideAds && !canFilterContent)) {
       restoreHiddenTweets();
       return;
     }
@@ -251,20 +267,9 @@
         return;
       }
 
-      if (settings.twitterFilterContent && settings.twitterClassifierMode === "local-rules") {
-        const classification = window.SmoothSurferRules.classifyTweetText(
-          getTweetText(article),
-          settings.twitterFilterCriteria
-        );
-
-        if (classification.blocked) {
-          reasons.push(...classification.reasons);
-        }
-      }
-
       if (reasons.length > 0) {
         hideTweet(container, reasons);
-      } else if (settings.twitterFilterContent && settings.twitterClassifierMode === "anthropic-haiku") {
+      } else if (canFilterContent) {
         requestModelClassification(container, getTweetText(article));
       } else {
         restoreTweet(container);
@@ -421,10 +426,14 @@
 
   function getClassificationKey(text) {
     return JSON.stringify({
-      mode: settings.twitterClassifierMode,
+      classifier: "claude-haiku",
       criteria: settings.twitterFilterCriteria,
-      text: window.SmoothSurferRules.normalizeText(text)
+      text: normalizeInlineText(text)
     });
+  }
+
+  function canFilterTwitterContent() {
+    return settings.twitterFilterContent && Boolean(secrets.anthropicApiKey);
   }
 
   function hasChromeRuntime() {

@@ -23,6 +23,7 @@
   const settingInputs = Array.from(document.querySelectorAll("[data-setting]"));
   const secretInputs = Array.from(document.querySelectorAll("[data-secret]"));
   const apiKeyRow = document.querySelector("[data-api-key-row]");
+  const filterKeyStatus = document.querySelector("[data-filter-key-status]");
   const phraseForm = document.querySelector("[data-phrase-form]");
   const phraseInput = document.querySelector("[data-phrase-input]");
   const phraseList = document.querySelector("[data-phrase-list]");
@@ -109,13 +110,23 @@
 
     secretInputs.forEach((input) => {
       input.value = secrets[input.dataset.secret] || "";
-      input.disabled = !settings.enabled || settings.twitterClassifierMode !== "anthropic-haiku";
+      input.disabled = !settings.enabled;
     });
 
-    apiKeyRow.hidden = settings.twitterClassifierMode !== "anthropic-haiku";
+    apiKeyRow.hidden = false;
+    renderFilterKeyStatus();
     phraseInput.disabled = !settings.enabled || !settings.twitterFilterContent;
     phraseForm.querySelector("button").disabled = phraseInput.disabled;
     renderPhrases();
+  }
+
+  function renderFilterKeyStatus() {
+    const hasKey = Boolean(secrets.anthropicApiKey);
+
+    filterKeyStatus.hidden = !settings.twitterFilterContent;
+    filterKeyStatus.textContent = hasKey
+      ? "Claude Haiku filtering is active."
+      : "Content filtering is off until an Anthropic key is saved.";
   }
 
   function renderPhrases() {

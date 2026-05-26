@@ -1,139 +1,26 @@
 # Smooth Surfer
 
-Smooth Surfer is a Chrome extension for browsing with only the waves you want.
+Smooth Surfer is a small Chrome extension for browsing with less feed noise. It hides or softens selected YouTube, X/Twitter, and generic feed distractions from the toolbar popup.
 
-It is intentionally simple: no build step, no bundled dependencies, no analytics, and no page-resident control panel. Load the folder in Chrome, click the toolbar button, and choose the waves you want to smooth out.
+X/Twitter content filtering is disabled unless you save an Anthropic key. When a key is present, Smooth Surfer uses Claude Haiku with your filter criteria.
 
-## Current Waves
-
-- Grayscale YouTube thumbnails.
-- Hide YouTube watch-page recommendation surfaces without blanking the home feed.
-- Hide promoted X/Twitter feed posts.
-- Filter X/Twitter posts that match built-in presets or your own criteria.
-- Prefer the X/Twitter Following timeline over For You.
-- Hide X/Twitter trends.
-- Pause very deep scrolling with a small “Surf break” prompt.
-- Hide sticky floating video players.
-- Gray distracting feed media.
-- Choose a local rules evaluator or Claude Haiku (`claude-3-5-haiku-20241022`) for semantic classification.
-- Expand, add, and remove filter criteria as popup pills.
-
-The project is not meant to stop at these sites. The architecture is intentionally small so new web-smoothing effects can be added without turning the extension into a framework.
-
-## Status
-
-This repo is private today, but the project is structured as if it will be public soon. It is source-loadable for development and personal use. It is not packaged for the Chrome Web Store yet.
-
-## Requirements
-
-- Google Chrome or another Chromium browser with Manifest V3 support.
-- Node.js for running checks.
-- Optional: an Anthropic API key if you want Claude Haiku classification.
-
-## Install From Source
-
-Clone the repo:
+## Setup
 
 ```sh
 git clone git@github.com:nishu-builder/smooth-surfer.git
 cd smooth-surfer
 ```
 
-Load it in Chrome:
-
 1. Open `chrome://extensions`.
 2. Enable `Developer mode`.
 3. Click `Load unpacked`.
-4. Select the cloned `smooth-surfer` folder.
-5. Pin Smooth Surfer from Chrome's extensions menu if you want the button visible in the toolbar.
+4. Select the `smooth-surfer` folder.
+5. Pin Smooth Surfer from Chrome's extensions menu.
 
-After pulling updates or editing files, click the reload button for Smooth Surfer on `chrome://extensions`, then refresh any open YouTube or X/Twitter tabs.
+After changing files or pulling updates, reload the extension on `chrome://extensions`, then refresh open target tabs.
 
-## Configuration
-
-Open the Smooth Surfer toolbar popup to configure:
-
-- `Enabled`: master switch for all effects.
-- `Gray thumbnails`: grayscales YouTube thumbnails.
-- `Hide recommendations`: hides YouTube watch-page recommendation surfaces.
-- `Hide Shorts`: removes Shorts links and shelves.
-- `Block Shorts pages`: redirects away from `/shorts/...` pages.
-- `Hide games`: removes Playables/games shelves.
-- `Hide live chat`: hides YouTube live chat.
-- `Disable autoplay`: turns YouTube autoplay off when it is on.
-- `Hide end screens`: hides end-of-video overlays.
-- `Hide engagement stats`: hides likes/views/subscriber-style stats.
-- `Remove feed ads`: hides promoted X/Twitter feed posts.
-- `Filter out content`: hides X/Twitter posts that match your criteria.
-- `Hide trends`: hides X/Twitter trend modules.
-- `Prefer Following`: switches the home timeline from For You to Following when possible.
-- `Evaluator`: choose `Local rules` or `Claude Haiku`.
-- `Hide sticky videos`: hides floating sticky video players across matched pages.
-- `Pause deep scrolling`: pauses after roughly eight screenfuls of scrolling.
-- `Gray distracting media`: grayscales media in feed-like surfaces.
-
-The broad `Everywhere` effects intentionally skip common work and productivity sites such as GitHub, Graphite, Linear, Asana, Notion, Slack, Google Docs, and similar tools.
-
-Claude Haiku mode requires an Anthropic API key. The key is stored in `chrome.storage.local`. Toggle settings and criteria are stored in `chrome.storage.sync`.
-
-## Privacy
-
-- YouTube effects run locally through CSS.
-- Local X/Twitter filtering runs locally in the extension.
-- Cross-site waves run locally in the content script. The extension uses broad page matching so generic waves like sticky-video hiding and deep-scroll pauses can work beyond the first supported sites.
-- Claude Haiku mode sends tweet text and your filter criteria to Anthropic for classification.
-- Your Anthropic API key is never injected into YouTube or X/Twitter pages.
-- The extension does not include analytics or telemetry.
-
-## Architecture
-
-```text
-manifest.json         Chrome extension manifest
-popup.html            Toolbar popup shell
-src/popup.js          Popup UI state and events
-src/popup.css         Popup styling
-src/content.js        YouTube/X content effects
-src/background.js     Haiku classification service worker
-src/settings.js       Settings defaults and normalization
-src/storage.js        Shared Chrome/local storage helpers
-src/filter-rules.js   Local X/Twitter filter rules
-src/styles.css        Page-injected CSS effects
-tests/                Node and Chrome smoke tests
-```
-
-There is no bundler. Files are loaded directly by Chrome, which keeps debugging and source loading straightforward.
-
-## Development
-
-Run the full check suite:
+To enable Haiku filtering, open the toolbar popup and save an Anthropic API key. Without a key, `Filter out content` does not hide posts.
 
 ```sh
 npm run check
 ```
-
-The check command validates JavaScript syntax, manifest references, settings normalization, local filter behavior, popup behavior, and a Chrome smoke test for the YouTube selector regression that previously hid the whole home feed.
-
-## Troubleshooting
-
-- If changes do not appear, reload the extension on `chrome://extensions` and refresh the target tab.
-- If the toolbar popup looks stale, close and reopen it after reloading the extension.
-- If YouTube thumbnails are not grayscale, confirm `Enabled` and `Gray thumbnails` are checked, then refresh YouTube.
-- If Claude Haiku mode does not filter anything, confirm the API key is saved and that `Evaluator` is set to `Claude Haiku`.
-
-## Release Checklist
-
-Before publishing publicly or submitting to the Chrome Web Store:
-
-- Add extension icons.
-- Add screenshots or a short demo.
-- Add Chrome Web Store privacy disclosures matching the `Privacy` section.
-- Decide whether direct user-provided Anthropic keys are acceptable or whether a hosted proxy is needed.
-- Add CI for `npm run check`.
-
-## Contributing
-
-Keep changes small and easy to inspect. Prefer direct browser APIs, plain JavaScript, and tests that cover the real DOM shapes that caused bugs.
-
-## License
-
-MIT. See [LICENSE](LICENSE).

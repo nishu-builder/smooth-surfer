@@ -219,6 +219,20 @@ input:disabled {
   min-width: 0;
 }
 
+.notice {
+  border: 1px solid rgba(23, 31, 42, 0.12);
+  border-radius: 6px;
+  background: #f6f7f9;
+  color: #5b6677;
+  font-size: 11px;
+  font-weight: 650;
+  padding: 7px;
+}
+
+.notice[hidden] {
+  display: none;
+}
+
 .pills {
   display: grid;
   gap: 6px;

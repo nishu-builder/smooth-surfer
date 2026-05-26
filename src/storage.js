@@ -27,6 +27,14 @@
   }
 
   function watchSettings(callback) {
+    watchStorage("sync", STORAGE_KEY, normalizeSettings, callback);
+  }
+
+  function watchSecrets(callback) {
+    watchStorage("local", SECRETS_KEY, normalizeSecrets, callback);
+  }
+
+  function watchStorage(areaName, key, normalize, callback) {
     if (
       typeof chrome === "undefined" ||
       !chrome.storage ||
@@ -36,9 +44,9 @@
       return;
     }
 
-    chrome.storage.onChanged.addListener((changes, areaName) => {
-      if (areaName === "sync" && changes[STORAGE_KEY]) {
-        callback(normalizeSettings(changes[STORAGE_KEY].newValue));
+    chrome.storage.onChanged.addListener((changes, changedAreaName) => {
+      if (changedAreaName === areaName && changes[key]) {
+        callback(normalize(changes[key].newValue));
       }
     });
   }
@@ -108,6 +116,7 @@
     loadSettings,
     saveSecrets,
     saveSettings,
+    watchSecrets,
     watchSettings
   };
 })(typeof globalThis !== "undefined" ? globalThis : window);

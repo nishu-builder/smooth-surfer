@@ -187,7 +187,8 @@ try {
     return {
       hasFilterLabel: Boolean(filterLabel),
       hasOldFilterLabel: document.body.textContent.includes("Filter AI-upside FOMO"),
-      hasEvaluator: Boolean(document.querySelector("[data-setting='twitterClassifierMode']")),
+      hasLegacyClassifierSelect: Boolean(document.querySelector("[data-setting='twitterClassifierMode']")),
+      keyStatus: document.querySelector("[data-filter-key-status]").textContent,
       hasCriteriaDisclosure: criterion.tagName === "DETAILS",
       toggleCount,
       describedToggleCount,
@@ -205,7 +206,8 @@ try {
 
   assert.equal(popupState.hasFilterLabel, true);
   assert.equal(popupState.hasOldFilterLabel, false);
-  assert.equal(popupState.hasEvaluator, true);
+  assert.equal(popupState.hasLegacyClassifierSelect, false);
+  assert.match(popupState.keyStatus, /off until an Anthropic key is saved/);
   assert.equal(popupState.hasCriteriaDisclosure, true);
   assert.equal(popupState.describedToggleCount, popupState.toggleCount);
   assert.equal(popupState.closedWhiteSpace, "nowrap");
@@ -269,12 +271,10 @@ try {
   assert.equal(workSiteState.thumbFilter, "none");
 
   await navigate(client, `http://twitter.com.test:${fixturePort}/home`);
-  await waitForExpression(
-    client,
-    `document.querySelector("#bait-cell").dataset.smoothSurferHiddenKind === "tweet"`
-  );
+  await waitForExpression(client, `document.querySelector("#following-tab").dataset.clicked === "true"`);
   const twitterContentState = await evaluate(client, `(() => ({
     followingClicked: document.querySelector("#following-tab").dataset.clicked === "true",
+    promotedHidden: document.querySelector("#promoted-cell").dataset.smoothSurferHiddenKind === "tweet",
     baitHidden: document.querySelector("#bait-cell").dataset.smoothSurferHiddenKind === "tweet",
     tagSpamHidden: document.querySelector("#tag-spam-cell").dataset.smoothSurferHiddenKind === "tweet",
     linkedinHidden: document.querySelector("#linkedin-cell").dataset.smoothSurferHiddenKind === "tweet",
@@ -282,9 +282,10 @@ try {
   }))()`);
 
   assert.equal(twitterContentState.followingClicked, true);
-  assert.equal(twitterContentState.baitHidden, true);
-  assert.equal(twitterContentState.tagSpamHidden, true);
-  assert.equal(twitterContentState.linkedinHidden, true);
+  assert.equal(twitterContentState.promotedHidden, true);
+  assert.equal(twitterContentState.baitHidden, false);
+  assert.equal(twitterContentState.tagSpamHidden, false);
+  assert.equal(twitterContentState.linkedinHidden, false);
   assert.equal(twitterContentState.trendDisplay, "none");
 
   client.close();
@@ -482,7 +483,6 @@ function youtubeContentFixture() {
       <div id="sticky-player"><video></video></div>
       <script src="/src/settings.js"></script>
       <script src="/src/storage.js"></script>
-      <script src="/src/filter-rules.js"></script>
       <script src="/src/content.js"></script>
     </body>
   </html>`;
@@ -507,6 +507,12 @@ function twitterContentFixture() {
           Following
         </button>
         <aside data-testid="trend" id="trend-module">Trending topic</aside>
+        <div data-testid="cellInnerDiv" id="promoted-cell">
+          <article data-testid="tweet">
+            <span>Promoted</span>
+            <div data-testid="tweetText">Sponsored post</div>
+          </article>
+        </div>
         <div data-testid="cellInnerDiv" id="bait-cell">
           <article data-testid="tweet">
             <div data-testid="tweetText">Reply below if you agree.</div>
@@ -529,7 +535,6 @@ That changed everything for my work.</div>
       </main>
       <script src="/src/settings.js"></script>
       <script src="/src/storage.js"></script>
-      <script src="/src/filter-rules.js"></script>
       <script src="/src/content.js"></script>
     </body>
   </html>`;
@@ -555,7 +560,6 @@ function workContentFixture() {
       <div id="sticky-player"><video></video></div>
       <script src="/src/settings.js"></script>
       <script src="/src/storage.js"></script>
-      <script src="/src/filter-rules.js"></script>
       <script src="/src/content.js"></script>
     </body>
   </html>`;

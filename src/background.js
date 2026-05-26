@@ -1,4 +1,4 @@
-importScripts("settings.js", "storage.js", "filter-rules.js");
+importScripts("settings.js", "storage.js");
 
 (function installSmoothSurferBackground() {
   "use strict";
@@ -34,9 +34,18 @@ importScripts("settings.js", "storage.js", "filter-rules.js");
   async function classifyTweetContent(text) {
     const settings = await loadSettings();
     const secrets = await loadSecrets();
-    const normalizedText = self.SmoothSurferRules.normalizeText(text).slice(0, 2000);
+    const normalizedText = normalizeText(text).slice(0, 2000);
+
+    if (!settings.twitterFilterContent || !secrets.anthropicApiKey) {
+      return {
+        blocked: false,
+        reasons: [],
+        classifier: "disabled"
+      };
+    }
+
     const cacheKey = JSON.stringify({
-      mode: settings.twitterClassifierMode,
+      classifier: "claude-haiku",
       criteria: settings.twitterFilterCriteria,
       text: normalizedText
     });
@@ -45,21 +54,14 @@ importScripts("settings.js", "storage.js", "filter-rules.js");
       return resultCache.get(cacheKey);
     }
 
-    const result =
-      settings.twitterClassifierMode === "anthropic-haiku" && secrets.anthropicApiKey
-        ? await classifyWithHaiku(normalizedText, settings.twitterFilterCriteria, secrets.anthropicApiKey)
-        : classifyWithRules(normalizedText, settings.twitterFilterCriteria);
+    const result = await classifyWithHaiku(
+      normalizedText,
+      settings.twitterFilterCriteria,
+      secrets.anthropicApiKey
+    );
 
     setCached(cacheKey, result);
     return result;
-  }
-
-  function classifyWithRules(text, criteria) {
-    const result = self.SmoothSurferRules.classifyTweetText(text, criteria);
-    return {
-      ...result,
-      classifier: "local-rules"
-    };
   }
 
   async function classifyWithHaiku(text, criteria, apiKey) {
@@ -161,5 +163,11 @@ ${text}`;
 
     const oldestKey = resultCache.keys().next().value;
     resultCache.delete(oldestKey);
+  }
+
+  function normalizeText(text) {
+    return String(text || "")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 })();

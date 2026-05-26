@@ -13,6 +13,8 @@ assert.ok(manifest.content_scripts.length > 0);
 assert.equal(manifest.action.default_popup, "popup.html");
 assert.equal(manifest.background.service_worker, "src/background.js");
 assert.ok(manifest.host_permissions.includes("https://api.anthropic.com/*"));
+assert.equal(manifest.icons["128"], "icons/icon128.png");
+assert.equal(manifest.action.default_icon["16"], "icons/icon16.png");
 
 const contentScript = manifest.content_scripts[0];
 assert.ok(contentScript.matches.includes("<all_urls>"));
@@ -20,6 +22,8 @@ assert.ok(contentScript.matches.includes("<all_urls>"));
 for (const file of [
   manifest.action.default_popup,
   manifest.background.service_worker,
+  ...Object.values(manifest.icons),
+  ...Object.values(manifest.action.default_icon),
   "src/popup.css",
   "src/popup.js",
   "src/storage.js",

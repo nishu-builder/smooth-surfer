@@ -65,7 +65,7 @@
           <span>Remove feed ads</span>
           <input type="checkbox" data-setting="twitterHideAds">
         </label>
-        <label class="switch-row" data-description="Hides posts that match your criteria using local rules or Claude Haiku.">
+        <label class="switch-row" data-description="Requires an Anthropic key. Without one, content filtering stays off.">
           <span>Filter out content</span>
           <input type="checkbox" data-setting="twitterFilterContent">
         </label>
@@ -78,17 +78,11 @@
           <input type="checkbox" data-setting="twitterEnforceFollowing">
         </label>
 
-        <label class="field-row">
-          <span>Evaluator</span>
-          <select data-setting="twitterClassifierMode">
-            <option value="local-rules">Local rules</option>
-            <option value="anthropic-haiku">Claude Haiku</option>
-          </select>
-        </label>
         <label class="field-row" data-api-key-row>
           <span>Anthropic key</span>
           <input type="password" data-secret="anthropicApiKey" placeholder="sk-ant-...">
         </label>
+        <p class="notice" data-filter-key-status></p>
         <form class="phrase-form" data-phrase-form>
           <input type="text" data-phrase-input placeholder="Add filter criterion">
           <button type="submit">Add</button>

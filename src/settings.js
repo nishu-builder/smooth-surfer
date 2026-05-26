@@ -30,7 +30,6 @@
     youtubeHideEngagementStats: true,
     twitterHideAds: true,
     twitterFilterContent: true,
-    twitterClassifierMode: "local-rules",
     twitterFilterCriteria: [...DEFAULT_FILTER_CRITERIA],
     twitterHideTrends: true,
     twitterEnforceFollowing: true,
@@ -82,14 +81,13 @@
     next.youtubeHideEngagementStats = Boolean(next.youtubeHideEngagementStats);
     next.twitterHideAds = Boolean(next.twitterHideAds);
     next.twitterFilterContent = Boolean(next.twitterFilterContent);
-    next.twitterClassifierMode =
-      next.twitterClassifierMode === "anthropic-haiku" ? "anthropic-haiku" : "local-rules";
     next.twitterFilterCriteria = normalizeFilterCriteria(source.twitterFilterCriteria || DEFAULT_FILTER_CRITERIA);
     next.twitterHideTrends = Boolean(next.twitterHideTrends);
     next.twitterEnforceFollowing = Boolean(next.twitterEnforceFollowing);
     next.hideStickyVideoPlayers = Boolean(next.hideStickyVideoPlayers);
     next.pauseDeepScrolling = Boolean(next.pauseDeepScrolling);
     next.softenDistractingElements = Boolean(next.softenDistractingElements);
+    delete next.twitterClassifierMode;
 
     return next;
   }

@@ -13,10 +13,10 @@ assert.deepEqual(settings.normalizeSettings({ twitterFilterCriteria: "one, two" 
   "one",
   "two"
 ]);
-assert.equal(settings.normalizeSettings({ twitterClassifierMode: "anthropic-haiku" }).twitterClassifierMode, "anthropic-haiku");
 assert.equal(settings.normalizeSecrets({ anthropicApiKey: "  sk-ant-test  " }).anthropicApiKey, "sk-ant-test");
 
 const defaults = settings.normalizeSettings();
+assert.equal(Object.hasOwn(defaults, "twitterClassifierMode"), false);
 assert.equal(defaults.youtubeHideShorts, true);
 assert.equal(defaults.youtubeBlockShorts, true);
 assert.equal(defaults.youtubeHideGames, true);
