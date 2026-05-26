@@ -15,6 +15,15 @@ html.smooth-surfer-youtube-gray ytm-thumbnail-cover img {
   transition: filter 120ms ease-in-out !important;
 }
 
+html.smooth-surfer-soften-distracting article img,
+html.smooth-surfer-soften-distracting article video,
+html.smooth-surfer-soften-distracting [role="feed"] img,
+html.smooth-surfer-soften-distracting [role="feed"] video,
+html.smooth-surfer-soften-distracting ytd-thumbnail img,
+html.smooth-surfer-soften-distracting yt-thumbnail-view-model img {
+  filter: grayscale(0.9) !important;
+}
+
 html.smooth-surfer-youtube-hide-recs ytd-watch-next-secondary-results-renderer,
 html.smooth-surfer-youtube-hide-recs ytd-watch-flexy #secondary,
 html.smooth-surfer-youtube-hide-recs ytd-watch-flexy #related,
@@ -22,6 +31,78 @@ html.smooth-surfer-youtube-hide-recs ytd-reel-shelf-renderer {
   display: none !important;
 }
 
+html.smooth-surfer-youtube-hide-shorts a[href^="/shorts"],
+html.smooth-surfer-youtube-hide-shorts a[href*="/shorts/"],
+html.smooth-surfer-youtube-hide-shorts ytd-mini-guide-entry-renderer[aria-label="Shorts"],
+html.smooth-surfer-youtube-hide-shorts ytd-guide-entry-renderer a[title="Shorts"],
+html.smooth-surfer-youtube-hide-shorts ytd-reel-shelf-renderer,
+html.smooth-surfer-youtube-hide-shorts ytm-reel-shelf-renderer {
+  display: none !important;
+}
+
+html.smooth-surfer-youtube-hide-live-chat ytd-live-chat-frame,
+html.smooth-surfer-youtube-hide-live-chat #chat,
+html.smooth-surfer-youtube-hide-live-chat #chat-container {
+  display: none !important;
+}
+
+html.smooth-surfer-youtube-hide-end-screens .ytp-ce-element,
+html.smooth-surfer-youtube-hide-end-screens .ytp-endscreen-content,
+html.smooth-surfer-youtube-hide-end-screens .html5-endscreen {
+  display: none !important;
+}
+
+html.smooth-surfer-youtube-hide-engagement #owner-sub-count,
+html.smooth-surfer-youtube-hide-engagement #info #count,
+html.smooth-surfer-youtube-hide-engagement #count,
+html.smooth-surfer-youtube-hide-engagement #metadata-line,
+html.smooth-surfer-youtube-hide-engagement ytd-video-meta-block #metadata-line,
+html.smooth-surfer-youtube-hide-engagement #top-level-buttons-computed,
+html.smooth-surfer-youtube-hide-engagement ytd-toggle-button-renderer {
+  display: none !important;
+}
+
+html.smooth-surfer-twitter-hide-trends [data-testid="trend"],
+html.smooth-surfer-twitter-hide-trends [aria-label="Timeline: Trending now"],
+html.smooth-surfer-twitter-hide-trends [aria-label="Trending"] {
+  display: none !important;
+}
+
 .smooth-surfer-hidden {
   display: none !important;
+}
+
+html.smooth-surfer-scroll-paused,
+html.smooth-surfer-scroll-paused body {
+  overflow: hidden !important;
+}
+
+.smooth-surfer-scroll-pause {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2147483647;
+  display: grid;
+  gap: 8px;
+  width: min(320px, calc(100vw - 32px));
+  border: 1px solid rgba(23, 31, 42, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 14px 40px rgba(12, 18, 28, 0.18);
+  color: #17202e;
+  padding: 12px;
+  font: 13px/1.35 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.smooth-surfer-scroll-pause button {
+  appearance: none;
+  border: 1px solid rgba(23, 31, 42, 0.18);
+  border-radius: 6px;
+  background: #17202e;
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  min-height: 32px;
+  padding: 0 10px;
 }

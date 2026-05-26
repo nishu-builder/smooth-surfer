@@ -9,6 +9,9 @@
     /\b(upside|alpha|10x|100x|money|wealth|millionaire|rich|retire|generational wealth|stock|stocks|equity|investment|investor|portfolio|market cap|valuation|bull run|moonshot|profit|profits|returns?|opportunity|opportunities|compounder|bagger)\b/i;
   const LOSS_PATTERN =
     /\b(losing|lost|missed gains|miss out|opportunity cost|(?:left|leaving) money on the table|not buying|not investing|regret|you'?ll regret|replace you|replaced by|obsolete|priced out)\b/i;
+  const ENGAGEMENT_BAIT_PATTERN =
+    /\b(reply|comment|drop|like|repost|retweet|quote tweet|bookmark|follow|tag)\b.{0,40}\b(if|for|to|below|this|your|you|someone|friend)\b|\b(agree\?|thoughts\?|what would you do|which one are you|am i wrong|change my mind)\b/i;
+  const TAG_PATTERN = /(^|\s)[#$][\p{L}\p{N}_]+/gu;
 
   function normalizeText(text) {
     return String(text || "")
@@ -48,6 +51,7 @@
     const hasFomo = FOMO_PATTERN.test(normalized);
     const hasFinancialUpside = FINANCIAL_PATTERN.test(normalized);
     const hasLossFrame = LOSS_PATTERN.test(normalized);
+    const tagCount = countTags(normalized);
 
     if (hasAi && hasFomo && hasFinancialUpside) {
       reasons.push("AI financial-upside FOMO");
@@ -57,10 +61,22 @@
       reasons.push("AI urgency/loss framing");
     }
 
+    if (ENGAGEMENT_BAIT_PATTERN.test(normalized)) {
+      reasons.push("engagement bait");
+    }
+
+    if (tagCount >= 5) {
+      reasons.push("hashtag/cashtag overload");
+    }
+
     return {
       blocked: reasons.length > 0,
       reasons
     };
+  }
+
+  function countTags(text) {
+    return (text.match(TAG_PATTERN) || []).length;
   }
 
   const api = {

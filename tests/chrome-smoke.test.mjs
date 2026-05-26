@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import http from "node:http";
 import net from "node:net";
@@ -74,11 +74,15 @@ const tmpDir = await mkdtemp(path.join(os.tmpdir(), "smooth-surfer-chrome-"));
 const profileDir = path.join(tmpDir, "profile");
 const fixturePath = path.join(tmpDir, "youtube-fixture.html");
 const port = await getFreePort();
+const fixturePort = await getFreePort();
+const fixtureServer = createFixtureServer();
+
+await listen(fixtureServer, fixturePort);
 
 await writeFile(
   fixturePath,
   `<!doctype html>
-  <html class="smooth-surfer-youtube-hide-recs smooth-surfer-youtube-gray">
+  <html class="smooth-surfer-youtube-hide-recs smooth-surfer-youtube-gray smooth-surfer-youtube-hide-shorts smooth-surfer-youtube-hide-live-chat smooth-surfer-youtube-hide-end-screens smooth-surfer-youtube-hide-engagement smooth-surfer-twitter-hide-trends smooth-surfer-soften-distracting">
     <head>
       <meta charset="utf-8">
       <link rel="stylesheet" href="${pathToFileURL(path.join(root, "src/styles.css")).href}">
@@ -92,6 +96,11 @@ await writeFile(
         <div id="secondary">Watch recommendations should be hidden</div>
         <div id="related">Related videos should be hidden</div>
       </ytd-watch-flexy>
+      <a id="shorts-link" href="/shorts/abc">Shorts</a>
+      <div id="chat">Live chat should be hidden</div>
+      <div id="end-screen" class="ytp-ce-element">End screen</div>
+      <div id="owner-sub-count">1M subscribers</div>
+      <div data-testid="trend" id="trend">Trending topic</div>
       <ytd-thumbnail><img id="thumb" alt="" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="></ytd-thumbnail>
       <a id="watch-thumb" href="/watch?v=abc"><img id="core-watch-thumb" class="yt-core-image" alt="" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="></a>
       <yt-thumbnail-view-model><img id="view-model-thumb" alt="" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="></yt-thumbnail-view-model>
@@ -110,6 +119,7 @@ const chrome = spawn(chromePath, [
   "--disable-sync",
   "--disable-component-update",
   "--allow-file-access-from-files",
+  "--host-resolver-rules=MAP youtube.com.test 127.0.0.1,MAP twitter.com.test 127.0.0.1",
   "about:blank"
 ]);
 
@@ -127,6 +137,11 @@ try {
       homeSection: display("#home-section"),
       secondary: display("#secondary"),
       related: display("#related"),
+      shortsLink: display("#shorts-link"),
+      chat: display("#chat"),
+      endScreen: display("#end-screen"),
+      subscriberCount: display("#owner-sub-count"),
+      trend: display("#trend"),
       thumbFilter: getComputedStyle(document.querySelector("#thumb")).filter,
       coreWatchThumbFilter: getComputedStyle(document.querySelector("#core-watch-thumb")).filter,
       viewModelThumbFilter: getComputedStyle(document.querySelector("#view-model-thumb")).filter
@@ -137,6 +152,11 @@ try {
   assert.notEqual(youtubeStyles.homeSection, "none");
   assert.equal(youtubeStyles.secondary, "none");
   assert.equal(youtubeStyles.related, "none");
+  assert.equal(youtubeStyles.shortsLink, "none");
+  assert.equal(youtubeStyles.chat, "none");
+  assert.equal(youtubeStyles.endScreen, "none");
+  assert.equal(youtubeStyles.subscriberCount, "none");
+  assert.equal(youtubeStyles.trend, "none");
   assert.match(youtubeStyles.thumbFilter, /grayscale/);
   assert.match(youtubeStyles.coreWatchThumbFilter, /grayscale/);
   assert.match(youtubeStyles.viewModelThumbFilter, /grayscale/);
@@ -185,6 +205,54 @@ try {
     popupState.stored.twitterFilterCriteria.includes("high-pressure AI investing hype")
   );
 
+  await navigate(client, `http://youtube.com.test:${fixturePort}/youtube-content.html`);
+  await waitForExpression(
+    client,
+    `document.querySelector("#shorts-section").classList.contains("smooth-surfer-hidden")`
+  );
+  const youtubeContentState = await evaluate(client, `(() => ({
+    shortsHidden: document.querySelector("#shorts-section").classList.contains("smooth-surfer-hidden"),
+    gamesHidden: document.querySelector("#games-section").classList.contains("smooth-surfer-hidden"),
+    autoplayClicked: document.querySelector("#autoplay").dataset.clicked === "true",
+    stickyHidden: document.querySelector("#sticky-player").dataset.smoothSurferHiddenKind === "sticky-video"
+  }))()`);
+
+  assert.equal(youtubeContentState.shortsHidden, true);
+  assert.equal(youtubeContentState.gamesHidden, true);
+  assert.equal(youtubeContentState.autoplayClicked, true);
+  assert.equal(youtubeContentState.stickyHidden, true);
+
+  await evaluate(client, `window.scrollTo(0, window.innerHeight * 9); window.dispatchEvent(new Event("scroll"))`);
+  await waitForExpression(client, `document.documentElement.classList.contains("smooth-surfer-scroll-paused")`);
+  const scrollPauseState = await evaluate(client, `(() => {
+    const pause = document.querySelector(".smooth-surfer-scroll-pause");
+    pause.querySelector("button").click();
+    return {
+      wasVisible: Boolean(pause),
+      isPaused: document.documentElement.classList.contains("smooth-surfer-scroll-paused")
+    };
+  })()`);
+
+  assert.equal(scrollPauseState.wasVisible, true);
+  assert.equal(scrollPauseState.isPaused, false);
+
+  await navigate(client, `http://twitter.com.test:${fixturePort}/home`);
+  await waitForExpression(
+    client,
+    `document.querySelector("#bait-cell").dataset.smoothSurferHiddenKind === "tweet"`
+  );
+  const twitterContentState = await evaluate(client, `(() => ({
+    followingClicked: document.querySelector("#following-tab").dataset.clicked === "true",
+    baitHidden: document.querySelector("#bait-cell").dataset.smoothSurferHiddenKind === "tweet",
+    tagSpamHidden: document.querySelector("#tag-spam-cell").dataset.smoothSurferHiddenKind === "tweet",
+    trendDisplay: getComputedStyle(document.querySelector("#trend-module")).display
+  }))()`);
+
+  assert.equal(twitterContentState.followingClicked, true);
+  assert.equal(twitterContentState.baitHidden, true);
+  assert.equal(twitterContentState.tagSpamHidden, true);
+  assert.equal(twitterContentState.trendDisplay, "none");
+
   client.close();
 } finally {
   chrome.kill("SIGTERM");
@@ -192,6 +260,7 @@ try {
     new Promise((resolve) => chrome.once("exit", resolve)),
     delay(2000).then(() => chrome.kill("SIGKILL"))
   ]);
+  await closeServer(fixtureServer);
   await rm(tmpDir, { recursive: true, force: true });
 }
 
@@ -288,6 +357,134 @@ function getFreePort() {
       server.close(() => resolve(address.port));
     });
   });
+}
+
+function listen(server, listenPort) {
+  return new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(listenPort, "127.0.0.1", resolve);
+  });
+}
+
+function closeServer(server) {
+  return new Promise((resolve, reject) => {
+    server.close((error) => {
+      error ? reject(error) : resolve();
+    });
+  });
+}
+
+function createFixtureServer() {
+  return http.createServer(async (request, response) => {
+    try {
+      const requestUrl = new URL(request.url, "http://localhost");
+
+      if (requestUrl.pathname === "/youtube-content.html") {
+        sendHtml(response, youtubeContentFixture());
+        return;
+      }
+
+      if (requestUrl.pathname === "/twitter-content.html" || requestUrl.pathname === "/home") {
+        sendHtml(response, twitterContentFixture());
+        return;
+      }
+
+      if (requestUrl.pathname.startsWith("/src/")) {
+        await sendRepoFile(response, requestUrl.pathname.slice(1));
+        return;
+      }
+
+      response.writeHead(404);
+      response.end("Not found");
+    } catch (error) {
+      response.writeHead(500);
+      response.end(error.message);
+    }
+  });
+}
+
+async function sendRepoFile(response, relativePath) {
+  const filePath = path.join(root, relativePath);
+  const body = await readFile(filePath, "utf8");
+  const contentType = relativePath.endsWith(".css") ? "text/css" : "text/javascript";
+
+  response.writeHead(200, { "content-type": contentType });
+  response.end(body);
+}
+
+function sendHtml(response, body) {
+  response.writeHead(200, { "content-type": "text/html" });
+  response.end(body);
+}
+
+function youtubeContentFixture() {
+  return `<!doctype html>
+  <html>
+    <head>
+      <meta charset="utf-8">
+      <link rel="stylesheet" href="/src/styles.css">
+      <style>
+        body { min-height: 7200px; margin: 0; }
+        #sticky-player { position: fixed; right: 20px; bottom: 20px; width: 220px; height: 140px; }
+        #sticky-player video { width: 100%; height: 100%; }
+      </style>
+    </head>
+    <body>
+      <ytd-rich-section-renderer id="shorts-section">Shorts</ytd-rich-section-renderer>
+      <ytd-rich-section-renderer id="games-section">Playables</ytd-rich-section-renderer>
+      <button
+        id="autoplay"
+        aria-label="Autoplay is on"
+        aria-pressed="true"
+        onclick="this.dataset.clicked = 'true'; this.setAttribute('aria-pressed', 'false');"
+      >
+        Autoplay
+      </button>
+      <div id="sticky-player"><video></video></div>
+      <script src="/src/settings.js"></script>
+      <script src="/src/storage.js"></script>
+      <script src="/src/filter-rules.js"></script>
+      <script src="/src/content.js"></script>
+    </body>
+  </html>`;
+}
+
+function twitterContentFixture() {
+  return `<!doctype html>
+  <html>
+    <head>
+      <meta charset="utf-8">
+      <link rel="stylesheet" href="/src/styles.css">
+    </head>
+    <body>
+      <main>
+        <button id="for-you-tab" role="tab" aria-selected="true">For you</button>
+        <button
+          id="following-tab"
+          role="tab"
+          aria-selected="false"
+          onclick="this.dataset.clicked = 'true'; this.setAttribute('aria-selected', 'true'); document.querySelector('#for-you-tab').setAttribute('aria-selected', 'false');"
+        >
+          Following
+        </button>
+        <aside data-testid="trend" id="trend-module">Trending topic</aside>
+        <div data-testid="cellInnerDiv" id="bait-cell">
+          <article data-testid="tweet">
+            <div data-testid="tweetText">Reply below if you agree.</div>
+          </article>
+        </div>
+        <div data-testid="cellInnerDiv" id="tag-spam-cell">
+          <article data-testid="tweet">
+            <div data-testid="tweetText">#AI #NVDA #BTC #stocks #money this is the move</div>
+          </article>
+        </div>
+      </main>
+      <script src="/src/settings.js"></script>
+      <script src="/src/storage.js"></script>
+      <script src="/src/filter-rules.js"></script>
+      <script src="/src/content.js"></script>
+    </body>
+  </html>`;
 }
 
 function delay(ms) {

@@ -15,9 +15,7 @@ assert.equal(manifest.background.service_worker, "src/background.js");
 assert.ok(manifest.host_permissions.includes("https://api.anthropic.com/*"));
 
 const contentScript = manifest.content_scripts[0];
-assert.ok(contentScript.matches.some((match) => match.includes("youtube.com")));
-assert.ok(contentScript.matches.some((match) => match.includes("x.com")));
-assert.ok(contentScript.matches.some((match) => match.includes("twitter.com")));
+assert.ok(contentScript.matches.includes("<all_urls>"));
 
 for (const file of [
   manifest.action.default_popup,

@@ -10,6 +10,11 @@ It is intentionally simple: no build step, no bundled dependencies, no analytics
 - Hide YouTube watch-page recommendation surfaces without blanking the home feed.
 - Hide promoted X/Twitter feed posts.
 - Filter X/Twitter posts that match your own criteria.
+- Prefer the X/Twitter Following timeline over For You.
+- Hide X/Twitter trends.
+- Pause very deep scrolling with a small “Surf break” prompt.
+- Hide sticky floating video players.
+- Gray distracting feed media.
 - Choose a local rules evaluator or Claude Haiku (`claude-3-5-haiku-20241022`) for semantic classification.
 - Add and remove filter criteria as popup pills.
 
@@ -51,9 +56,21 @@ Open the Smooth Surfer toolbar popup to configure:
 - `Enabled`: master switch for all effects.
 - `Gray thumbnails`: grayscales YouTube thumbnails.
 - `Hide recommendations`: hides YouTube watch-page recommendation surfaces.
+- `Hide Shorts`: removes Shorts links and shelves.
+- `Block Shorts pages`: redirects away from `/shorts/...` pages.
+- `Hide games`: removes Playables/games shelves.
+- `Hide live chat`: hides YouTube live chat.
+- `Disable autoplay`: turns YouTube autoplay off when it is on.
+- `Hide end screens`: hides end-of-video overlays.
+- `Hide engagement stats`: hides likes/views/subscriber-style stats.
 - `Remove feed ads`: hides promoted X/Twitter feed posts.
 - `Filter out content`: hides X/Twitter posts that match your criteria.
+- `Hide trends`: hides X/Twitter trend modules.
+- `Prefer Following`: switches the home timeline from For You to Following when possible.
 - `Evaluator`: choose `Local rules` or `Claude Haiku`.
+- `Hide sticky videos`: hides floating sticky video players across matched pages.
+- `Pause deep scrolling`: pauses after roughly eight screenfuls of scrolling.
+- `Gray distracting media`: grayscales media in feed-like surfaces.
 
 Claude Haiku mode requires an Anthropic API key. The key is stored in `chrome.storage.local`. Toggle settings and criteria are stored in `chrome.storage.sync`.
 
@@ -61,6 +78,7 @@ Claude Haiku mode requires an Anthropic API key. The key is stored in `chrome.st
 
 - YouTube effects run locally through CSS.
 - Local X/Twitter filtering runs locally in the extension.
+- Cross-site waves run locally in the content script. The extension uses broad page matching so generic waves like sticky-video hiding and deep-scroll pauses can work beyond the first supported sites.
 - Claude Haiku mode sends tweet text and your filter criteria to Anthropic for classification.
 - Your Anthropic API key is never injected into YouTube or X/Twitter pages.
 - The extension does not include analytics or telemetry.

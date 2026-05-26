@@ -25,14 +25,7 @@
   "content_scripts": [
     {
       "matches": [
-        "https://www.youtube.com/*",
-        "https://youtube.com/*",
-        "https://m.youtube.com/*",
-        "https://x.com/*",
-        "https://www.x.com/*",
-        "https://twitter.com/*",
-        "https://www.twitter.com/*",
-        "https://mobile.twitter.com/*"
+        "<all_urls>"
       ],
       "css": ["src/styles.css"],
       "js": ["src/settings.js", "src/storage.js", "src/filter-rules.js", "src/content.js"],
