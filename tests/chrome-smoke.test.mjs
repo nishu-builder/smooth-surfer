@@ -263,15 +263,20 @@ try {
   await waitForExpression(client, `document.documentElement.classList.contains("smooth-surfer-scroll-paused")`);
   const scrollPauseState = await evaluate(client, `(() => {
     const pause = document.querySelector(".smooth-surfer-scroll-pause");
+    const beforeClickY = window.scrollY;
     pause.querySelector("button").click();
     return {
       wasVisible: Boolean(pause),
-      isPaused: document.documentElement.classList.contains("smooth-surfer-scroll-paused")
+      isPaused: document.documentElement.classList.contains("smooth-surfer-scroll-paused"),
+      beforeClickY,
+      afterClickY: window.scrollY
     };
   })()`);
 
   assert.equal(scrollPauseState.wasVisible, true);
   assert.equal(scrollPauseState.isPaused, false);
+  assert.ok(scrollPauseState.beforeClickY > 0);
+  assert.equal(scrollPauseState.afterClickY, scrollPauseState.beforeClickY);
 
   await navigate(client, `http://github.com.test:${fixturePort}/work-content.html`);
   await evaluate(client, `window.scrollTo(0, window.innerHeight * 9); window.dispatchEvent(new Event("scroll"))`);
@@ -290,16 +295,33 @@ try {
 
   await navigate(client, `http://twitter.com.test:${fixturePort}/home`);
   await waitForExpression(client, `document.querySelector("#following-tab").dataset.clicked === "true"`);
-  const twitterContentState = await evaluate(client, `(() => ({
-    followingClicked: document.querySelector("#following-tab").dataset.clicked === "true",
-    promotedHidden: document.querySelector("#promoted-cell").dataset.smoothSurferHiddenKind === "tweet",
-    baitHidden: document.querySelector("#bait-cell").dataset.smoothSurferHiddenKind === "tweet",
-    tagSpamHidden: document.querySelector("#tag-spam-cell").dataset.smoothSurferHiddenKind === "tweet",
-    linkedinHidden: document.querySelector("#linkedin-cell").dataset.smoothSurferHiddenKind === "tweet",
-    trendDisplay: getComputedStyle(document.querySelector("#trend-module")).display
-  }))()`);
+  const twitterContentState = await evaluate(client, `(async () => {
+    const followingTab = document.querySelector("#following-tab");
+    const forYouTab = document.querySelector("#for-you-tab");
+    const followingClicksBeforeForYou = Number(followingTab.dataset.clicks || 0);
+    forYouTab.click();
+    document.body.append(document.createElement("div"));
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    return {
+      followingClicked: followingTab.dataset.clicked === "true",
+      followingClicksBeforeForYou,
+      followingClicksAfterForYou: Number(followingTab.dataset.clicks || 0),
+      forYouSelected: forYouTab.getAttribute("aria-selected") === "true",
+      promotedHidden: document.querySelector("#promoted-cell").dataset.smoothSurferHiddenKind === "tweet",
+      baitHidden: document.querySelector("#bait-cell").dataset.smoothSurferHiddenKind === "tweet",
+      tagSpamHidden: document.querySelector("#tag-spam-cell").dataset.smoothSurferHiddenKind === "tweet",
+      linkedinHidden: document.querySelector("#linkedin-cell").dataset.smoothSurferHiddenKind === "tweet",
+      trendDisplay: getComputedStyle(document.querySelector("#trend-module")).display
+    };
+  })()`);
 
   assert.equal(twitterContentState.followingClicked, true);
+  assert.equal(
+    twitterContentState.followingClicksAfterForYou,
+    twitterContentState.followingClicksBeforeForYou
+  );
+  assert.equal(twitterContentState.forYouSelected, true);
   assert.equal(twitterContentState.promotedHidden, true);
   assert.equal(twitterContentState.baitHidden, false);
   assert.equal(twitterContentState.tagSpamHidden, false);
@@ -580,10 +602,17 @@ function twitterContentFixture() {
           id="following-tab"
           role="tab"
           aria-selected="false"
-          onclick="this.dataset.clicked = 'true'; this.setAttribute('aria-selected', 'true'); document.querySelector('#for-you-tab').setAttribute('aria-selected', 'false');"
+          onclick="this.dataset.clicked = 'true'; this.dataset.clicks = String(Number(this.dataset.clicks || 0) + 1); this.setAttribute('aria-selected', 'true'); document.querySelector('#for-you-tab').setAttribute('aria-selected', 'false');"
         >
           Following
         </button>
+        <script>
+          document.querySelector("#for-you-tab").addEventListener("click", function () {
+            this.dataset.clicked = "true";
+            this.setAttribute("aria-selected", "true");
+            document.querySelector("#following-tab").setAttribute("aria-selected", "false");
+          });
+        </script>
         <aside data-testid="trend" id="trend-module">Trending topic</aside>
         <div data-testid="cellInnerDiv" id="promoted-cell">
           <article data-testid="tweet">

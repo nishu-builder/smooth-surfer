@@ -76,11 +76,6 @@ html.smooth-surfer-hacker-news-hide-scores .score {
   display: none !important;
 }
 
-html.smooth-surfer-scroll-paused,
-html.smooth-surfer-scroll-paused body {
-  overflow: hidden !important;
-}
-
 .smooth-surfer-scroll-pause {
   position: fixed;
   right: 16px;

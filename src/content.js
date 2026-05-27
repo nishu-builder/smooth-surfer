@@ -15,6 +15,15 @@
     substack: "substackFilterContent",
     "hacker-news": "hackerNewsFilterContent"
   };
+  const SCROLL_PAUSE_KEYS = new Set([
+    " ",
+    "ArrowDown",
+    "ArrowUp",
+    "End",
+    "Home",
+    "PageDown",
+    "PageUp"
+  ]);
   const WORK_SITE_HOSTS = [
     "app.asana.com",
     "atlassian.net",
@@ -39,6 +48,9 @@
   let scanTimer = 0;
   let scrollPause = null;
   let scrollLimit = 0;
+  let scrollPauseInputBlockersInstalled = false;
+  let twitterFollowingPreferenceResolved = false;
+  let twitterTabPreferenceListenerInstalled = false;
   const modelClassifications = new Map();
 
   const platform = getPlatform();
@@ -282,6 +294,7 @@
   }
 
   function scanTwitterPage() {
+    installTwitterTabPreferenceListener();
     enforceTwitterFollowing();
 
     const canFilterContent = canFilterPlatformContent("twitter");
@@ -441,17 +454,54 @@
   }
 
   function enforceTwitterFollowing() {
-    if (!settings.enabled || !settings.twitterEnforceFollowing || !isTwitterHome()) {
+    if (
+      !settings.enabled ||
+      !settings.twitterEnforceFollowing ||
+      !isTwitterHome() ||
+      twitterFollowingPreferenceResolved
+    ) {
       return;
     }
 
     const followingTab = findTwitterTab("Following");
     const forYouTab = findTwitterTab("For you");
     const forYouSelected = forYouTab && forYouTab.getAttribute("aria-selected") === "true";
+    const followingSelected = followingTab && followingTab.getAttribute("aria-selected") === "true";
+
+    if (followingSelected) {
+      twitterFollowingPreferenceResolved = true;
+      return;
+    }
 
     if (followingTab && forYouSelected) {
+      twitterFollowingPreferenceResolved = true;
       followingTab.click();
     }
+  }
+
+  function installTwitterTabPreferenceListener() {
+    if (twitterTabPreferenceListenerInstalled) {
+      return;
+    }
+
+    twitterTabPreferenceListenerInstalled = true;
+    document.addEventListener(
+      "click",
+      (event) => {
+        const tab = event.target.closest && event.target.closest('[role="tab"]');
+
+        if (!tab) {
+          return;
+        }
+
+        const label = normalizeInlineText(tab.textContent);
+
+        if (label === "For you" || label === "Following") {
+          twitterFollowingPreferenceResolved = true;
+        }
+      },
+      true
+    );
   }
 
   function isTwitterHome() {
@@ -506,10 +556,12 @@
   function showScrollPause() {
     if (scrollPause) {
       document.documentElement.classList.add("smooth-surfer-scroll-paused");
+      installScrollPauseInputBlockers();
       return;
     }
 
     document.documentElement.classList.add("smooth-surfer-scroll-paused");
+    installScrollPauseInputBlockers();
     scrollPause = document.createElement("div");
     scrollPause.className = "smooth-surfer-scroll-pause";
     scrollPause.innerHTML = `
@@ -522,6 +574,45 @@
       removeScrollPause();
     });
     document.documentElement.append(scrollPause);
+  }
+
+  function installScrollPauseInputBlockers() {
+    if (scrollPauseInputBlockersInstalled) {
+      return;
+    }
+
+    scrollPauseInputBlockersInstalled = true;
+    window.addEventListener("wheel", blockPausedScroll, { capture: true, passive: false });
+    window.addEventListener("touchmove", blockPausedScroll, { capture: true, passive: false });
+    window.addEventListener("keydown", blockPausedScrollKey, true);
+  }
+
+  function blockPausedScroll(event) {
+    if (!document.documentElement.classList.contains("smooth-surfer-scroll-paused")) {
+      return;
+    }
+
+    event.preventDefault();
+  }
+
+  function blockPausedScrollKey(event) {
+    if (
+      !document.documentElement.classList.contains("smooth-surfer-scroll-paused") ||
+      !SCROLL_PAUSE_KEYS.has(event.key) ||
+      isEditableElement(event.target)
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+  }
+
+  function isEditableElement(element) {
+    return Boolean(
+      element &&
+        (element.isContentEditable ||
+          /^(input|select|textarea)$/i.test(element.tagName || ""))
+    );
   }
 
   function removeScrollPause() {
