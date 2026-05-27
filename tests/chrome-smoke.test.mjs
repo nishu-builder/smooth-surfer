@@ -119,7 +119,7 @@ const chrome = spawn(chromePath, [
   "--disable-sync",
   "--disable-component-update",
   "--allow-file-access-from-files",
-  "--host-resolver-rules=MAP youtube.com.test 127.0.0.1,MAP twitter.com.test 127.0.0.1,MAP github.com.test 127.0.0.1",
+  "--host-resolver-rules=MAP youtube.com.test 127.0.0.1,MAP twitter.com.test 127.0.0.1,MAP github.com.test 127.0.0.1,MAP reddit.com.test 127.0.0.1,MAP substack.com.test 127.0.0.1,MAP news.ycombinator.com.test 127.0.0.1",
   "about:blank"
 ]);
 
@@ -167,6 +167,17 @@ try {
     deviceScaleFactor: 1,
     mobile: false
   });
+  const popupScript = await client.send("Page.addScriptToEvaluateOnNewDocument", {
+    source: `window.chrome = {
+      runtime: {},
+      tabs: {
+        query(queryInfo, callback) {
+          callback([{ id: 1, url: "https://www.reddit.com/r/news" }]);
+        },
+        sendMessage() {}
+      }
+    };`
+  });
   await navigate(client, pathToFileURL(path.join(root, "popup.html")).href);
   await waitForExpression(client, `Boolean(document.querySelector("[data-phrase-input]"))`);
   const popupState = await evaluate(client, `(async () => {
@@ -185,6 +196,8 @@ try {
     const toggleCount = document.querySelectorAll(".switch-row input[type='checkbox']").length;
     const describedToggleCount = document.querySelectorAll(".switch-row[data-description] input[type='checkbox']").length;
     return {
+      firstSection: document.querySelector("header + section h2").textContent,
+      firstSectionActive: document.querySelector("header + section").dataset.activeSite,
       hasFilterLabel: Boolean(filterLabel),
       hasOldFilterLabel: document.body.textContent.includes("Filter AI-upside FOMO"),
       hasLegacyClassifierSelect: Boolean(document.querySelector("[data-setting='twitterClassifierMode']")),
@@ -203,7 +216,12 @@ try {
       stored: JSON.parse(localStorage.getItem("smoothSurferSettings"))
     };
   })()`);
+  await client.send("Page.removeScriptToEvaluateOnNewDocument", {
+    identifier: popupScript.identifier
+  });
 
+  assert.equal(popupState.firstSection, "Reddit");
+  assert.equal(popupState.firstSectionActive, "true");
   assert.equal(popupState.hasFilterLabel, true);
   assert.equal(popupState.hasOldFilterLabel, false);
   assert.equal(popupState.hasLegacyClassifierSelect, false);
@@ -221,7 +239,7 @@ try {
   assert.match(popupState.pillText, /missed upside/);
   assert.match(popupState.pillText, /one short sentence/);
   assert.ok(
-    popupState.stored.twitterFilterCriteria.includes("high-pressure AI investing hype")
+    popupState.stored.filterCriteria.includes("high-pressure AI investing hype")
   );
 
   await navigate(client, `http://youtube.com.test:${fixturePort}/youtube-content.html`);
@@ -287,6 +305,51 @@ try {
   assert.equal(twitterContentState.tagSpamHidden, false);
   assert.equal(twitterContentState.linkedinHidden, false);
   assert.equal(twitterContentState.trendDisplay, "none");
+
+  await navigate(client, `http://reddit.com.test:${fixturePort}/reddit-content.html`);
+  await waitForExpression(
+    client,
+    `document.querySelector("#reddit-ad").dataset.smoothSurferHiddenKind === "reddit-post"`
+  );
+  const redditContentState = await evaluate(client, `(() => ({
+    promotedHidden: document.querySelector("#reddit-ad").dataset.smoothSurferHiddenKind === "reddit-post",
+    recommendationHidden: document.querySelector("#reddit-recommendation").dataset.smoothSurferHiddenKind === "reddit-post",
+    moduleHidden: document.querySelector("#reddit-module").dataset.smoothSurferHiddenKind === "reddit-module",
+    normalHidden: document.querySelector("#reddit-normal").dataset.smoothSurferHiddenKind === "reddit-post"
+  }))()`);
+
+  assert.equal(redditContentState.promotedHidden, true);
+  assert.equal(redditContentState.recommendationHidden, true);
+  assert.equal(redditContentState.moduleHidden, true);
+  assert.equal(redditContentState.normalHidden, false);
+
+  await navigate(client, `http://substack.com.test:${fixturePort}/substack-content.html`);
+  await waitForExpression(
+    client,
+    `document.querySelector("#substack-recommendation").dataset.smoothSurferHiddenKind === "substack-module"`
+  );
+  const substackContentState = await evaluate(client, `(() => ({
+    recommendationHidden: document.querySelector("#substack-recommendation").dataset.smoothSurferHiddenKind === "substack-module",
+    normalHidden: document.querySelector("#substack-post").dataset.smoothSurferHiddenKind === "substack-post"
+  }))()`);
+
+  assert.equal(substackContentState.recommendationHidden, true);
+  assert.equal(substackContentState.normalHidden, false);
+
+  await navigate(client, `http://news.ycombinator.com.test:${fixturePort}/hacker-news-content.html`);
+  await waitForExpression(
+    client,
+    `getComputedStyle(document.querySelector("#hn-score")).display === "none"`
+  );
+  const hackerNewsContentState = await evaluate(client, `(() => ({
+    scoreDisplay: getComputedStyle(document.querySelector("#hn-score")).display,
+    storyHidden: document.querySelector("#hn-story").dataset.smoothSurferHiddenKind === "hacker-news-story",
+    commentHidden: document.querySelector("#hn-comment").dataset.smoothSurferHiddenKind === "hacker-news-comment"
+  }))()`);
+
+  assert.equal(hackerNewsContentState.scoreDisplay, "none");
+  assert.equal(hackerNewsContentState.storyHidden, false);
+  assert.equal(hackerNewsContentState.commentHidden, false);
 
   client.close();
 } finally {
@@ -429,6 +492,21 @@ function createFixtureServer() {
         return;
       }
 
+      if (requestUrl.pathname === "/reddit-content.html") {
+        sendHtml(response, redditContentFixture());
+        return;
+      }
+
+      if (requestUrl.pathname === "/substack-content.html") {
+        sendHtml(response, substackContentFixture());
+        return;
+      }
+
+      if (requestUrl.pathname === "/hacker-news-content.html") {
+        sendHtml(response, hackerNewsContentFixture());
+        return;
+      }
+
       if (requestUrl.pathname.startsWith("/src/")) {
         await sendRepoFile(response, requestUrl.pathname.slice(1));
         return;
@@ -533,6 +611,92 @@ That changed everything for my work.</div>
           </article>
         </div>
       </main>
+      <script src="/src/settings.js"></script>
+      <script src="/src/storage.js"></script>
+      <script src="/src/content.js"></script>
+    </body>
+  </html>`;
+}
+
+function redditContentFixture() {
+  return `<!doctype html>
+  <html>
+    <head>
+      <meta charset="utf-8">
+      <link rel="stylesheet" href="/src/styles.css">
+    </head>
+    <body>
+      <main>
+        <article id="reddit-ad">
+          <span>Promoted</span>
+          <h3>Sponsored post</h3>
+        </article>
+        <article id="reddit-recommendation">
+          <span>Because you've shown interest in technology</span>
+          <h3>Suggested community post</h3>
+        </article>
+        <article id="reddit-normal">
+          <h3>Local transit expansion opens this week</h3>
+          <p>Ordinary post text.</p>
+        </article>
+      </main>
+      <aside id="reddit-module">
+        <h2>Communities you might like</h2>
+        <p>Recommended communities</p>
+      </aside>
+      <script src="/src/settings.js"></script>
+      <script src="/src/storage.js"></script>
+      <script src="/src/content.js"></script>
+    </body>
+  </html>`;
+}
+
+function substackContentFixture() {
+  return `<!doctype html>
+  <html>
+    <head>
+      <meta charset="utf-8">
+      <link rel="stylesheet" href="/src/styles.css">
+    </head>
+    <body>
+      <main>
+        <article id="substack-post">
+          <h1>Notes from a city council meeting</h1>
+          <p>Ordinary newsletter preview.</p>
+        </article>
+      </main>
+      <aside id="substack-recommendation">
+        <h2>Recommended reads</h2>
+        <p>Discover more writers on Substack.</p>
+      </aside>
+      <script src="/src/settings.js"></script>
+      <script src="/src/storage.js"></script>
+      <script src="/src/content.js"></script>
+    </body>
+  </html>`;
+}
+
+function hackerNewsContentFixture() {
+  return `<!doctype html>
+  <html>
+    <head>
+      <meta charset="utf-8">
+      <link rel="stylesheet" href="/src/styles.css">
+    </head>
+    <body>
+      <table class="itemlist">
+        <tbody>
+          <tr class="athing" id="hn-story">
+            <td class="title"><span class="titleline"><a href="https://example.com">A useful systems paper</a></span></td>
+          </tr>
+          <tr>
+            <td class="subtext"><span class="score" id="hn-score">42 points</span> <a href="item?id=1">12 comments</a></td>
+          </tr>
+          <tr class="comtr" id="hn-comment">
+            <td class="comment">A regular comment.</td>
+          </tr>
+        </tbody>
+      </table>
       <script src="/src/settings.js"></script>
       <script src="/src/storage.js"></script>
       <script src="/src/content.js"></script>

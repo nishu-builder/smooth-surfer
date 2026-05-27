@@ -7,7 +7,14 @@
     watchSecrets,
     watchSettings
   } = window.SmoothSurferStorage;
+  const { getPlatformForUrl } = window.SmoothSurferSettings;
   const SCAN_DEBOUNCE_MS = 120;
+  const CONTENT_FILTER_SETTING_BY_PLATFORM = {
+    twitter: "twitterFilterContent",
+    reddit: "redditFilterContent",
+    substack: "substackFilterContent",
+    "hacker-news": "hackerNewsFilterContent"
+  };
   const WORK_SITE_HOSTS = [
     "app.asana.com",
     "atlassian.net",
@@ -35,6 +42,7 @@
   const modelClassifications = new Map();
 
   const platform = getPlatform();
+  installMessageListener();
 
   start();
 
@@ -62,17 +70,27 @@
   }
 
   function getPlatform() {
-    const host = window.location.hostname.toLowerCase();
+    return getPlatformForUrl(window.location.href);
+  }
 
-    if (host.includes("youtube.com")) {
-      return "youtube";
+  function installMessageListener() {
+    if (
+      typeof chrome === "undefined" ||
+      !chrome.runtime ||
+      !chrome.runtime.onMessage ||
+      typeof chrome.runtime.onMessage.addListener !== "function"
+    ) {
+      return;
     }
 
-    if (host === "x.com" || host.endsWith(".x.com") || host.includes("twitter.com")) {
-      return "twitter";
-    }
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      if (!message || message.type !== "getSmoothSurferPlatform") {
+        return false;
+      }
 
-    return "unknown";
+      sendResponse({ platform });
+      return false;
+    });
   }
 
   function whenBodyReady(callback) {
@@ -122,6 +140,10 @@
       settings.enabled && platform === "twitter" && settings.twitterHideTrends
     );
     root.classList.toggle(
+      "smooth-surfer-hacker-news-hide-scores",
+      settings.enabled && platform === "hacker-news" && settings.hackerNewsHideScores
+    );
+    root.classList.toggle(
       "smooth-surfer-soften-distracting",
       settings.enabled && settings.softenDistractingElements && !isWorkSite()
     );
@@ -160,6 +182,21 @@
 
     if (platform === "twitter") {
       scanTwitterPage();
+      return;
+    }
+
+    if (platform === "reddit") {
+      scanRedditPage();
+      return;
+    }
+
+    if (platform === "substack") {
+      scanSubstackPage();
+      return;
+    }
+
+    if (platform === "hacker-news") {
+      scanHackerNewsPage();
     }
   }
 
@@ -247,7 +284,7 @@
   function scanTwitterPage() {
     enforceTwitterFollowing();
 
-    const canFilterContent = canFilterTwitterContent();
+    const canFilterContent = canFilterPlatformContent("twitter");
 
     if (!settings.enabled || (!settings.twitterHideAds && !canFilterContent)) {
       restoreHiddenTweets();
@@ -267,13 +304,139 @@
         return;
       }
 
-      if (reasons.length > 0) {
-        hideTweet(container, reasons);
-      } else if (canFilterContent) {
-        requestModelClassification(container, getTweetText(article));
+      if (canFilterContent) {
+        requestModelClassification(container, getTweetText(article), "tweet");
       } else {
-        restoreTweet(container);
+        restoreElement(container);
       }
+    });
+  }
+
+  function scanRedditPage() {
+    const canFilterContent = canFilterPlatformContent("reddit");
+
+    if (
+      !settings.enabled ||
+      (!settings.redditHideAds && !settings.redditHideRecommendations && !canFilterContent)
+    ) {
+      restoreHiddenElementsByKind("reddit-post");
+      restoreHiddenElementsByKind("reddit-module");
+      return;
+    }
+
+    scanRedditRecommendationModules();
+
+    getRedditPostContainers().forEach((container) => {
+      const reasons = [];
+
+      if (settings.redditHideAds && isRedditPromoted(container)) {
+        reasons.push("ad");
+      }
+
+      if (settings.redditHideRecommendations && isRedditRecommendation(container)) {
+        reasons.push("recommendation");
+      }
+
+      if (reasons.length > 0) {
+        hideElement(container, reasons, "reddit-post");
+        return;
+      }
+
+      if (canFilterContent) {
+        requestModelClassification(container, getElementText(container), "reddit-post");
+      } else {
+        restoreElement(container);
+      }
+    });
+  }
+
+  function scanRedditRecommendationModules() {
+    if (!settings.enabled || !settings.redditHideRecommendations) {
+      restoreHiddenElementsByKind("reddit-module");
+      return;
+    }
+
+    document
+      .querySelectorAll("aside, section, [data-testid*='recommend'], [class*='recommend']")
+      .forEach((module) => {
+        const text = normalizeInlineText(module.innerText || module.textContent).toLowerCase();
+        const shouldHide =
+          hasRecommendationText(text) ||
+          text.includes("communities you might like") ||
+          text.includes("popular communities");
+
+        if (shouldHide) {
+          hideElement(module, ["recommendation"], "reddit-module");
+        } else if (module.dataset.smoothSurferHiddenKind === "reddit-module") {
+          restoreElement(module);
+        }
+      });
+  }
+
+  function scanSubstackPage() {
+    const canFilterContent = canFilterPlatformContent("substack");
+
+    if (!settings.enabled || (!settings.substackHideRecommendations && !canFilterContent)) {
+      restoreHiddenElementsByKind("substack-post");
+      restoreHiddenElementsByKind("substack-module");
+      return;
+    }
+
+    scanSubstackRecommendationModules();
+
+    if (!canFilterContent) {
+      restoreHiddenElementsByKind("substack-post");
+      return;
+    }
+
+    getSubstackPostContainers().forEach((container) => {
+      if (container.dataset.smoothSurferHiddenKind === "substack-module") {
+        return;
+      }
+
+      requestModelClassification(container, getElementText(container), "substack-post");
+    });
+  }
+
+  function scanSubstackRecommendationModules() {
+    if (!settings.enabled || !settings.substackHideRecommendations) {
+      restoreHiddenElementsByKind("substack-module");
+      return;
+    }
+
+    document
+      .querySelectorAll("aside, section, [data-testid*='recommend'], [class*='recommend']")
+      .forEach((module) => {
+        const text = normalizeInlineText(module.innerText || module.textContent).toLowerCase();
+        const shouldHide =
+          hasRecommendationText(text) ||
+          text.includes("recommended reads") ||
+          text.includes("more from substack") ||
+          text.includes("discover more");
+
+        if (shouldHide) {
+          hideElement(module, ["recommendation"], "substack-module");
+        } else if (module.dataset.smoothSurferHiddenKind === "substack-module") {
+          restoreElement(module);
+        }
+      });
+  }
+
+  function scanHackerNewsPage() {
+    const canFilterContent = canFilterPlatformContent("hacker-news");
+
+    if (!settings.enabled || !canFilterContent) {
+      restoreHiddenElementsByKind("hacker-news-story");
+      restoreHiddenElementsByKind("hacker-news-story-meta");
+      restoreHiddenElementsByKind("hacker-news-comment");
+      return;
+    }
+
+    document.querySelectorAll("tr.athing").forEach((row) => {
+      requestModelClassification(row, getHackerNewsStoryText(row), "hacker-news-story");
+    });
+    document.querySelectorAll("tr.comtr").forEach((row) => {
+      requestModelClassification(row, getElementText(row), "hacker-news-comment");
     });
   }
 
@@ -372,12 +535,19 @@
     scrollPause = null;
   }
 
-  function requestModelClassification(container, text) {
-    const key = getClassificationKey(text);
+  function requestModelClassification(container, text, kind) {
+    const normalizedText = normalizeInlineText(text);
+
+    if (!normalizedText) {
+      restoreContentElement(container, kind);
+      return;
+    }
+
+    const key = getClassificationKey(normalizedText);
     const cached = modelClassifications.get(key);
 
     if (cached) {
-      applyModelClassification(container, cached);
+      applyModelClassification(container, cached, kind);
       return;
     }
 
@@ -393,14 +563,15 @@
         reasons: []
       };
       modelClassifications.set(key, fallback);
-      applyModelClassification(container, fallback);
+      applyModelClassification(container, fallback, kind);
       return;
     }
 
     chrome.runtime.sendMessage(
       {
-        type: "classifyTweetContent",
-        text
+        type: "classifyContent",
+        source: platform,
+        text: normalizedText
       },
       (response) => {
         delete container.dataset.smoothSurferPendingKey;
@@ -411,29 +582,37 @@
 
         const result = response || { blocked: false, reasons: [] };
         modelClassifications.set(key, result);
-        applyModelClassification(container, result);
+        applyModelClassification(container, result, kind);
       }
     );
   }
 
-  function applyModelClassification(container, classification) {
+  function applyModelClassification(container, classification, kind) {
     if (classification.blocked) {
-      hideTweet(container, classification.reasons);
+      hideContentElement(container, classification.reasons, kind);
     } else {
-      restoreTweet(container);
+      restoreContentElement(container, kind);
     }
   }
 
   function getClassificationKey(text) {
     return JSON.stringify({
       classifier: "claude-haiku",
-      criteria: settings.twitterFilterCriteria,
-      text: normalizeInlineText(text)
+      criteria: settings.filterCriteria,
+      source: platform,
+      text
     });
   }
 
-  function canFilterTwitterContent() {
-    return settings.twitterFilterContent && Boolean(secrets.anthropicApiKey);
+  function canFilterPlatformContent(targetPlatform) {
+    const settingName = CONTENT_FILTER_SETTING_BY_PLATFORM[targetPlatform];
+
+    return Boolean(
+      settings.enabled &&
+        settingName &&
+        settings[settingName] &&
+        secrets.anthropicApiKey
+    );
   }
 
   function hasChromeRuntime() {
@@ -469,8 +648,123 @@
     return article.closest('[data-testid="cellInnerDiv"]') || article;
   }
 
+  function getRedditPostContainers() {
+    return uniqueElements(
+      Array.from(
+        document.querySelectorAll(
+          "shreddit-post, article, [data-testid='post-container'], [data-testid='post'], [slot='post-container']"
+        )
+      )
+        .map((element) => element.closest("shreddit-post, article, [data-testid='post-container']") || element)
+        .filter((element) => element && document.body.contains(element))
+    );
+  }
+
+  function isRedditPromoted(container) {
+    if (
+      container.matches("[promoted], [data-promoted='true'], [data-testid*='promoted']") ||
+      container.querySelector("[promoted], [data-promoted='true'], [data-testid*='promoted']")
+    ) {
+      return true;
+    }
+
+    return Array.from(container.querySelectorAll("span, div, faceplate-tracker")).some((element) => {
+      const text = normalizeInlineText(element.textContent).toLowerCase();
+
+      return text === "promoted" || text === "sponsored";
+    });
+  }
+
+  function isRedditRecommendation(container) {
+    const text = getElementText(container).toLowerCase();
+
+    return (
+      hasRecommendationText(text) ||
+      text.includes("because you've shown interest") ||
+      text.includes("because you visited") ||
+      text.includes("similar communities") ||
+      text.includes("popular near you")
+    );
+  }
+
+  function getSubstackPostContainers() {
+    return uniqueElements(
+      Array.from(
+        document.querySelectorAll(
+          "article, [data-testid*='post'], [class*='post-preview'], [class*='feed-item'], [class*='note']"
+        )
+      )
+        .map((element) => element.closest("article, [data-testid*='post'], [class*='post-preview']") || element)
+        .filter((element) => element && document.body.contains(element))
+    );
+  }
+
+  function getHackerNewsStoryText(row) {
+    const title = row.querySelector(".titleline, .storylink, .title a");
+    const site = row.querySelector(".sitestr");
+
+    return normalizeInlineText(`${title ? title.textContent : row.textContent} ${site ? site.textContent : ""}`);
+  }
+
+  function hasRecommendationText(text) {
+    return (
+      text.includes("recommended") ||
+      text.includes("recommendations") ||
+      text.includes("suggested for you") ||
+      text.includes("you might like") ||
+      text.includes("because you")
+    );
+  }
+
+  function getElementText(element) {
+    return normalizeInlineText(element.innerText || element.textContent || "");
+  }
+
+  function uniqueElements(elements) {
+    const seen = new Set();
+
+    return elements.filter((element) => {
+      if (seen.has(element)) {
+        return false;
+      }
+
+      seen.add(element);
+      return true;
+    });
+  }
+
   function hideTweet(container, reasons) {
     hideElement(container, reasons, "tweet");
+  }
+
+  function hideContentElement(container, reasons, kind) {
+    hideElement(container, reasons, kind);
+
+    if (kind === "hacker-news-story") {
+      const metaRow = getHackerNewsMetaRow(container);
+
+      if (metaRow) {
+        hideElement(metaRow, reasons, "hacker-news-story-meta");
+      }
+    }
+  }
+
+  function restoreContentElement(container, kind) {
+    restoreElement(container);
+
+    if (kind === "hacker-news-story") {
+      const metaRow = getHackerNewsMetaRow(container);
+
+      if (metaRow) {
+        restoreElement(metaRow);
+      }
+    }
+  }
+
+  function getHackerNewsMetaRow(row) {
+    const nextRow = row.nextElementSibling;
+
+    return nextRow && nextRow.querySelector(".subtext") ? nextRow : null;
   }
 
   function hideElement(element, reasons, kind) {
@@ -483,15 +777,20 @@
     }
   }
 
-  function restoreTweet(container) {
-    if (container.dataset.smoothSurferHidden !== "true") {
+  function restoreElement(element) {
+    if (element.dataset.smoothSurferHidden !== "true") {
       return;
     }
 
-    container.classList.remove("smooth-surfer-hidden");
-    delete container.dataset.smoothSurferHidden;
-    delete container.dataset.smoothSurferHiddenKind;
-    delete container.dataset.smoothSurferReasons;
+    element.classList.remove("smooth-surfer-hidden");
+    delete element.dataset.smoothSurferHidden;
+    delete element.dataset.smoothSurferHiddenKind;
+    delete element.dataset.smoothSurferReasons;
+    delete element.dataset.smoothSurferPendingKey;
+  }
+
+  function restoreTweet(container) {
+    restoreElement(container);
   }
 
   function restoreHiddenTweets() {
@@ -504,7 +803,7 @@
     document
       .querySelectorAll(`[data-smooth-surfer-hidden-kind="${kind}"]`)
       .forEach((element) => {
-        restoreTweet(element);
+        restoreElement(element);
       });
   }
 

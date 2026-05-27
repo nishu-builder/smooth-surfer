@@ -4,9 +4,9 @@
 
 <img src="assets/smooth-surfer-icon.png" alt="Smooth Surfer icon" width="420">
 
-Smooth Surfer is a small Chrome extension for browsing with less feed noise. It hides or softens selected YouTube, X/Twitter, and generic feed distractions from the toolbar popup.
+Smooth Surfer is a small Chrome extension for browsing with less feed noise. It hides or softens selected YouTube, X/Twitter, Reddit, Substack, Hacker News, and generic feed distractions from the toolbar popup.
 
-X/Twitter content filtering is disabled unless you save an Anthropic key. When a key is present, Smooth Surfer uses Claude Haiku with your filter criteria.
+Content filtering is disabled unless you save an Anthropic key. When a key is present, Smooth Surfer uses Claude Haiku with your filter criteria.
 
 ## Setup
 

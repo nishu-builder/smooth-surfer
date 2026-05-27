@@ -17,8 +17,16 @@
     TAG_OVERLOAD_CRITERION,
     LINKEDIN_STYLE_CRITERION
   ];
+  const SITE_RULES = [
+    { id: "youtube", label: "YouTube" },
+    { id: "twitter", label: "X / Twitter" },
+    { id: "reddit", label: "Reddit" },
+    { id: "substack", label: "Substack" },
+    { id: "hacker-news", label: "Hacker News" }
+  ];
   const DEFAULT_SETTINGS = {
     enabled: true,
+    filterCriteria: [...DEFAULT_FILTER_CRITERIA],
     youtubeGrayscaleThumbnails: true,
     youtubeHideRecommendations: true,
     youtubeHideShorts: true,
@@ -30,9 +38,15 @@
     youtubeHideEngagementStats: true,
     twitterHideAds: true,
     twitterFilterContent: true,
-    twitterFilterCriteria: [...DEFAULT_FILTER_CRITERIA],
     twitterHideTrends: true,
     twitterEnforceFollowing: true,
+    redditHideAds: true,
+    redditHideRecommendations: true,
+    redditFilterContent: true,
+    substackHideRecommendations: true,
+    substackFilterContent: true,
+    hackerNewsFilterContent: true,
+    hackerNewsHideScores: true,
     hideStickyVideoPlayers: true,
     pauseDeepScrolling: true,
     softenDistractingElements: true
@@ -70,6 +84,9 @@
     const next = { ...DEFAULT_SETTINGS, ...source };
 
     next.enabled = Boolean(next.enabled);
+    next.filterCriteria = normalizeFilterCriteria(
+      source.filterCriteria || source.twitterFilterCriteria || DEFAULT_FILTER_CRITERIA
+    );
     next.youtubeGrayscaleThumbnails = Boolean(next.youtubeGrayscaleThumbnails);
     next.youtubeHideRecommendations = Boolean(next.youtubeHideRecommendations);
     next.youtubeHideShorts = Boolean(next.youtubeHideShorts);
@@ -81,13 +98,20 @@
     next.youtubeHideEngagementStats = Boolean(next.youtubeHideEngagementStats);
     next.twitterHideAds = Boolean(next.twitterHideAds);
     next.twitterFilterContent = Boolean(next.twitterFilterContent);
-    next.twitterFilterCriteria = normalizeFilterCriteria(source.twitterFilterCriteria || DEFAULT_FILTER_CRITERIA);
     next.twitterHideTrends = Boolean(next.twitterHideTrends);
     next.twitterEnforceFollowing = Boolean(next.twitterEnforceFollowing);
+    next.redditHideAds = Boolean(next.redditHideAds);
+    next.redditHideRecommendations = Boolean(next.redditHideRecommendations);
+    next.redditFilterContent = Boolean(next.redditFilterContent);
+    next.substackHideRecommendations = Boolean(next.substackHideRecommendations);
+    next.substackFilterContent = Boolean(next.substackFilterContent);
+    next.hackerNewsFilterContent = Boolean(next.hackerNewsFilterContent);
+    next.hackerNewsHideScores = Boolean(next.hackerNewsHideScores);
     next.hideStickyVideoPlayers = Boolean(next.hideStickyVideoPlayers);
     next.pauseDeepScrolling = Boolean(next.pauseDeepScrolling);
     next.softenDistractingElements = Boolean(next.softenDistractingElements);
     delete next.twitterClassifierMode;
+    delete next.twitterFilterCriteria;
 
     return next;
   }
@@ -115,12 +139,57 @@
     };
   }
 
+  function getPlatformForUrl(value) {
+    try {
+      return getPlatformForHost(new URL(String(value || "")).hostname);
+    } catch (error) {
+      return getPlatformForHost(value);
+    }
+  }
+
+  function getPlatformForHost(value) {
+    const host = normalizeHost(value);
+
+    if (host === "youtube.com" || host.endsWith(".youtube.com")) {
+      return "youtube";
+    }
+
+    if (host === "x.com" || host.endsWith(".x.com") || host === "twitter.com" || host.endsWith(".twitter.com")) {
+      return "twitter";
+    }
+
+    if (host === "reddit.com" || host.endsWith(".reddit.com")) {
+      return "reddit";
+    }
+
+    if (host === "substack.com" || host.endsWith(".substack.com")) {
+      return "substack";
+    }
+
+    if (host === "news.ycombinator.com") {
+      return "hacker-news";
+    }
+
+    return "unknown";
+  }
+
+  function normalizeHost(value) {
+    return String(value || "")
+      .toLowerCase()
+      .replace(/:\d+$/, "")
+      .replace(/\.test$/, "")
+      .replace(/^www\./, "");
+  }
+
   const api = {
     DEFAULT_FILTER_CRITERIA,
     DEFAULT_SECRETS,
     DEFAULT_SETTINGS,
     SECRETS_KEY,
+    SITE_RULES,
     STORAGE_KEY,
+    getPlatformForHost,
+    getPlatformForUrl,
     normalizeSecrets,
     normalizeCriteria,
     normalizeSettings

@@ -19,7 +19,7 @@
         </label>
       </header>
 
-      <section>
+      <section data-site-section="youtube">
         <h2>YouTube</h2>
         <label class="switch-row" data-description="Desaturates YouTube thumbnails so they draw less attention.">
           <span>Gray thumbnails</span>
@@ -59,7 +59,7 @@
         </label>
       </section>
 
-      <section>
+      <section data-site-section="twitter">
         <h2>X / Twitter</h2>
         <label class="switch-row" data-description="Hides promoted posts in X/Twitter feeds.">
           <span>Remove feed ads</span>
@@ -77,7 +77,50 @@
           <span>Prefer Following</span>
           <input type="checkbox" data-setting="twitterEnforceFollowing">
         </label>
+      </section>
 
+      <section data-site-section="reddit">
+        <h2>Reddit</h2>
+        <label class="switch-row" data-description="Hides promoted posts in Reddit feeds.">
+          <span>Remove feed ads</span>
+          <input type="checkbox" data-setting="redditHideAds">
+        </label>
+        <label class="switch-row" data-description="Hides Reddit recommendation units such as suggested communities and because-you-visited posts.">
+          <span>Hide recommendations</span>
+          <input type="checkbox" data-setting="redditHideRecommendations">
+        </label>
+        <label class="switch-row" data-description="Requires an Anthropic key. Without one, content filtering stays off.">
+          <span>Filter out content</span>
+          <input type="checkbox" data-setting="redditFilterContent">
+        </label>
+      </section>
+
+      <section data-site-section="substack">
+        <h2>Substack</h2>
+        <label class="switch-row" data-description="Hides Substack recommendation modules and network-growth prompts.">
+          <span>Hide recommendations</span>
+          <input type="checkbox" data-setting="substackHideRecommendations">
+        </label>
+        <label class="switch-row" data-description="Requires an Anthropic key. Without one, content filtering stays off.">
+          <span>Filter out content</span>
+          <input type="checkbox" data-setting="substackFilterContent">
+        </label>
+      </section>
+
+      <section data-site-section="hacker-news">
+        <h2>Hacker News</h2>
+        <label class="switch-row" data-description="Requires an Anthropic key. Without one, story and comment filtering stays off.">
+          <span>Filter stories/comments</span>
+          <input type="checkbox" data-setting="hackerNewsFilterContent">
+        </label>
+        <label class="switch-row" data-description="Hides Hacker News story scores.">
+          <span>Hide scores</span>
+          <input type="checkbox" data-setting="hackerNewsHideScores">
+        </label>
+      </section>
+
+      <section>
+        <h2>Content filter</h2>
         <label class="field-row" data-api-key-row>
           <span>Anthropic key</span>
           <input type="password" data-secret="anthropicApiKey" placeholder="sk-ant-...">

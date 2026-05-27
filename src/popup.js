@@ -4,6 +4,7 @@
   const {
     DEFAULT_SECRETS,
     DEFAULT_SETTINGS,
+    getPlatformForUrl,
     normalizeCriteria,
     normalizeSecrets,
     normalizeSettings
@@ -27,11 +28,20 @@
   const phraseForm = document.querySelector("[data-phrase-form]");
   const phraseInput = document.querySelector("[data-phrase-input]");
   const phraseList = document.querySelector("[data-phrase-list]");
+  const popup = document.querySelector(".popup");
+  const header = document.querySelector("header");
+  const siteSections = Array.from(document.querySelectorAll("[data-site-section]"));
+  const defaultSiteSectionOrder = [...siteSections];
+  let activePlatform = "unknown";
 
   Promise.all([loadSettings(), loadSecrets()]).then(([loadedSettings, loadedSecrets]) => {
     settings = normalizeSettings(loadedSettings);
     secrets = normalizeSecrets(loadedSecrets);
     render();
+  });
+  detectActivePlatform().then((platform) => {
+    activePlatform = platform;
+    renderActiveSection();
   });
 
   settingInputs.forEach((input) => {
@@ -63,7 +73,7 @@
     }
 
     saveSettings({
-      twitterFilterCriteria: normalizeCriteria([...settings.twitterFilterCriteria, phrase])
+      filterCriteria: normalizeCriteria([...settings.filterCriteria, phrase])
     });
     phraseInput.value = "";
     phraseInput.focus();
@@ -81,7 +91,7 @@
 
     const phrase = button.dataset.removePhrase;
     saveSettings({
-      twitterFilterCriteria: settings.twitterFilterCriteria.filter((item) => item !== phrase)
+      filterCriteria: settings.filterCriteria.filter((item) => item !== phrase)
     });
   });
 
@@ -115,15 +125,17 @@
 
     apiKeyRow.hidden = false;
     renderFilterKeyStatus();
-    phraseInput.disabled = !settings.enabled || !settings.twitterFilterContent;
+    phraseInput.disabled = !settings.enabled || !isAnyContentFilterEnabled();
     phraseForm.querySelector("button").disabled = phraseInput.disabled;
+    renderActiveSection();
     renderPhrases();
   }
 
   function renderFilterKeyStatus() {
     const hasKey = Boolean(secrets.anthropicApiKey);
+    const hasContentFilter = isAnyContentFilterEnabled();
 
-    filterKeyStatus.hidden = !settings.twitterFilterContent;
+    filterKeyStatus.hidden = !hasContentFilter;
     filterKeyStatus.textContent = hasKey
       ? "Claude Haiku filtering is active."
       : "Content filtering is off until an Anthropic key is saved.";
@@ -132,7 +144,7 @@
   function renderPhrases() {
     phraseList.textContent = "";
 
-    if (settings.twitterFilterCriteria.length === 0) {
+    if (settings.filterCriteria.length === 0) {
       const empty = document.createElement("div");
       empty.className = "empty";
       empty.textContent = "No criteria";
@@ -140,7 +152,7 @@
       return;
     }
 
-    settings.twitterFilterCriteria.forEach((phrase) => {
+    settings.filterCriteria.forEach((phrase) => {
       const pill = document.createElement("details");
       pill.className = "pill";
       pill.dataset.criterion = "";
@@ -163,6 +175,77 @@
       summary.append(label, removeButton);
       pill.append(summary);
       phraseList.append(pill);
+    });
+  }
+
+  function renderActiveSection() {
+    let insertAfter = header;
+
+    defaultSiteSectionOrder.forEach((section) => {
+      popup.insertBefore(section, insertAfter.nextSibling);
+      insertAfter = section;
+    });
+
+    siteSections.forEach((section) => {
+      const isActive = section.dataset.siteSection === activePlatform;
+      section.dataset.activeSite = String(isActive);
+    });
+
+    const activeSection = siteSections.find((section) => section.dataset.siteSection === activePlatform);
+
+    if (activeSection) {
+      popup.insertBefore(activeSection, header.nextSibling);
+    }
+  }
+
+  function isAnyContentFilterEnabled() {
+    return (
+      settings.twitterFilterContent ||
+      settings.redditFilterContent ||
+      settings.substackFilterContent ||
+      settings.hackerNewsFilterContent
+    );
+  }
+
+  function detectActivePlatform() {
+    return new Promise((resolve) => {
+      if (
+        typeof chrome === "undefined" ||
+        !chrome.tabs ||
+        typeof chrome.tabs.query !== "function"
+      ) {
+        resolve("unknown");
+        return;
+      }
+
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (chrome.runtime && chrome.runtime.lastError) {
+          resolve("unknown");
+          return;
+        }
+
+        const tab = tabs && tabs[0];
+        const platformFromUrl = getPlatformForUrl(tab && tab.url);
+
+        if (
+          platformFromUrl !== "unknown" ||
+          !tab ||
+          typeof tab.id !== "number" ||
+          typeof chrome.tabs.sendMessage !== "function"
+        ) {
+          resolve(platformFromUrl);
+          return;
+        }
+
+        chrome.tabs.sendMessage(tab.id, { type: "getSmoothSurferPlatform" }, (response) => {
+          if (chrome.runtime && chrome.runtime.lastError) {
+            resolve("unknown");
+            return;
+          }
+
+          resolve(response && response.platform ? response.platform : "unknown");
+        });
+      });
     });
   }
 

@@ -44,6 +44,23 @@ section {
   padding: 9px;
 }
 
+section[data-active-site="true"] {
+  border-color: rgba(23, 107, 93, 0.42);
+  box-shadow: 0 0 0 1px rgba(23, 107, 93, 0.08);
+}
+
+section[data-active-site="true"] h2::after {
+  content: "Active";
+  display: inline-block;
+  margin-left: 6px;
+  border-radius: 999px;
+  background: #eef4f2;
+  color: #176b5d;
+  font-size: 9px;
+  padding: 1px 5px;
+  text-transform: none;
+}
+
 header {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;

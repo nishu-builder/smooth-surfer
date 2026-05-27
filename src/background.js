@@ -10,14 +10,29 @@ importScripts("settings.js", "storage.js");
   const MODEL = "claude-haiku-4-5";
   const ANTHROPIC_VERSION = "2023-06-01";
   const MAX_CACHE_ENTRIES = 400;
+  const FILTER_SETTING_BY_SOURCE = {
+    twitter: "twitterFilterContent",
+    reddit: "redditFilterContent",
+    substack: "substackFilterContent",
+    "hacker-news": "hackerNewsFilterContent"
+  };
+  const SOURCE_LABELS = {
+    twitter: "X/Twitter post",
+    reddit: "Reddit post",
+    substack: "Substack post or note",
+    "hacker-news": "Hacker News story or comment"
+  };
   const resultCache = new Map();
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (!message || message.type !== "classifyTweetContent") {
+    if (
+      !message ||
+      (message.type !== "classifyContent" && message.type !== "classifyTweetContent")
+    ) {
       return false;
     }
 
-    classifyTweetContent(message.text)
+    classifyContent(message.text, message.source || "twitter")
       .then(sendResponse)
       .catch((error) => {
         sendResponse({
@@ -31,12 +46,14 @@ importScripts("settings.js", "storage.js");
     return true;
   });
 
-  async function classifyTweetContent(text) {
+  async function classifyContent(text, source) {
     const settings = await loadSettings();
     const secrets = await loadSecrets();
+    const normalizedSource = normalizeSource(source);
+    const filterSetting = FILTER_SETTING_BY_SOURCE[normalizedSource];
     const normalizedText = normalizeText(text).slice(0, 2000);
 
-    if (!settings.twitterFilterContent || !secrets.anthropicApiKey) {
+    if (!filterSetting || !settings[filterSetting] || !secrets.anthropicApiKey) {
       return {
         blocked: false,
         reasons: [],
@@ -46,7 +63,8 @@ importScripts("settings.js", "storage.js");
 
     const cacheKey = JSON.stringify({
       classifier: "claude-haiku",
-      criteria: settings.twitterFilterCriteria,
+      criteria: settings.filterCriteria,
+      source: normalizedSource,
       text: normalizedText
     });
 
@@ -56,7 +74,8 @@ importScripts("settings.js", "storage.js");
 
     const result = await classifyWithHaiku(
       normalizedText,
-      settings.twitterFilterCriteria,
+      settings.filterCriteria,
+      normalizedSource,
       secrets.anthropicApiKey
     );
 
@@ -64,7 +83,7 @@ importScripts("settings.js", "storage.js");
     return result;
   }
 
-  async function classifyWithHaiku(text, criteria, apiKey) {
+  async function classifyWithHaiku(text, criteria, source, apiKey) {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -85,7 +104,7 @@ importScripts("settings.js", "storage.js");
             content: [
               {
                 type: "text",
-                text: buildClassifierPrompt(text, criteria)
+                text: buildClassifierPrompt(text, criteria, source)
               }
             ]
           }
@@ -115,16 +134,17 @@ importScripts("settings.js", "storage.js");
     };
   }
 
-  function buildClassifierPrompt(text, criteria) {
+  function buildClassifierPrompt(text, criteria, source) {
     const criteriaLines = criteria.length
       ? criteria.map((criterion, index) => `${index + 1}. ${criterion}`).join("\n")
       : self.SmoothSurferSettings.DEFAULT_FILTER_CRITERIA.map(
           (criterion, index) => `${index + 1}. ${criterion}`
         ).join("\n");
+    const sourceLabel = SOURCE_LABELS[source] || "feed item";
 
-    return `Decide whether this X/Twitter post should be hidden.
+    return `Decide whether this ${sourceLabel} should be hidden.
 
-Hide the post only when it semantically matches at least one filter criterion. A match can be paraphrased or implied; it does not need exact words. Do not hide neutral technical AI discussion, ordinary news, jokes, or criticism unless it clearly matches a criterion.
+Hide the item only when it semantically matches at least one filter criterion. A match can be paraphrased or implied; it does not need exact words. Do not hide neutral technical AI discussion, ordinary news, jokes, or criticism unless it clearly matches a criterion.
 
 Filter criteria:
 ${criteriaLines}
@@ -132,7 +152,7 @@ ${criteriaLines}
 Return JSON in exactly this shape:
 {"blocked": boolean, "reasons": ["short reason"]}
 
-Post:
+Content:
 ${text}`;
   }
 
@@ -169,5 +189,11 @@ ${text}`;
     return String(text || "")
       .replace(/\s+/g, " ")
       .trim();
+  }
+
+  function normalizeSource(source) {
+    const normalized = String(source || "").toLowerCase();
+
+    return Object.hasOwn(FILTER_SETTING_BY_SOURCE, normalized) ? normalized : "twitter";
   }
 })();

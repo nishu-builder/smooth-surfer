@@ -68,6 +68,10 @@ html.smooth-surfer-twitter-hide-trends [aria-label="Trending"] {
   display: none !important;
 }
 
+html.smooth-surfer-hacker-news-hide-scores .score {
+  display: none !important;
+}
+
 .smooth-surfer-hidden {
   display: none !important;
 }

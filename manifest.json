@@ -19,6 +19,11 @@
     "https://twitter.com/*",
     "https://www.twitter.com/*",
     "https://mobile.twitter.com/*",
+    "https://reddit.com/*",
+    "https://*.reddit.com/*",
+    "https://substack.com/*",
+    "https://*.substack.com/*",
+    "https://news.ycombinator.com/*",
     "https://api.anthropic.com/*"
   ],
   "background": {
