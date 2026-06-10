@@ -195,6 +195,7 @@ input[type="text"] {
 }
 
 input[type="password"],
+input[type="time"],
 select {
   min-width: 0;
   width: 100%;
@@ -329,4 +330,32 @@ input:disabled {
 .empty {
   color: #6a7485;
   font-size: 12px;
+}
+
+.time-row,
+.button-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+}
+
+.stats {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.stats-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.stats-row span:last-child {
+  color: #5b6677;
+  flex: 0 0 auto;
+  font-weight: 650;
 }

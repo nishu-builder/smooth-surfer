@@ -20,13 +20,24 @@ the toolbar popup.
 Per-site cleanup:
 
 - YouTube: grayscale thumbnails, hide recommendations, hide/block Shorts,
-  hide games, live chat, end screens, and engagement stats; disable autoplay.
+  hide games, live chat, end screens, engagement stats, and comments;
+  disable autoplay.
 - X / Twitter: hide ads and trends, keep the Following tab selected.
-- Reddit: hide promoted posts and "communities you might like" modules.
+- Reddit: hide promoted posts, "communities you might like" modules, and
+  comment threads.
 - Substack: hide recommendation modules.
 - Hacker News: hide scores.
 - Everywhere: hide sticky/floating video players, soften distracting
-  elements, and get a gentle "surf break" prompt after deep scrolling.
+  elements, get a gentle "surf break" prompt after deep scrolling, and
+  control video speed from the keyboard (] faster, [ slower, \ reset).
+
+Stay in control:
+
+- Focus schedule: run effects only during the hours you choose, including
+  overnight windows.
+- Stats: see how much noise was hidden per site today and this week.
+- Backup: export and import your settings as JSON (your API key is never
+  included).
 
 Optional AI filtering (off by default): if you save your own Anthropic API
 key, Smooth Surfer can hide posts that match filter criteria you write in

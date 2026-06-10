@@ -4,10 +4,13 @@
   const {
     DEFAULT_SECRETS,
     DEFAULT_SETTINGS,
+    DEFAULT_STATS,
     SECRETS_KEY,
+    STATS_KEY,
     STORAGE_KEY,
     normalizeSecrets,
-    normalizeSettings
+    normalizeSettings,
+    normalizeStats
   } = root.SmoothSurferSettings;
 
   function loadSettings() {
@@ -26,12 +29,24 @@
     return write("local", SECRETS_KEY, normalizeSecrets(secrets));
   }
 
+  function loadStats() {
+    return read("local", STATS_KEY, DEFAULT_STATS, normalizeStats);
+  }
+
+  function saveStats(stats) {
+    return write("local", STATS_KEY, normalizeStats(stats));
+  }
+
   function watchSettings(callback) {
     watchStorage("sync", STORAGE_KEY, normalizeSettings, callback);
   }
 
   function watchSecrets(callback) {
     watchStorage("local", SECRETS_KEY, normalizeSecrets, callback);
+  }
+
+  function watchStats(callback) {
+    watchStorage("local", STATS_KEY, normalizeStats, callback);
   }
 
   function watchStorage(areaName, key, normalize, callback) {
@@ -114,9 +129,12 @@
   root.SmoothSurferStorage = {
     loadSecrets,
     loadSettings,
+    loadStats,
     saveSecrets,
     saveSettings,
+    saveStats,
     watchSecrets,
-    watchSettings
+    watchSettings,
+    watchStats
   };
 })(typeof globalThis !== "undefined" ? globalThis : window);

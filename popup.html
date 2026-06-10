@@ -57,6 +57,10 @@
           <span>Hide engagement stats</span>
           <input type="checkbox" data-setting="youtubeHideEngagementStats">
         </label>
+        <label class="switch-row" data-description="Hides the comment section under YouTube videos.">
+          <span>Hide comments</span>
+          <input type="checkbox" data-setting="youtubeHideComments">
+        </label>
       </section>
 
       <section data-site-section="twitter">
@@ -92,6 +96,10 @@
         <label class="switch-row" data-description="Requires an Anthropic key. Without one, content filtering stays off.">
           <span>Filter out content</span>
           <input type="checkbox" data-setting="redditFilterContent">
+        </label>
+        <label class="switch-row" data-description="Hides comment threads on Reddit post pages.">
+          <span>Hide comments</span>
+          <input type="checkbox" data-setting="redditHideComments">
         </label>
       </section>
 
@@ -147,6 +155,44 @@
           <span>Gray distracting media</span>
           <input type="checkbox" data-setting="softenDistractingElements">
         </label>
+        <label class="switch-row" data-description="Press ] to speed up, [ to slow down, and \ to reset playback speed on any video.">
+          <span>Video speed keys</span>
+          <input type="checkbox" data-setting="videoSpeedHotkeys">
+        </label>
+      </section>
+
+      <section>
+        <h2>Focus schedule</h2>
+        <label class="switch-row" data-description="Runs Smooth Surfer effects only between the start and end times. Overnight windows like 22:00 to 06:00 work too.">
+          <span>Only during focus hours</span>
+          <input type="checkbox" data-setting="focusScheduleEnabled">
+        </label>
+        <div class="time-row">
+          <label class="field-row">
+            <span>From</span>
+            <input type="time" data-setting="focusScheduleStart">
+          </label>
+          <label class="field-row">
+            <span>To</span>
+            <input type="time" data-setting="focusScheduleEnd">
+          </label>
+        </div>
+      </section>
+
+      <section>
+        <h2>Stats</h2>
+        <div class="stats" data-stats-list aria-live="polite"></div>
+        <button type="button" data-clear-stats>Clear stats</button>
+      </section>
+
+      <section>
+        <h2>Backup</h2>
+        <p class="notice">Exports settings only. Your API key is never included.</p>
+        <div class="button-row">
+          <button type="button" data-export-settings>Export</button>
+          <button type="button" data-import-settings>Import</button>
+        </div>
+        <input type="file" accept="application/json,.json" data-import-file hidden>
       </section>
     </main>
 

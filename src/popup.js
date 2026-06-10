@@ -13,12 +13,24 @@
   const {
     loadSecrets,
     loadSettings,
+    loadStats,
     saveSecrets: writeSecrets,
-    saveSettings: writeSettings
+    saveSettings: writeSettings,
+    saveStats: writeStats,
+    watchStats
   } = window.SmoothSurferStorage;
+  const STATS_SITE_LABELS = {
+    youtube: "YouTube",
+    twitter: "X / Twitter",
+    reddit: "Reddit",
+    substack: "Substack",
+    "hacker-news": "Hacker News",
+    other: "Other sites"
+  };
 
   let settings = { ...DEFAULT_SETTINGS };
   let secrets = { ...DEFAULT_SECRETS };
+  let stats = { days: {} };
 
   const status = document.querySelector("[data-status]");
   const settingInputs = Array.from(document.querySelectorAll("[data-setting]"));
@@ -32,12 +44,25 @@
   const header = document.querySelector("header");
   const siteSections = Array.from(document.querySelectorAll("[data-site-section]"));
   const defaultSiteSectionOrder = [...siteSections];
+  const statsList = document.querySelector("[data-stats-list]");
+  const clearStatsButton = document.querySelector("[data-clear-stats]");
+  const exportButton = document.querySelector("[data-export-settings]");
+  const importButton = document.querySelector("[data-import-settings]");
+  const importFile = document.querySelector("[data-import-file]");
   let activePlatform = "unknown";
 
   Promise.all([loadSettings(), loadSecrets()]).then(([loadedSettings, loadedSecrets]) => {
     settings = normalizeSettings(loadedSettings);
     secrets = normalizeSecrets(loadedSecrets);
     render();
+  });
+  loadStats().then((loadedStats) => {
+    stats = loadedStats;
+    renderStats();
+  });
+  watchStats((nextStats) => {
+    stats = nextStats;
+    renderStats();
   });
   detectActivePlatform().then((platform) => {
     activePlatform = platform;
@@ -93,6 +118,57 @@
     saveSettings({
       filterCriteria: settings.filterCriteria.filter((item) => item !== phrase)
     });
+  });
+
+  clearStatsButton.addEventListener("click", () => {
+    stats = { days: {} };
+    renderStats();
+    writeStats(stats).then(() => setStatus("Stats cleared"), () => setStatus("Not saved"));
+  });
+
+  exportButton.addEventListener("click", () => {
+    const payload = {
+      app: "smooth-surfer",
+      exportedAt: new Date().toISOString(),
+      settings
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = "smooth-surfer-settings.json";
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setStatus("Exported");
+  });
+
+  importButton.addEventListener("click", () => {
+    importFile.click();
+  });
+
+  importFile.addEventListener("change", () => {
+    const file = importFile.files && importFile.files[0];
+
+    importFile.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    file
+      .text()
+      .then((text) => {
+        const parsed = JSON.parse(text);
+        const imported = parsed && typeof parsed === "object" && parsed.settings ? parsed.settings : parsed;
+
+        if (!imported || typeof imported !== "object" || Array.isArray(imported)) {
+          throw new Error("Invalid settings file");
+        }
+
+        saveSettings(normalizeSettings(imported));
+      })
+      .catch(() => setStatus("Import failed"));
   });
 
   function saveSettings(partial) {
@@ -196,6 +272,82 @@
     if (activeSection) {
       popup.insertBefore(activeSection, header.nextSibling);
     }
+  }
+
+  function renderStats() {
+    statsList.textContent = "";
+
+    const weekKeys = new Set(lastDayKeys(7));
+    const todayKey = localDayKey(new Date());
+    const totals = new Map();
+
+    Object.keys(stats.days).forEach((day) => {
+      if (!weekKeys.has(day)) {
+        return;
+      }
+
+      const platforms = stats.days[day];
+
+      Object.keys(platforms).forEach((platformName) => {
+        const count = Object.values(platforms[platformName]).reduce(
+          (sum, value) => sum + value,
+          0
+        );
+        const entry = totals.get(platformName) || { today: 0, week: 0 };
+
+        entry.week += count;
+
+        if (day === todayKey) {
+          entry.today += count;
+        }
+
+        totals.set(platformName, entry);
+      });
+    });
+
+    if (totals.size === 0) {
+      const empty = document.createElement("div");
+      empty.className = "empty";
+      empty.textContent = "Nothing hidden yet.";
+      statsList.append(empty);
+      return;
+    }
+
+    const ordered = Array.from(totals.entries()).sort((a, b) => b[1].week - a[1].week);
+
+    ordered.forEach(([platformName, entry]) => {
+      const row = document.createElement("div");
+      row.className = "stats-row";
+
+      const label = document.createElement("span");
+      label.textContent = STATS_SITE_LABELS[platformName] || platformName;
+
+      const counts = document.createElement("span");
+      counts.textContent = `${entry.today} today · ${entry.week} this week`;
+
+      row.append(label, counts);
+      statsList.append(row);
+    });
+  }
+
+  function localDayKey(date) {
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${date.getFullYear()}-${month}-${day}`;
+  }
+
+  function lastDayKeys(count) {
+    const keys = [];
+
+    for (let offset = 0; offset < count; offset += 1) {
+      const date = new Date();
+
+      date.setDate(date.getDate() - offset);
+      keys.push(localDayKey(date));
+    }
+
+    return keys;
   }
 
   function isAnyContentFilterEnabled() {

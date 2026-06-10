@@ -5,11 +5,17 @@ importScripts("settings.js", "storage.js");
 
   const {
     loadSecrets,
-    loadSettings
+    loadSettings,
+    loadStats,
+    saveStats
   } = self.SmoothSurferStorage;
   const MODEL = "claude-haiku-4-5";
   const ANTHROPIC_VERSION = "2023-06-01";
   const MAX_CACHE_ENTRIES = 400;
+  const BATCH_DELAY_MS = 250;
+  const MAX_BATCH_SIZE = 20;
+  const STATS_RETENTION_DAYS = 30;
+  const STATS_WRITE_DELAY_MS = 1000;
   const FILTER_SETTING_BY_SOURCE = {
     twitter: "twitterFilterContent",
     reddit: "redditFilterContent",
@@ -23,12 +29,22 @@ importScripts("settings.js", "storage.js");
     "hacker-news": "Hacker News story or comment"
   };
   const resultCache = new Map();
+  let batchQueue = [];
+  let batchTimer = 0;
+  let statsPromise = null;
+  let statsWriteTimer = 0;
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (
-      !message ||
-      (message.type !== "classifyContent" && message.type !== "classifyTweetContent")
-    ) {
+    if (!message) {
+      return false;
+    }
+
+    if (message.type === "recordHide") {
+      recordHide(message.source, message.reasons);
+      return false;
+    }
+
+    if (message.type !== "classifyContent" && message.type !== "classifyTweetContent") {
       return false;
     }
 
@@ -45,6 +61,49 @@ importScripts("settings.js", "storage.js");
 
     return true;
   });
+
+  async function recordHide(source, reasons) {
+    if (!statsPromise) {
+      statsPromise = loadStats();
+    }
+
+    const stats = await statsPromise;
+    const day = getLocalDayKey();
+    const platform = String(source || "other") || "other";
+    const reason = Array.isArray(reasons) && reasons[0] ? String(reasons[0]) : "other";
+    const platforms = stats.days[day] || (stats.days[day] = {});
+    const reasonCounts = platforms[platform] || (platforms[platform] = {});
+
+    reasonCounts[reason] = (reasonCounts[reason] || 0) + 1;
+    pruneStats(stats.days);
+    scheduleStatsWrite();
+  }
+
+  function pruneStats(days) {
+    const keys = Object.keys(days).sort();
+
+    while (keys.length > STATS_RETENTION_DAYS) {
+      delete days[keys.shift()];
+    }
+  }
+
+  function scheduleStatsWrite() {
+    if (statsWriteTimer) {
+      return;
+    }
+
+    statsWriteTimer = setTimeout(async () => {
+      statsWriteTimer = 0;
+      saveStats(await statsPromise);
+    }, STATS_WRITE_DELAY_MS);
+  }
+
+  function getLocalDayKey(date = new Date()) {
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${date.getFullYear()}-${month}-${day}`;
+  }
 
   async function classifyContent(text, source) {
     const settings = await loadSettings();
@@ -72,18 +131,88 @@ importScripts("settings.js", "storage.js");
       return resultCache.get(cacheKey);
     }
 
-    const result = await classifyWithHaiku(
-      normalizedText,
-      settings.filterCriteria,
-      normalizedSource,
-      secrets.anthropicApiKey
-    );
+    return new Promise((resolve) => {
+      batchQueue.push({
+        text: normalizedText,
+        source: normalizedSource,
+        cacheKey,
+        resolve
+      });
 
-    setCached(cacheKey, result);
-    return result;
+      if (batchQueue.length >= MAX_BATCH_SIZE) {
+        flushBatch();
+      } else if (!batchTimer) {
+        batchTimer = setTimeout(flushBatch, BATCH_DELAY_MS);
+      }
+    });
   }
 
-  async function classifyWithHaiku(text, criteria, source, apiKey) {
+  async function flushBatch() {
+    clearTimeout(batchTimer);
+    batchTimer = 0;
+
+    const queued = batchQueue.splice(0, MAX_BATCH_SIZE);
+
+    if (batchQueue.length > 0) {
+      batchTimer = setTimeout(flushBatch, BATCH_DELAY_MS);
+    }
+
+    const entries = new Map();
+
+    queued.forEach((item) => {
+      const cached = resultCache.get(item.cacheKey);
+
+      if (cached) {
+        item.resolve(cached);
+        return;
+      }
+
+      const entry = entries.get(item.cacheKey) || {
+        text: item.text,
+        source: item.source,
+        resolvers: []
+      };
+
+      entry.resolvers.push(item.resolve);
+      entries.set(item.cacheKey, entry);
+    });
+
+    if (entries.size === 0) {
+      return;
+    }
+
+    const items = Array.from(entries.values());
+
+    try {
+      const settings = await loadSettings();
+      const secrets = await loadSecrets();
+      const results = await classifyBatchWithHaiku(
+        items,
+        settings.filterCriteria,
+        secrets.anthropicApiKey
+      );
+
+      Array.from(entries.keys()).forEach((cacheKey, index) => {
+        const result = results[index];
+
+        setCached(cacheKey, result);
+        entries.get(cacheKey).resolvers.forEach((resolve) => resolve(result));
+      });
+    } catch (error) {
+      const failure = {
+        blocked: false,
+        reasons: [],
+        classifier: "error",
+        error: error.message
+      };
+
+      items.forEach((entry) => {
+        entry.resolvers.forEach((resolve) => resolve(failure));
+      });
+    }
+  }
+
+  async function classifyBatchWithHaiku(items, criteria, apiKey) {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -94,7 +223,7 @@ importScripts("settings.js", "storage.js");
       },
       body: JSON.stringify({
         model: MODEL,
-        max_tokens: 120,
+        max_tokens: Math.min(60 * items.length + 60, 1500),
         temperature: 0,
         system:
           "You classify social-media posts for a personal feed filter. Return only compact JSON. Do not include prose.",
@@ -104,7 +233,7 @@ importScripts("settings.js", "storage.js");
             content: [
               {
                 type: "text",
-                text: buildClassifierPrompt(text, criteria, source)
+                text: buildClassifierPrompt(items, criteria)
               }
             ]
           }
@@ -123,37 +252,72 @@ importScripts("settings.js", "storage.js");
       .map((block) => block.text)
       .join("\n")
       .trim();
-    const parsed = parseJsonAnswer(answer);
 
-    return {
-      blocked: Boolean(parsed.blocked),
-      reasons: Array.isArray(parsed.reasons)
-        ? parsed.reasons.map(String).filter(Boolean).slice(0, 3)
-        : [],
-      classifier: "claude-haiku"
-    };
+    return parseBatchAnswer(answer, items.length);
   }
 
-  function buildClassifierPrompt(text, criteria, source) {
-    const criteriaLines = criteria.length
-      ? criteria.map((criterion, index) => `${index + 1}. ${criterion}`).join("\n")
-      : self.SmoothSurferSettings.DEFAULT_FILTER_CRITERIA.map(
-          (criterion, index) => `${index + 1}. ${criterion}`
-        ).join("\n");
-    const sourceLabel = SOURCE_LABELS[source] || "feed item";
+  function buildClassifierPrompt(items, criteria) {
+    const criteriaLines = (criteria.length
+      ? criteria
+      : self.SmoothSurferSettings.DEFAULT_FILTER_CRITERIA
+    )
+      .map((criterion, index) => `${index + 1}. ${criterion}`)
+      .join("\n");
+    const itemLines = items
+      .map(
+        (item, index) =>
+          `${index + 1}. [${SOURCE_LABELS[item.source] || "feed item"}] ${item.text}`
+      )
+      .join("\n\n");
 
-    return `Decide whether this ${sourceLabel} should be hidden.
+    return `Decide for each numbered feed item whether it should be hidden.
 
-Hide the item only when it semantically matches at least one filter criterion. A match can be paraphrased or implied; it does not need exact words. Do not hide neutral technical AI discussion, ordinary news, jokes, or criticism unless it clearly matches a criterion.
+Hide an item only when it semantically matches at least one filter criterion. A match can be paraphrased or implied; it does not need exact words. Do not hide neutral technical AI discussion, ordinary news, jokes, or criticism unless it clearly matches a criterion.
 
 Filter criteria:
 ${criteriaLines}
 
-Return JSON in exactly this shape:
-{"blocked": boolean, "reasons": ["short reason"]}
+Return JSON in exactly this shape, with one entry per item in the same order:
+{"results": [{"i": 1, "blocked": boolean, "reasons": ["short reason"]}]}
 
-Content:
-${text}`;
+Items:
+${itemLines}`;
+  }
+
+  function parseBatchAnswer(answer, itemCount) {
+    const parsed = parseJsonAnswer(answer);
+    const list = Array.isArray(parsed.results)
+      ? parsed.results
+      : Array.isArray(parsed)
+        ? parsed
+        : [];
+    const results = Array.from({ length: itemCount }, () => ({
+      blocked: false,
+      reasons: [],
+      classifier: "claude-haiku"
+    }));
+
+    list.forEach((entry, position) => {
+      if (!entry || typeof entry !== "object") {
+        return;
+      }
+
+      const index = Number.isInteger(entry.i) ? entry.i - 1 : position;
+
+      if (index < 0 || index >= results.length) {
+        return;
+      }
+
+      results[index] = {
+        blocked: Boolean(entry.blocked),
+        reasons: Array.isArray(entry.reasons)
+          ? entry.reasons.map(String).filter(Boolean).slice(0, 3)
+          : [],
+        classifier: "claude-haiku"
+      };
+    });
+
+    return results;
   }
 
   function parseJsonAnswer(answer) {

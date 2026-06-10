@@ -38,6 +38,37 @@ assert.equal(defaults.hackerNewsHideScores, true);
 assert.equal(defaults.hideStickyVideoPlayers, true);
 assert.equal(defaults.pauseDeepScrolling, true);
 assert.equal(defaults.softenDistractingElements, true);
+assert.equal(defaults.youtubeHideComments, false);
+assert.equal(defaults.redditHideComments, false);
+assert.equal(defaults.videoSpeedHotkeys, true);
+assert.equal(defaults.focusScheduleEnabled, false);
+assert.equal(defaults.focusScheduleStart, "09:00");
+assert.equal(defaults.focusScheduleEnd, "17:00");
+
+assert.equal(settings.normalizeSettings({ focusScheduleStart: "7:05" }).focusScheduleStart, "07:05");
+assert.equal(settings.normalizeSettings({ focusScheduleStart: "25:00" }).focusScheduleStart, "09:00");
+assert.equal(settings.normalizeSettings({ focusScheduleEnd: "not a time" }).focusScheduleEnd, "17:00");
+
+const at = (hours, minutes) => new Date(2026, 5, 10, hours, minutes);
+assert.equal(settings.isWithinFocusWindow("09:00", "17:00", at(12, 0)), true);
+assert.equal(settings.isWithinFocusWindow("09:00", "17:00", at(9, 0)), true);
+assert.equal(settings.isWithinFocusWindow("09:00", "17:00", at(8, 59)), false);
+assert.equal(settings.isWithinFocusWindow("09:00", "17:00", at(17, 0)), false);
+assert.equal(settings.isWithinFocusWindow("22:00", "06:00", at(23, 0)), true);
+assert.equal(settings.isWithinFocusWindow("22:00", "06:00", at(5, 59)), true);
+assert.equal(settings.isWithinFocusWindow("22:00", "06:00", at(12, 0)), false);
+assert.equal(settings.isWithinFocusWindow("09:00", "09:00", at(3, 0)), true);
+
+assert.deepEqual(settings.normalizeStats(null), { days: {} });
+assert.deepEqual(
+  settings.normalizeStats({
+    days: {
+      "2026-06-10": { youtube: { ad: "3", junk: 0 }, broken: null },
+      "not-a-date": { youtube: { ad: 2 } }
+    }
+  }),
+  { days: { "2026-06-10": { youtube: { ad: 3 } } } }
+);
 assert.ok(defaults.filterCriteria.some((criterion) => criterion.includes("Engagement bait")));
 assert.ok(defaults.filterCriteria.some((criterion) => criterion.includes("missed upside")));
 assert.ok(defaults.filterCriteria.some((criterion) => criterion.includes("one short sentence")));
