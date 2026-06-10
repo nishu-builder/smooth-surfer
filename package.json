@@ -13,7 +13,7 @@
   },
   "homepage": "https://github.com/nishu-builder/smooth-surfer#readme",
   "scripts": {
-    "check": "node --check src/settings.js && node --check src/storage.js && node --check src/background.js && node --check src/content.js && node --check src/popup.js && node tests/settings.test.js && node tests/manifest.test.js && node tests/chrome-smoke.test.mjs",
+    "check": "node --check src/settings.js && node --check src/storage.js && node --check src/background.js && node --check src/content.js && node --check src/popup.js && node tests/settings.test.js && node tests/manifest.test.js && node tests/background.test.js && node tests/chrome-smoke.test.mjs",
     "package": "mkdir -p dist && rm -f dist/smooth-surfer.zip && zip -r dist/smooth-surfer.zip manifest.json popup.html src icons"
   }
 }

@@ -406,7 +406,7 @@
     document
       .querySelectorAll("aside, section, [data-testid*='recommend'], [class*='recommend']")
       .forEach((module) => {
-        const text = normalizeInlineText(module.innerText || module.textContent).toLowerCase();
+        const text = getElementText(module).toLowerCase();
         const shouldHide =
           hasRecommendationText(text) ||
           text.includes("communities you might like") ||
@@ -454,7 +454,7 @@
     document
       .querySelectorAll("aside, section, [data-testid*='recommend'], [class*='recommend']")
       .forEach((module) => {
-        const text = normalizeInlineText(module.innerText || module.textContent).toLowerCase();
+        const text = getElementText(module).toLowerCase();
         const shouldHide =
           hasRecommendationText(text) ||
           text.includes("recommended reads") ||
@@ -794,7 +794,13 @@
         }
 
         const result = response || { blocked: false, reasons: [] };
-        modelClassifications.set(key, result);
+
+        // Error fallbacks are transient; caching them would permanently mark
+        // the post clean. Leave them uncached so a later scan retries.
+        if (result.classifier !== "error") {
+          modelClassifications.set(key, result);
+        }
+
         applyModelClassification(container, result, kind);
       }
     );
@@ -850,11 +856,14 @@
   function getTweetText(article) {
     const tweetTextNodes = Array.from(article.querySelectorAll('[data-testid="tweetText"]'));
 
+    // textContent, not innerText: innerText changes once the element is
+    // display:none, which would give hidden tweets a new classification key
+    // and make them oscillate between hidden and restored.
     if (tweetTextNodes.length > 0) {
-      return tweetTextNodes.map((node) => node.innerText || node.textContent || "").join(" ");
+      return tweetTextNodes.map((node) => node.textContent || "").join(" ");
     }
 
-    return article.innerText || article.textContent || "";
+    return article.textContent || "";
   }
 
   function getTweetContainer(article) {
@@ -930,7 +939,9 @@
   }
 
   function getElementText(element) {
-    return normalizeInlineText(element.innerText || element.textContent || "");
+    // textContent, not innerText: must be identical whether the element is
+    // hidden or visible so classification keys stay stable after hiding.
+    return normalizeInlineText(element.textContent || "");
   }
 
   function uniqueElements(elements) {

@@ -223,7 +223,7 @@ importScripts("settings.js", "storage.js");
       },
       body: JSON.stringify({
         model: MODEL,
-        max_tokens: Math.min(60 * items.length + 60, 1500),
+        max_tokens: Math.min(80 * items.length + 100, 4000),
         temperature: 0,
         system:
           "You classify social-media posts for a personal feed filter. Return only compact JSON. Do not include prose.",
@@ -246,6 +246,13 @@ importScripts("settings.js", "storage.js");
     }
 
     const data = await response.json();
+
+    // A truncated answer parses as "blocked: false" for every missing item,
+    // which would get cached and silently disable filtering for the batch.
+    if (data.stop_reason === "max_tokens") {
+      throw new Error("Anthropic API response truncated");
+    }
+
     const content = Array.isArray(data.content) ? data.content : [];
     const answer = content
       .filter((block) => block && block.type === "text")
