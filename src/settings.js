@@ -3,6 +3,7 @@
 
   const STORAGE_KEY = "smoothSurferSettings";
   const SECRETS_KEY = "smoothSurferSecrets";
+  const STATS_KEY = "smoothSurferStats";
   const LEGACY_UPSIDE_FOMO_CRITERION =
     "AI hype that pressures the reader with FOMO, loss framing, or financial upside.";
   const UPSIDE_FOMO_CRITERION =
@@ -36,6 +37,7 @@
     youtubeDisableAutoplay: true,
     youtubeHideEndScreens: true,
     youtubeHideEngagementStats: true,
+    youtubeHideComments: false,
     twitterHideAds: true,
     twitterFilterContent: true,
     twitterHideTrends: true,
@@ -43,16 +45,24 @@
     redditHideAds: true,
     redditHideRecommendations: true,
     redditFilterContent: true,
+    redditHideComments: false,
     substackHideRecommendations: true,
     substackFilterContent: true,
     hackerNewsFilterContent: true,
     hackerNewsHideScores: true,
     hideStickyVideoPlayers: true,
     pauseDeepScrolling: true,
-    softenDistractingElements: true
+    softenDistractingElements: true,
+    videoSpeedHotkeys: true,
+    focusScheduleEnabled: false,
+    focusScheduleStart: "09:00",
+    focusScheduleEnd: "17:00"
   };
   const DEFAULT_SECRETS = {
     anthropicApiKey: ""
+  };
+  const DEFAULT_STATS = {
+    days: {}
   };
 
   function normalizeCriteria(value) {
@@ -96,6 +106,7 @@
     next.youtubeDisableAutoplay = Boolean(next.youtubeDisableAutoplay);
     next.youtubeHideEndScreens = Boolean(next.youtubeHideEndScreens);
     next.youtubeHideEngagementStats = Boolean(next.youtubeHideEngagementStats);
+    next.youtubeHideComments = Boolean(next.youtubeHideComments);
     next.twitterHideAds = Boolean(next.twitterHideAds);
     next.twitterFilterContent = Boolean(next.twitterFilterContent);
     next.twitterHideTrends = Boolean(next.twitterHideTrends);
@@ -103,6 +114,7 @@
     next.redditHideAds = Boolean(next.redditHideAds);
     next.redditHideRecommendations = Boolean(next.redditHideRecommendations);
     next.redditFilterContent = Boolean(next.redditFilterContent);
+    next.redditHideComments = Boolean(next.redditHideComments);
     next.substackHideRecommendations = Boolean(next.substackHideRecommendations);
     next.substackFilterContent = Boolean(next.substackFilterContent);
     next.hackerNewsFilterContent = Boolean(next.hackerNewsFilterContent);
@@ -110,10 +122,102 @@
     next.hideStickyVideoPlayers = Boolean(next.hideStickyVideoPlayers);
     next.pauseDeepScrolling = Boolean(next.pauseDeepScrolling);
     next.softenDistractingElements = Boolean(next.softenDistractingElements);
+    next.videoSpeedHotkeys = Boolean(next.videoSpeedHotkeys);
+    next.focusScheduleEnabled = Boolean(next.focusScheduleEnabled);
+    next.focusScheduleStart = normalizeTime(next.focusScheduleStart, DEFAULT_SETTINGS.focusScheduleStart);
+    next.focusScheduleEnd = normalizeTime(next.focusScheduleEnd, DEFAULT_SETTINGS.focusScheduleEnd);
     delete next.twitterClassifierMode;
     delete next.twitterFilterCriteria;
 
     return next;
+  }
+
+  function normalizeTime(value, fallback) {
+    const match = /^(\d{1,2}):(\d{2})$/.exec(String(value || "").trim());
+
+    if (!match) {
+      return fallback;
+    }
+
+    const hours = Number(match[1]);
+    const minutes = Number(match[2]);
+
+    if (hours > 23 || minutes > 59) {
+      return fallback;
+    }
+
+    return `${String(hours).padStart(2, "0")}:${match[2]}`;
+  }
+
+  function toMinutes(time) {
+    const [hours, minutes] = String(time).split(":").map(Number);
+
+    return hours * 60 + minutes;
+  }
+
+  function isWithinFocusWindow(start, end, date) {
+    const startMinutes = toMinutes(normalizeTime(start, "00:00"));
+    const endMinutes = toMinutes(normalizeTime(end, "00:00"));
+    const now = date instanceof Date ? date : new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+    if (startMinutes === endMinutes) {
+      return true;
+    }
+
+    if (startMinutes < endMinutes) {
+      return nowMinutes >= startMinutes && nowMinutes < endMinutes;
+    }
+
+    return nowMinutes >= startMinutes || nowMinutes < endMinutes;
+  }
+
+  function normalizeStats(value) {
+    const source = value && typeof value === "object" ? value : {};
+    const sourceDays = source.days && typeof source.days === "object" ? source.days : {};
+    const days = {};
+
+    Object.keys(sourceDays).forEach((day) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+        return;
+      }
+
+      const sourcePlatforms = sourceDays[day];
+
+      if (!sourcePlatforms || typeof sourcePlatforms !== "object") {
+        return;
+      }
+
+      const platforms = {};
+
+      Object.keys(sourcePlatforms).forEach((platformName) => {
+        const sourceReasons = sourcePlatforms[platformName];
+
+        if (!sourceReasons || typeof sourceReasons !== "object") {
+          return;
+        }
+
+        const reasons = {};
+
+        Object.keys(sourceReasons).forEach((reason) => {
+          const count = Math.floor(Number(sourceReasons[reason]));
+
+          if (count > 0) {
+            reasons[reason] = count;
+          }
+        });
+
+        if (Object.keys(reasons).length > 0) {
+          platforms[platformName] = reasons;
+        }
+      });
+
+      if (Object.keys(platforms).length > 0) {
+        days[day] = platforms;
+      }
+    });
+
+    return { days };
   }
 
   function normalizeFilterCriteria(value) {
@@ -185,14 +289,18 @@
     DEFAULT_FILTER_CRITERIA,
     DEFAULT_SECRETS,
     DEFAULT_SETTINGS,
+    DEFAULT_STATS,
     SECRETS_KEY,
     SITE_RULES,
+    STATS_KEY,
     STORAGE_KEY,
     getPlatformForHost,
     getPlatformForUrl,
+    isWithinFocusWindow,
     normalizeSecrets,
     normalizeCriteria,
-    normalizeSettings
+    normalizeSettings,
+    normalizeStats
   };
 
   root.SmoothSurferSettings = api;

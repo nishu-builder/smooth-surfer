@@ -7,8 +7,11 @@
     watchSecrets,
     watchSettings
   } = window.SmoothSurferStorage;
-  const { getPlatformForUrl } = window.SmoothSurferSettings;
+  const { getPlatformForUrl, isWithinFocusWindow } = window.SmoothSurferSettings;
   const SCAN_DEBOUNCE_MS = 120;
+  const SPEED_MIN = 0.25;
+  const SPEED_MAX = 4;
+  const SPEED_STEP = 0.25;
   const CONTENT_FILTER_SETTING_BY_PLATFORM = {
     twitter: "twitterFilterContent",
     reddit: "redditFilterContent",
@@ -51,10 +54,15 @@
   let scrollPauseInputBlockersInstalled = false;
   let twitterFollowingPreferenceResolved = false;
   let twitterTabPreferenceListenerInstalled = false;
+  let lastEffectsActive = null;
+  let speedToast = null;
+  let speedToastTimer = 0;
   const modelClassifications = new Map();
+  const recordedStatKeys = new Set();
 
   const platform = getPlatform();
   installMessageListener();
+  installVideoSpeedHotkeys();
 
   start();
 
@@ -83,6 +91,18 @@
 
   function getPlatform() {
     return getPlatformForUrl(window.location.href);
+  }
+
+  function effectsEnabled() {
+    if (!settings.enabled) {
+      return false;
+    }
+
+    if (!settings.focusScheduleEnabled) {
+      return true;
+    }
+
+    return isWithinFocusWindow(settings.focusScheduleStart, settings.focusScheduleEnd);
   }
 
   function installMessageListener() {
@@ -122,42 +142,52 @@
 
   function applyRootClasses() {
     const root = document.documentElement;
+    const active = effectsEnabled();
 
+    lastEffectsActive = active;
     root.classList.toggle(
       "smooth-surfer-youtube-gray",
-      settings.enabled && platform === "youtube" && settings.youtubeGrayscaleThumbnails
+      active && platform === "youtube" && settings.youtubeGrayscaleThumbnails
     );
     root.classList.toggle(
       "smooth-surfer-youtube-hide-recs",
-      settings.enabled && platform === "youtube" && settings.youtubeHideRecommendations
+      active && platform === "youtube" && settings.youtubeHideRecommendations
     );
     root.classList.toggle(
       "smooth-surfer-youtube-hide-shorts",
-      settings.enabled && platform === "youtube" && settings.youtubeHideShorts
+      active && platform === "youtube" && settings.youtubeHideShorts
     );
     root.classList.toggle(
       "smooth-surfer-youtube-hide-live-chat",
-      settings.enabled && platform === "youtube" && settings.youtubeHideLiveChat
+      active && platform === "youtube" && settings.youtubeHideLiveChat
     );
     root.classList.toggle(
       "smooth-surfer-youtube-hide-end-screens",
-      settings.enabled && platform === "youtube" && settings.youtubeHideEndScreens
+      active && platform === "youtube" && settings.youtubeHideEndScreens
     );
     root.classList.toggle(
       "smooth-surfer-youtube-hide-engagement",
-      settings.enabled && platform === "youtube" && settings.youtubeHideEngagementStats
+      active && platform === "youtube" && settings.youtubeHideEngagementStats
+    );
+    root.classList.toggle(
+      "smooth-surfer-youtube-hide-comments",
+      active && platform === "youtube" && settings.youtubeHideComments
     );
     root.classList.toggle(
       "smooth-surfer-twitter-hide-trends",
-      settings.enabled && platform === "twitter" && settings.twitterHideTrends
+      active && platform === "twitter" && settings.twitterHideTrends
+    );
+    root.classList.toggle(
+      "smooth-surfer-reddit-hide-comments",
+      active && platform === "reddit" && settings.redditHideComments
     );
     root.classList.toggle(
       "smooth-surfer-hacker-news-hide-scores",
-      settings.enabled && platform === "hacker-news" && settings.hackerNewsHideScores
+      active && platform === "hacker-news" && settings.hackerNewsHideScores
     );
     root.classList.toggle(
       "smooth-surfer-soften-distracting",
-      settings.enabled && settings.softenDistractingElements && !isWorkSite()
+      active && settings.softenDistractingElements && !isWorkSite()
     );
   }
 
@@ -184,6 +214,10 @@
   }
 
   function scanPage() {
+    if (effectsEnabled() !== lastEffectsActive) {
+      applyRootClasses();
+    }
+
     scanCommonPage();
 
     if (platform === "youtube") {
@@ -213,7 +247,7 @@
   }
 
   function scanCommonPage() {
-    if (!settings.enabled || isWorkSite()) {
+    if (!effectsEnabled() || isWorkSite()) {
       restoreHiddenElementsByKind("sticky-video");
       removeScrollPause();
       return;
@@ -239,7 +273,7 @@
 
   function maybeBlockYouTubeShorts() {
     if (
-      settings.enabled &&
+      effectsEnabled() &&
       platform === "youtube" &&
       settings.youtubeBlockShorts &&
       window.location.pathname.startsWith("/shorts/")
@@ -253,9 +287,9 @@
       .querySelectorAll("ytd-rich-section-renderer, ytd-rich-shelf-renderer, ytd-reel-shelf-renderer")
       .forEach((section) => {
         const title = getYouTubeShelfTitle(section);
-        const isShorts = settings.enabled && settings.youtubeHideShorts && title.includes("shorts");
+        const isShorts = effectsEnabled() && settings.youtubeHideShorts && title.includes("shorts");
         const isGames =
-          settings.enabled &&
+          effectsEnabled() &&
           settings.youtubeHideGames &&
           (title.includes("playables") || title.includes("games") || title.includes("gaming"));
 
@@ -271,7 +305,7 @@
   }
 
   function disableYouTubeAutoplay() {
-    if (!settings.enabled || !settings.youtubeDisableAutoplay) {
+    if (!effectsEnabled() || !settings.youtubeDisableAutoplay) {
       return;
     }
 
@@ -299,7 +333,7 @@
 
     const canFilterContent = canFilterPlatformContent("twitter");
 
-    if (!settings.enabled || (!settings.twitterHideAds && !canFilterContent)) {
+    if (!effectsEnabled() || (!settings.twitterHideAds && !canFilterContent)) {
       restoreHiddenTweets();
       return;
     }
@@ -329,7 +363,7 @@
     const canFilterContent = canFilterPlatformContent("reddit");
 
     if (
-      !settings.enabled ||
+      !effectsEnabled() ||
       (!settings.redditHideAds && !settings.redditHideRecommendations && !canFilterContent)
     ) {
       restoreHiddenElementsByKind("reddit-post");
@@ -364,7 +398,7 @@
   }
 
   function scanRedditRecommendationModules() {
-    if (!settings.enabled || !settings.redditHideRecommendations) {
+    if (!effectsEnabled() || !settings.redditHideRecommendations) {
       restoreHiddenElementsByKind("reddit-module");
       return;
     }
@@ -389,7 +423,7 @@
   function scanSubstackPage() {
     const canFilterContent = canFilterPlatformContent("substack");
 
-    if (!settings.enabled || (!settings.substackHideRecommendations && !canFilterContent)) {
+    if (!effectsEnabled() || (!settings.substackHideRecommendations && !canFilterContent)) {
       restoreHiddenElementsByKind("substack-post");
       restoreHiddenElementsByKind("substack-module");
       return;
@@ -412,7 +446,7 @@
   }
 
   function scanSubstackRecommendationModules() {
-    if (!settings.enabled || !settings.substackHideRecommendations) {
+    if (!effectsEnabled() || !settings.substackHideRecommendations) {
       restoreHiddenElementsByKind("substack-module");
       return;
     }
@@ -438,7 +472,7 @@
   function scanHackerNewsPage() {
     const canFilterContent = canFilterPlatformContent("hacker-news");
 
-    if (!settings.enabled || !canFilterContent) {
+    if (!effectsEnabled() || !canFilterContent) {
       restoreHiddenElementsByKind("hacker-news-story");
       restoreHiddenElementsByKind("hacker-news-story-meta");
       restoreHiddenElementsByKind("hacker-news-comment");
@@ -455,7 +489,7 @@
 
   function enforceTwitterFollowing() {
     if (
-      !settings.enabled ||
+      !effectsEnabled() ||
       !settings.twitterEnforceFollowing ||
       !isTwitterHome() ||
       twitterFollowingPreferenceResolved
@@ -626,6 +660,94 @@
     scrollPause = null;
   }
 
+  function installVideoSpeedHotkeys() {
+    document.addEventListener(
+      "keydown",
+      (event) => {
+        if (!settings.enabled || !settings.videoSpeedHotkeys) {
+          return;
+        }
+
+        if (event.ctrlKey || event.metaKey || event.altKey || isEditableElement(event.target)) {
+          return;
+        }
+
+        let delta = 0;
+
+        if (event.key === "]") {
+          delta = SPEED_STEP;
+        } else if (event.key === "[") {
+          delta = -SPEED_STEP;
+        } else if (event.key !== "\\") {
+          return;
+        }
+
+        const video = findActiveVideo();
+
+        if (!video) {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        const rate =
+          delta === 0
+            ? 1
+            : clampSpeed(Math.round((video.playbackRate + delta) * 100) / 100);
+
+        video.playbackRate = rate;
+        showSpeedToast(rate);
+      },
+      true
+    );
+  }
+
+  function clampSpeed(rate) {
+    return Math.min(SPEED_MAX, Math.max(SPEED_MIN, rate));
+  }
+
+  function findActiveVideo() {
+    const videos = Array.from(document.querySelectorAll("video"));
+    const playing = videos.find(
+      (video) => !video.paused && !video.ended && video.readyState > 1
+    );
+
+    if (playing) {
+      return playing;
+    }
+
+    let best = null;
+    let bestArea = 0;
+
+    videos.forEach((video) => {
+      const rect = video.getBoundingClientRect();
+      const area = rect.width * rect.height;
+
+      if (area > bestArea) {
+        bestArea = area;
+        best = video;
+      }
+    });
+
+    return best;
+  }
+
+  function showSpeedToast(rate) {
+    if (!speedToast) {
+      speedToast = document.createElement("div");
+      speedToast.className = "smooth-surfer-speed-toast";
+      document.documentElement.append(speedToast);
+    }
+
+    speedToast.textContent = `${rate}×`;
+    speedToast.classList.add("smooth-surfer-speed-toast-visible");
+    window.clearTimeout(speedToastTimer);
+    speedToastTimer = window.setTimeout(() => {
+      speedToast.classList.remove("smooth-surfer-speed-toast-visible");
+    }, 900);
+  }
+
   function requestModelClassification(container, text, kind) {
     const normalizedText = normalizeInlineText(text);
 
@@ -699,7 +821,7 @@
     const settingName = CONTENT_FILTER_SETTING_BY_PLATFORM[targetPlatform];
 
     return Boolean(
-      settings.enabled &&
+      effectsEnabled() &&
         settingName &&
         settings[settingName] &&
         secrets.anthropicApiKey
@@ -859,6 +981,10 @@
   }
 
   function hideElement(element, reasons, kind) {
+    if (element.dataset.smoothSurferHidden !== "true") {
+      recordHideStat(element, reasons, kind);
+    }
+
     element.classList.add("smooth-surfer-hidden");
     element.dataset.smoothSurferHidden = "true";
     element.dataset.smoothSurferReasons = reasons.join("; ");
@@ -866,6 +992,25 @@
     if (kind) {
       element.dataset.smoothSurferHiddenKind = kind;
     }
+  }
+
+  function recordHideStat(element, reasons, kind) {
+    if (kind === "hacker-news-story-meta") {
+      return;
+    }
+
+    const key = `${kind}|${reasons.join(";")}|${normalizeInlineText(element.textContent).slice(0, 80)}`;
+
+    if (recordedStatKeys.has(key) || !hasChromeRuntime()) {
+      return;
+    }
+
+    recordedStatKeys.add(key);
+    chrome.runtime.sendMessage({
+      type: "recordHide",
+      source: platform === "unknown" ? "other" : platform,
+      reasons
+    });
   }
 
   function restoreElement(element) {
