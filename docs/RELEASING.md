@@ -4,6 +4,9 @@ How a release gets from this repo to the Chrome Web Store. Designed so a
 Claude session (or anyone) can run every step except the ones marked
 **human**, which need the store account.
 
+Extension ID: `cgmineplcpnmdfokdblnnapnbpknfghe`
+(dashboard: https://chrome.google.com/webstore/devconsole)
+
 ## One-time setup (human)
 
 1. Register at the [developer dashboard](https://chrome.google.com/webstore/devconsole)
