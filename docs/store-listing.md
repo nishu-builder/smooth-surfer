@@ -92,8 +92,8 @@ https://github.com/nishu-builder/smooth-surfer/blob/main/PRIVACY.md
 ## Assets needed before submitting
 
 - [x] Icon 128x128 (`icons/icon128.png`)
-- [ ] At least one screenshot, 1280x800 or 640x400 PNG/JPEG (popup open over
-      a cleaned-up feed is ideal; 3-5 screenshots recommended)
+- [x] Screenshots, 1280x800 (`docs/store-assets/`): YouTube before/after,
+      popup over a grayscaled page, Hacker News with scores hidden
 - [ ] Optional: small promo tile 440x280 (used in some store surfaces)
 
 ## Submission checklist
