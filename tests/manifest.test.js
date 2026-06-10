@@ -12,10 +12,9 @@ assert.ok(manifest.permissions.includes("storage"));
 assert.ok(manifest.content_scripts.length > 0);
 assert.equal(manifest.action.default_popup, "popup.html");
 assert.equal(manifest.background.service_worker, "src/background.js");
-assert.ok(manifest.host_permissions.includes("https://api.anthropic.com/*"));
-assert.ok(manifest.host_permissions.includes("https://*.reddit.com/*"));
-assert.ok(manifest.host_permissions.includes("https://*.substack.com/*"));
-assert.ok(manifest.host_permissions.includes("https://news.ycombinator.com/*"));
+// Site access comes from the content-script <all_urls> match; only the
+// Anthropic API needs an explicit host permission.
+assert.deepEqual(manifest.host_permissions, ["https://api.anthropic.com/*"]);
 assert.equal(manifest.icons["128"], "icons/icon128.png");
 assert.equal(manifest.action.default_icon["16"], "icons/icon16.png");
 
