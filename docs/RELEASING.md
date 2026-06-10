@@ -28,6 +28,15 @@ Extension ID: `cgmineplcpnmdfokdblnnapnbpknfghe`
    - Follow the [chrome-webstore-upload keys guide](https://github.com/fregante/chrome-webstore-upload-keys)
      to create a Google Cloud OAuth client and refresh token for the
      Chrome Web Store API.
+   - **Publish the OAuth consent screen to production first** (Cloud
+     Console → APIs & Services → OAuth consent screen → Publish app).
+     While the app is in Testing mode, sign-in fails with
+     `Error 403: access_denied` unless the account is added as a test
+     user — and Testing-mode refresh tokens expire after 7 days, which
+     silently breaks CI. The `chromewebstore` scope is not sensitive, so
+     production needs no verification review; click through the
+     "Google hasn't verified this app" warning during the one-time
+     consent (Advanced → continue).
    - Add GitHub Actions secrets: `CWS_EXTENSION_ID`, `CWS_CLIENT_ID`,
      `CWS_CLIENT_SECRET`, `CWS_REFRESH_TOKEN`.
    - Set the repository variable `CWS_PUBLISH` to `true`.
