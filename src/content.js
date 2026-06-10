@@ -77,14 +77,23 @@
     });
 
     watchSettings((nextSettings) => {
+      // Keys embed the criteria, so stale entries self-invalidate; only a
+      // criteria change needs a flush. Clearing on every toggle would send
+      // all visible posts back through pending-hidden review.
+      const criteriaChanged =
+        JSON.stringify(nextSettings.filterCriteria) !== JSON.stringify(settings.filterCriteria);
+
       settings = nextSettings;
-      modelClassifications.clear();
+
+      if (criteriaChanged) {
+        modelClassifications.clear();
+      }
+
       applyEffects();
     });
 
     watchSecrets((nextSecrets) => {
       secrets = nextSecrets;
-      modelClassifications.clear();
       applyEffects();
     });
   }
@@ -196,7 +205,11 @@
       return;
     }
 
-    observer = new MutationObserver(() => {
+    observer = new MutationObserver((mutations) => {
+      // Process new feed items synchronously, before the next paint: cached
+      // verdicts apply with no flash, and unknown items start hidden instead
+      // of rendering and vanishing once their classification arrives.
+      fastProcessAddedNodes(mutations);
       scheduleScan();
     });
     observer.observe(document.body, {
@@ -339,23 +352,56 @@
     }
 
     document.querySelectorAll('article[data-testid="tweet"]').forEach((article) => {
-      const container = getTweetContainer(article);
-      const reasons = [];
+      processTweetArticle(article, canFilterContent);
+    });
+  }
 
-      if (settings.twitterHideAds && isPromotedTweet(article)) {
-        reasons.push("ad");
-      }
+  function processTweetArticle(article, canFilterContent) {
+    const container = getTweetContainer(article);
+    const reasons = [];
 
-      if (reasons.length > 0) {
-        hideTweet(container, reasons);
-        return;
-      }
+    if (settings.twitterHideAds && isPromotedTweet(article)) {
+      reasons.push("ad");
+    }
 
-      if (canFilterContent) {
-        requestModelClassification(container, getTweetText(article), "tweet");
-      } else {
-        restoreElement(container);
-      }
+    if (reasons.length > 0) {
+      hideTweet(container, reasons);
+      return;
+    }
+
+    if (canFilterContent) {
+      requestModelClassification(container, getTweetText(article), "tweet");
+    } else {
+      restoreElement(container);
+    }
+  }
+
+  function fastProcessAddedNodes(mutations) {
+    if (platform !== "twitter" || !effectsEnabled()) {
+      return;
+    }
+
+    const canFilterContent = canFilterPlatformContent("twitter");
+
+    if (!settings.twitterHideAds && !canFilterContent) {
+      return;
+    }
+
+    mutations.forEach((mutation) => {
+      mutation.addedNodes.forEach((node) => {
+        if (node.nodeType !== Node.ELEMENT_NODE) {
+          return;
+        }
+
+        if (node.matches('article[data-testid="tweet"]')) {
+          processTweetArticle(node, canFilterContent);
+          return;
+        }
+
+        node.querySelectorAll('article[data-testid="tweet"]').forEach((article) => {
+          processTweetArticle(article, canFilterContent);
+        });
+      });
     });
   }
 
@@ -780,6 +826,10 @@
       return;
     }
 
+    // Hold the item hidden until the verdict arrives. Revealing late beats
+    // rendering content and yanking it out of the feed once Haiku answers.
+    markPendingContent(container, kind);
+
     chrome.runtime.sendMessage(
       {
         type: "classifyContent",
@@ -790,6 +840,7 @@
         delete container.dataset.smoothSurferPendingKey;
 
         if (chrome.runtime.lastError) {
+          restoreContentElement(container, kind);
           return;
         }
 
@@ -961,6 +1012,33 @@
     hideElement(container, reasons, "tweet");
   }
 
+  function markPendingContent(container, kind) {
+    markPendingElement(container, kind);
+
+    if (kind === "hacker-news-story") {
+      const metaRow = getHackerNewsMetaRow(container);
+
+      if (metaRow) {
+        markPendingElement(metaRow, "hacker-news-story-meta");
+      }
+    }
+  }
+
+  function markPendingElement(element, kind) {
+    if (element.dataset.smoothSurferHidden === "true") {
+      return;
+    }
+
+    element.classList.add("smooth-surfer-hidden");
+    element.dataset.smoothSurferHidden = "true";
+    element.dataset.smoothSurferPending = "true";
+    element.dataset.smoothSurferReasons = "pending classification";
+
+    if (kind) {
+      element.dataset.smoothSurferHiddenKind = kind;
+    }
+  }
+
   function hideContentElement(container, reasons, kind) {
     hideElement(container, reasons, kind);
 
@@ -992,10 +1070,16 @@
   }
 
   function hideElement(element, reasons, kind) {
-    if (element.dataset.smoothSurferHidden !== "true") {
+    // Pending items are display:none but not yet "hidden" for stats: a
+    // blocked verdict on one still counts as a fresh hide.
+    if (
+      element.dataset.smoothSurferHidden !== "true" ||
+      element.dataset.smoothSurferPending === "true"
+    ) {
       recordHideStat(element, reasons, kind);
     }
 
+    delete element.dataset.smoothSurferPending;
     element.classList.add("smooth-surfer-hidden");
     element.dataset.smoothSurferHidden = "true";
     element.dataset.smoothSurferReasons = reasons.join("; ");
@@ -1032,6 +1116,7 @@
     element.classList.remove("smooth-surfer-hidden");
     delete element.dataset.smoothSurferHidden;
     delete element.dataset.smoothSurferHiddenKind;
+    delete element.dataset.smoothSurferPending;
     delete element.dataset.smoothSurferReasons;
     delete element.dataset.smoothSurferPendingKey;
   }
