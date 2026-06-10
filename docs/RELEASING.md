@@ -12,7 +12,16 @@ Claude session (or anyone) can run every step except the ones marked
    listing and Privacy tabs from [store-listing.md](store-listing.md).
    Screenshots live in [store-assets/](store-assets/).
 3. Submit for review. Approval gives the extension a permanent ID.
-4. To enable automated publishing afterwards (optional but recommended):
+4. Install the release workflow (automation tokens cannot write workflow
+   files, so this needs a human push):
+
+   ```sh
+   mkdir -p .github/workflows
+   git mv docs/release-workflow.yml .github/workflows/release.yml
+   git commit -m "Install release workflow" && git push
+   ```
+
+5. To enable automated publishing afterwards (optional but recommended):
    - Follow the [chrome-webstore-upload keys guide](https://github.com/fregante/chrome-webstore-upload-keys)
      to create a Google Cloud OAuth client and refresh token for the
      Chrome Web Store API.

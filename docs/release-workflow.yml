@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify tag matches manifest version
+        run: |
+          node -e "
+            const manifest = require('./manifest.json');
+            const tag = process.env.GITHUB_REF_NAME.replace(/^v/, '');
+            if (manifest.version !== tag) {
+              console.error('Tag ' + tag + ' does not match manifest version ' + manifest.version);
+              process.exit(1);
+            }
+          "
+      - run: npm run check
+      - run: npm run package
+      - name: Keep zip as a build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: smooth-surfer-${{ github.ref_name }}
+          path: dist/smooth-surfer.zip
+      - name: Upload and publish to the Chrome Web Store
+        if: ${{ vars.CWS_PUBLISH == 'true' }}
+        run: npx chrome-webstore-upload-cli@3 upload --source dist/smooth-surfer.zip --auto-publish
+        env:
+          EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+          CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
