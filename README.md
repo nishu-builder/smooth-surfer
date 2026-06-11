@@ -10,6 +10,7 @@ Content filtering is disabled unless you save an Anthropic key. When a key is pr
 
 The popup also includes:
 
+- A Consumption Facts label: a nutrition-facts-style breakdown of the emotional ingredients (outrage, joy, humor, fear, curiosity/beauty, memes, polls) in the posts you actually saw today. It rides on the same Haiku classification calls as filtering, so it also needs an Anthropic key.
 - Comment hiding for YouTube and Reddit.
 - Video speed keys on any site: `]` faster, `[` slower, `\` reset.
 - A focus schedule that runs effects only during chosen hours.

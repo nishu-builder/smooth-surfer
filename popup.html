@@ -180,6 +180,16 @@
       </section>
 
       <section>
+        <h2>Consumption facts</h2>
+        <label class="switch-row" data-description="Labels posts you actually see with their emotional ingredients, using the same Claude Haiku calls as content filtering. Requires an Anthropic key.">
+          <span>Track consumption</span>
+          <input type="checkbox" data-setting="consumptionFactsEnabled">
+        </label>
+        <div class="facts" data-facts-label aria-live="polite"></div>
+        <button type="button" data-clear-facts>Clear consumption facts</button>
+      </section>
+
+      <section>
         <h2>Stats</h2>
         <div class="stats" data-stats-list aria-live="polite"></div>
         <button type="button" data-clear-stats>Clear stats</button>

@@ -340,6 +340,92 @@ input:disabled {
   min-width: 0;
 }
 
+.facts {
+  min-width: 0;
+}
+
+.facts-panel {
+  border: 2px solid #0b0f14;
+  background: #ffffff;
+  color: #0b0f14;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  padding: 6px 7px;
+}
+
+.facts-title {
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.facts-subtitle {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 0 3px;
+}
+
+.facts-bar {
+  height: 7px;
+  background: #0b0f14;
+  margin: 2px 0;
+}
+
+.facts-bar-thin {
+  height: 3px;
+}
+
+.facts-posts {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 16px;
+  font-weight: 900;
+  padding: 1px 0;
+}
+
+.facts-percent-heading {
+  font-size: 10px;
+  font-weight: 800;
+  text-align: right;
+  padding: 1px 0;
+}
+
+.facts-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid rgba(11, 15, 20, 0.55);
+  font-size: 11px;
+  padding: 2px 0;
+}
+
+.facts-row-bold {
+  font-weight: 800;
+}
+
+.facts-row-bold .facts-row-percent {
+  font-weight: 900;
+}
+
+.facts-row-indent {
+  padding-left: 14px;
+}
+
+.facts-row-percent {
+  flex: 0 0 auto;
+  font-weight: 700;
+}
+
+.facts-note {
+  border-top: 4px solid #0b0f14;
+  color: #0b0f14;
+  font-size: 9px;
+  line-height: 1.3;
+  margin-top: 3px;
+  padding-top: 3px;
+}
+
 .stats {
   display: grid;
   gap: 6px;

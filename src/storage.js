@@ -2,12 +2,15 @@
   "use strict";
 
   const {
+    CONSUMPTION_KEY,
+    DEFAULT_CONSUMPTION,
     DEFAULT_SECRETS,
     DEFAULT_SETTINGS,
     DEFAULT_STATS,
     SECRETS_KEY,
     STATS_KEY,
     STORAGE_KEY,
+    normalizeConsumption,
     normalizeSecrets,
     normalizeSettings,
     normalizeStats
@@ -37,6 +40,14 @@
     return write("local", STATS_KEY, normalizeStats(stats));
   }
 
+  function loadConsumption() {
+    return read("local", CONSUMPTION_KEY, DEFAULT_CONSUMPTION, normalizeConsumption);
+  }
+
+  function saveConsumption(consumption) {
+    return write("local", CONSUMPTION_KEY, normalizeConsumption(consumption));
+  }
+
   function watchSettings(callback) {
     watchStorage("sync", STORAGE_KEY, normalizeSettings, callback);
   }
@@ -47,6 +58,10 @@
 
   function watchStats(callback) {
     watchStorage("local", STATS_KEY, normalizeStats, callback);
+  }
+
+  function watchConsumption(callback) {
+    watchStorage("local", CONSUMPTION_KEY, normalizeConsumption, callback);
   }
 
   function watchStorage(areaName, key, normalize, callback) {
@@ -127,12 +142,15 @@
   }
 
   root.SmoothSurferStorage = {
+    loadConsumption,
     loadSecrets,
     loadSettings,
     loadStats,
+    saveConsumption,
     saveSecrets,
     saveSettings,
     saveStats,
+    watchConsumption,
     watchSecrets,
     watchSettings,
     watchStats

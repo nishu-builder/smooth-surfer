@@ -41,8 +41,9 @@ global.fetch = async (url, options) => {
   for (let i = 1; i <= itemCount; i += 1) {
     const itemText = prompt.split(`${i}. [`)[1].split("\n")[0];
     const blocked = itemText.includes("BLOCKME");
+    const tags = itemText.includes("OUTRAGE") ? ["outrage-political", "bogus-tag"] : [];
 
-    results.push({ i, blocked, reasons: blocked ? ["engagement bait"] : [] });
+    results.push({ i, blocked, reasons: blocked ? ["engagement bait"] : [], tags });
   }
 
   return {
@@ -65,6 +66,10 @@ global.importScripts = (...files) => {
         loadStats: async () => ({ days: {} }),
         saveStats: async (stats) => {
           self.savedStats = stats;
+        },
+        loadConsumption: async () => ({ days: {} }),
+        saveConsumption: async (consumption) => {
+          self.savedConsumption = consumption;
         }
       };
     }
@@ -83,20 +88,24 @@ function classify(text, source) {
 
 (async () => {
   // Concurrent requests (including one duplicate) batch into a single API call.
-  const [a, b, c, d, duplicate] = await Promise.all([
+  const [a, b, c, d, e, duplicate] = await Promise.all([
     classify("ordinary technical post about compilers", "twitter"),
     classify("BLOCKME like and retweet for more", "twitter"),
     classify("a normal reddit thread", "reddit"),
     classify("BLOCKME smash that follow button", "hacker-news"),
+    classify("OUTRAGE at this partisan scandal", "twitter"),
     classify("ordinary technical post about compilers", "twitter")
   ]);
 
   assert.equal(fetchCalls.length, 1, "all requests batched into one API call");
   assert.equal(a.blocked, false);
+  assert.deepEqual(a.tags, []);
   assert.equal(b.blocked, true);
   assert.deepEqual(b.reasons, ["engagement bait"]);
   assert.equal(c.blocked, false);
   assert.equal(d.blocked, true);
+  assert.equal(e.blocked, false);
+  assert.deepEqual(e.tags, ["outrage-political"], "tags parsed and unknown tags dropped");
   assert.equal(duplicate.blocked, false);
 
   const prompt = fetchCalls[0].messages[0].content[0].text;
@@ -104,7 +113,9 @@ function classify(text, source) {
   assert.match(prompt, /1\. \[X\/Twitter post\]/);
   assert.match(prompt, /\[Reddit post\]/);
   assert.match(prompt, /\[Hacker News story or comment\]/);
-  assert.equal((prompt.match(/^\d+\. \[/gm) || []).length, 4, "duplicate deduped in prompt");
+  assert.match(prompt, /emotional ingredients/, "prompt requests consumption tags by default");
+  assert.match(prompt, /outrage-callout/);
+  assert.equal((prompt.match(/^\d+\. \[/gm) || []).length, 5, "duplicate deduped in prompt");
 
   // Cached results skip the API entirely.
   const cached = await classify("BLOCKME like and retweet for more", "twitter");
@@ -128,6 +139,15 @@ function classify(text, source) {
   messageListener({ type: "recordHide", source: "twitter", reasons: ["ad"] }, {}, () => {});
   messageListener({ type: "recordHide", source: "twitter", reasons: ["ad"] }, {}, () => {});
   messageListener({ type: "recordHide", source: "youtube", reasons: [] }, {}, () => {});
+
+  // recordConsumption aggregates seen posts and their valid tags per day.
+  messageListener(
+    { type: "recordConsumption", source: "twitter", tags: ["joy", "outrage-political", "bogus"] },
+    {},
+    () => {}
+  );
+  messageListener({ type: "recordConsumption", source: "twitter", tags: ["joy"] }, {}, () => {});
+  messageListener({ type: "recordConsumption", source: "reddit", tags: [] }, {}, () => {});
   await new Promise((resolve) => setTimeout(resolve, 1200));
 
   const day = Object.keys(self.savedStats.days)[0];
@@ -135,6 +155,15 @@ function classify(text, source) {
   assert.match(day, /^\d{4}-\d{2}-\d{2}$/);
   assert.equal(self.savedStats.days[day].twitter.ad, 2);
   assert.equal(self.savedStats.days[day].youtube.other, 1);
+
+  const consumptionDay = self.savedConsumption.days[day];
+
+  assert.equal(consumptionDay.twitter.posts, 2);
+  assert.equal(consumptionDay.twitter.tags.joy, 2);
+  assert.equal(consumptionDay.twitter.tags["outrage-political"], 1);
+  assert.equal(Object.hasOwn(consumptionDay.twitter.tags, "bogus"), false);
+  assert.equal(consumptionDay.reddit.posts, 1);
+  assert.deepEqual(consumptionDay.reddit.tags, {});
 
   console.log("background tests passed");
   process.exit(0);

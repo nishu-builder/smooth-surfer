@@ -35,6 +35,7 @@ assert.equal(defaults.substackHideRecommendations, true);
 assert.equal(defaults.substackFilterContent, true);
 assert.equal(defaults.hackerNewsFilterContent, true);
 assert.equal(defaults.hackerNewsHideScores, true);
+assert.equal(defaults.consumptionFactsEnabled, true);
 assert.equal(defaults.hideStickyVideoPlayers, true);
 assert.equal(defaults.pauseDeepScrolling, true);
 assert.equal(defaults.softenDistractingElements, true);
@@ -69,6 +70,23 @@ assert.deepEqual(
   }),
   { days: { "2026-06-10": { youtube: { ad: 3 } } } }
 );
+assert.ok(settings.CONSUMPTION_TAGS.includes("outrage-political"));
+assert.ok(settings.CONSUMPTION_TAGS.includes("curiosity-beauty"));
+assert.deepEqual(settings.normalizeConsumption(null), { days: {} });
+assert.deepEqual(
+  settings.normalizeConsumption({
+    days: {
+      "2026-06-10": {
+        twitter: { posts: "3", tags: { joy: 2, "not-a-tag": 5, humor: 0 } },
+        reddit: { posts: 0, tags: { joy: 1 } },
+        broken: null
+      },
+      "not-a-date": { twitter: { posts: 1, tags: {} } }
+    }
+  }),
+  { days: { "2026-06-10": { twitter: { posts: 3, tags: { joy: 2 } } } } }
+);
+
 assert.ok(defaults.filterCriteria.some((criterion) => criterion.includes("Engagement bait")));
 assert.ok(defaults.filterCriteria.some((criterion) => criterion.includes("missed upside")));
 assert.ok(defaults.filterCriteria.some((criterion) => criterion.includes("one short sentence")));
