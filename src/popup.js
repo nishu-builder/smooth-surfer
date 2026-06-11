@@ -11,12 +11,15 @@
   } =
     window.SmoothSurferSettings;
   const {
+    loadConsumption,
     loadSecrets,
     loadSettings,
     loadStats,
+    saveConsumption: writeConsumption,
     saveSecrets: writeSecrets,
     saveSettings: writeSettings,
     saveStats: writeStats,
+    watchConsumption,
     watchStats
   } = window.SmoothSurferStorage;
   const STATS_SITE_LABELS = {
@@ -27,10 +30,37 @@
     "hacker-news": "Hacker News",
     other: "Other sites"
   };
+  // Label rows mirror a nutrition-facts panel: family totals in bold with
+  // their ingredients indented beneath. Totals sum their member tags, which
+  // stays exact because the classifier assigns at most one tag per family.
+  const FACTS_ROWS = [
+    {
+      label: "Total Outrage",
+      tags: ["outrage-political", "outrage-callout", "outrage-other"],
+      bold: true
+    },
+    { label: "Political Outrage", tags: ["outrage-political"], indent: true },
+    { label: "Personal Directed Callouts", tags: ["outrage-callout"], indent: true },
+    { label: "Total Joy", tags: ["joy"], bold: true },
+    { label: "Total Humor", tags: ["humor"], bold: true },
+    {
+      label: "Total Fear",
+      tags: ["fear-existential", "fear-safety", "fear-societal", "fear-political", "fear-other"],
+      bold: true
+    },
+    { label: "Existential Dread", tags: ["fear-existential"], indent: true },
+    { label: "Personal Safety Fear", tags: ["fear-safety"], indent: true },
+    { label: "Societal Fear", tags: ["fear-societal"], indent: true },
+    { label: "Political Fear", tags: ["fear-political"], indent: true },
+    { label: "Total Curiosity/Beauty", tags: ["curiosity-beauty"], bold: true },
+    { label: "Polls", tags: ["poll"], rule: true },
+    { label: "Memes & Copypasta", tags: ["meme"] }
+  ];
 
   let settings = { ...DEFAULT_SETTINGS };
   let secrets = { ...DEFAULT_SECRETS };
   let stats = { days: {} };
+  let consumption = { days: {} };
 
   const status = document.querySelector("[data-status]");
   const settingInputs = Array.from(document.querySelectorAll("[data-setting]"));
@@ -46,6 +76,8 @@
   const defaultSiteSectionOrder = [...siteSections];
   const statsList = document.querySelector("[data-stats-list]");
   const clearStatsButton = document.querySelector("[data-clear-stats]");
+  const factsLabel = document.querySelector("[data-facts-label]");
+  const clearFactsButton = document.querySelector("[data-clear-facts]");
   const exportButton = document.querySelector("[data-export-settings]");
   const importButton = document.querySelector("[data-import-settings]");
   const importFile = document.querySelector("[data-import-file]");
@@ -63,6 +95,14 @@
   watchStats((nextStats) => {
     stats = nextStats;
     renderStats();
+  });
+  loadConsumption().then((loadedConsumption) => {
+    consumption = loadedConsumption;
+    renderFacts();
+  });
+  watchConsumption((nextConsumption) => {
+    consumption = nextConsumption;
+    renderFacts();
   });
   detectActivePlatform().then((platform) => {
     activePlatform = platform;
@@ -124,6 +164,12 @@
     stats = { days: {} };
     renderStats();
     writeStats(stats).then(() => setStatus("Stats cleared"), () => setStatus("Not saved"));
+  });
+
+  clearFactsButton.addEventListener("click", () => {
+    consumption = { days: {} };
+    renderFacts();
+    writeConsumption(consumption).then(() => setStatus("Facts cleared"), () => setStatus("Not saved"));
   });
 
   exportButton.addEventListener("click", () => {
@@ -328,6 +374,89 @@
       row.append(label, counts);
       statsList.append(row);
     });
+  }
+
+  function renderFacts() {
+    factsLabel.textContent = "";
+
+    const platforms = consumption.days[localDayKey(new Date())] || {};
+    let posts = 0;
+    const tagCounts = {};
+
+    Object.values(platforms).forEach((entry) => {
+      posts += entry.posts || 0;
+      Object.keys(entry.tags || {}).forEach((tag) => {
+        tagCounts[tag] = (tagCounts[tag] || 0) + entry.tags[tag];
+      });
+    });
+
+    if (posts === 0) {
+      const empty = document.createElement("div");
+      empty.className = "empty";
+      empty.textContent = "No posts labeled yet today.";
+      factsLabel.append(empty);
+      return;
+    }
+
+    const panel = document.createElement("div");
+    panel.className = "facts-panel";
+    panel.append(factsElement("div", "facts-title", "Consumption Facts"));
+    panel.append(factsElement("div", "facts-subtitle", "Consumed today"));
+    panel.append(factsElement("div", "facts-bar", ""));
+
+    const postsRow = factsElement("div", "facts-posts", "");
+    postsRow.append(
+      factsElement("span", "", "Posts"),
+      factsElement("span", "", String(posts))
+    );
+    panel.append(postsRow);
+    panel.append(factsElement("div", "facts-bar facts-bar-thin", ""));
+    panel.append(factsElement("div", "facts-percent-heading", "% Posts Experiencing*"));
+
+    FACTS_ROWS.forEach((row) => {
+      const count = row.tags.reduce((sum, tag) => sum + (tagCounts[tag] || 0), 0);
+      const percent = Math.round((count / posts) * 100);
+      const rowElement = factsElement(
+        "div",
+        "facts-row" +
+          (row.bold ? " facts-row-bold" : "") +
+          (row.indent ? " facts-row-indent" : ""),
+        ""
+      );
+
+      if (row.rule) {
+        panel.append(factsElement("div", "facts-bar facts-bar-thin", ""));
+      }
+
+      rowElement.append(
+        factsElement("span", "facts-row-label", `${row.label} ${count}p`),
+        factsElement("span", "facts-row-percent", `${percent}%`)
+      );
+      panel.append(rowElement);
+    });
+
+    panel.append(
+      factsElement(
+        "p",
+        "facts-note",
+        "*The % Posts Experiencing tells you how often a post you saw today carried a particular emotional ingredient. Some posts contribute to more than one row."
+      )
+    );
+    factsLabel.append(panel);
+  }
+
+  function factsElement(tag, className, text) {
+    const element = document.createElement(tag);
+
+    if (className) {
+      element.className = className;
+    }
+
+    if (text) {
+      element.textContent = text;
+    }
+
+    return element;
   }
 
   function localDayKey(date) {

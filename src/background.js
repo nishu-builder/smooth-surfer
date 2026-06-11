@@ -4,11 +4,14 @@ importScripts("settings.js", "storage.js");
   "use strict";
 
   const {
+    loadConsumption,
     loadSecrets,
     loadSettings,
     loadStats,
+    saveConsumption,
     saveStats
   } = self.SmoothSurferStorage;
+  const CONSUMPTION_TAG_SET = new Set(self.SmoothSurferSettings.CONSUMPTION_TAGS);
   const MODEL = "claude-haiku-4-5";
   const ANTHROPIC_VERSION = "2023-06-01";
   const MAX_CACHE_ENTRIES = 400;
@@ -33,6 +36,8 @@ importScripts("settings.js", "storage.js");
   let batchTimer = 0;
   let statsPromise = null;
   let statsWriteTimer = 0;
+  let consumptionPromise = null;
+  let consumptionWriteTimer = 0;
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (!message) {
@@ -41,6 +46,11 @@ importScripts("settings.js", "storage.js");
 
     if (message.type === "recordHide") {
       recordHide(message.source, message.reasons);
+      return false;
+    }
+
+    if (message.type === "recordConsumption") {
+      recordConsumption(message.source, message.tags);
       return false;
     }
 
@@ -77,6 +87,40 @@ importScripts("settings.js", "storage.js");
     reasonCounts[reason] = (reasonCounts[reason] || 0) + 1;
     pruneStats(stats.days);
     scheduleStatsWrite();
+  }
+
+  async function recordConsumption(source, tags) {
+    if (!consumptionPromise) {
+      consumptionPromise = loadConsumption();
+    }
+
+    const consumption = await consumptionPromise;
+    const day = getLocalDayKey();
+    const platform = String(source || "other") || "other";
+    const platforms = consumption.days[day] || (consumption.days[day] = {});
+    const entry = platforms[platform] || (platforms[platform] = { posts: 0, tags: {} });
+
+    entry.posts += 1;
+    (Array.isArray(tags) ? tags : []).forEach((tag) => {
+      const name = String(tag);
+
+      if (CONSUMPTION_TAG_SET.has(name)) {
+        entry.tags[name] = (entry.tags[name] || 0) + 1;
+      }
+    });
+    pruneStats(consumption.days);
+    scheduleConsumptionWrite();
+  }
+
+  function scheduleConsumptionWrite() {
+    if (consumptionWriteTimer) {
+      return;
+    }
+
+    consumptionWriteTimer = setTimeout(async () => {
+      consumptionWriteTimer = 0;
+      saveConsumption(await consumptionPromise);
+    }, STATS_WRITE_DELAY_MS);
   }
 
   function pruneStats(days) {
@@ -122,6 +166,7 @@ importScripts("settings.js", "storage.js");
 
     const cacheKey = JSON.stringify({
       classifier: "claude-haiku",
+      consumption: Boolean(settings.consumptionFactsEnabled),
       criteria: settings.filterCriteria,
       source: normalizedSource,
       text: normalizedText
@@ -189,6 +234,7 @@ importScripts("settings.js", "storage.js");
       const results = await classifyBatchWithHaiku(
         items,
         settings.filterCriteria,
+        Boolean(settings.consumptionFactsEnabled),
         secrets.anthropicApiKey
       );
 
@@ -212,7 +258,7 @@ importScripts("settings.js", "storage.js");
     }
   }
 
-  async function classifyBatchWithHaiku(items, criteria, apiKey) {
+  async function classifyBatchWithHaiku(items, criteria, includeTags, apiKey) {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -223,7 +269,7 @@ importScripts("settings.js", "storage.js");
       },
       body: JSON.stringify({
         model: MODEL,
-        max_tokens: Math.min(80 * items.length + 100, 4000),
+        max_tokens: Math.min((includeTags ? 130 : 80) * items.length + 100, 4000),
         temperature: 0,
         system:
           "You classify social-media posts for a personal feed filter. Return only compact JSON. Do not include prose.",
@@ -233,7 +279,7 @@ importScripts("settings.js", "storage.js");
             content: [
               {
                 type: "text",
-                text: buildClassifierPrompt(items, criteria)
+                text: buildClassifierPrompt(items, criteria, includeTags)
               }
             ]
           }
@@ -263,7 +309,7 @@ importScripts("settings.js", "storage.js");
     return parseBatchAnswer(answer, items.length);
   }
 
-  function buildClassifierPrompt(items, criteria) {
+  function buildClassifierPrompt(items, criteria, includeTags) {
     const criteriaLines = (criteria.length
       ? criteria
       : self.SmoothSurferSettings.DEFAULT_FILTER_CRITERIA
@@ -276,16 +322,24 @@ importScripts("settings.js", "storage.js");
           `${index + 1}. [${SOURCE_LABELS[item.source] || "feed item"}] ${item.text}`
       )
       .join("\n\n");
+    const tagsInstruction = includeTags
+      ? `
+
+Also label each item with the emotional ingredients it serves the reader, using only these tags: outrage-political (political or partisan outrage), outrage-callout (personal directed callout or dunk), outrage-other (other righteous outrage), joy, humor, fear-existential (existential dread), fear-safety (personal safety fear), fear-societal (societal or economic fear), fear-political (political fear), fear-other (other fear or anxiety), curiosity-beauty (curiosity, wonder, or beauty), poll, meme (meme or copypasta). An item may carry tags from several families, but within the outrage family and within the fear family choose at most the one most specific tag. Use an empty list for neutral items.`
+      : "";
+    const resultShape = includeTags
+      ? '{"results": [{"i": 1, "blocked": boolean, "reasons": ["short reason"], "tags": ["tag"]}]}'
+      : '{"results": [{"i": 1, "blocked": boolean, "reasons": ["short reason"]}]}';
 
     return `Decide for each numbered feed item whether it should be hidden.
 
 Hide an item only when it semantically matches at least one filter criterion. A match can be paraphrased or implied; it does not need exact words. Do not hide neutral technical AI discussion, ordinary news, jokes, or criticism unless it clearly matches a criterion.
 
 Filter criteria:
-${criteriaLines}
+${criteriaLines}${tagsInstruction}
 
 Return JSON in exactly this shape, with one entry per item in the same order:
-{"results": [{"i": 1, "blocked": boolean, "reasons": ["short reason"]}]}
+${resultShape}
 
 Items:
 ${itemLines}`;
@@ -301,6 +355,7 @@ ${itemLines}`;
     const results = Array.from({ length: itemCount }, () => ({
       blocked: false,
       reasons: [],
+      tags: [],
       classifier: "claude-haiku"
     }));
 
@@ -319,6 +374,9 @@ ${itemLines}`;
         blocked: Boolean(entry.blocked),
         reasons: Array.isArray(entry.reasons)
           ? entry.reasons.map(String).filter(Boolean).slice(0, 3)
+          : [],
+        tags: Array.isArray(entry.tags)
+          ? entry.tags.map(String).filter((tag) => CONSUMPTION_TAG_SET.has(tag)).slice(0, 6)
           : [],
         classifier: "claude-haiku"
       };

@@ -4,6 +4,25 @@
   const STORAGE_KEY = "smoothSurferSettings";
   const SECRETS_KEY = "smoothSurferSecrets";
   const STATS_KEY = "smoothSurferStats";
+  const CONSUMPTION_KEY = "smoothSurferConsumption";
+  // Emotional-ingredient taxonomy for the Consumption Facts label. The
+  // outrage-* and fear-* families roll up into label totals, so the model is
+  // told to pick at most one tag per family to keep the totals exact.
+  const CONSUMPTION_TAGS = [
+    "outrage-political",
+    "outrage-callout",
+    "outrage-other",
+    "joy",
+    "humor",
+    "fear-existential",
+    "fear-safety",
+    "fear-societal",
+    "fear-political",
+    "fear-other",
+    "curiosity-beauty",
+    "poll",
+    "meme"
+  ];
   const LEGACY_UPSIDE_FOMO_CRITERION =
     "AI hype that pressures the reader with FOMO, loss framing, or financial upside.";
   const UPSIDE_FOMO_CRITERION =
@@ -50,6 +69,7 @@
     substackFilterContent: true,
     hackerNewsFilterContent: true,
     hackerNewsHideScores: true,
+    consumptionFactsEnabled: true,
     hideStickyVideoPlayers: true,
     pauseDeepScrolling: true,
     softenDistractingElements: true,
@@ -62,6 +82,9 @@
     anthropicApiKey: ""
   };
   const DEFAULT_STATS = {
+    days: {}
+  };
+  const DEFAULT_CONSUMPTION = {
     days: {}
   };
 
@@ -119,6 +142,7 @@
     next.substackFilterContent = Boolean(next.substackFilterContent);
     next.hackerNewsFilterContent = Boolean(next.hackerNewsFilterContent);
     next.hackerNewsHideScores = Boolean(next.hackerNewsHideScores);
+    next.consumptionFactsEnabled = Boolean(next.consumptionFactsEnabled);
     next.hideStickyVideoPlayers = Boolean(next.hideStickyVideoPlayers);
     next.pauseDeepScrolling = Boolean(next.pauseDeepScrolling);
     next.softenDistractingElements = Boolean(next.softenDistractingElements);
@@ -220,6 +244,59 @@
     return { days };
   }
 
+  function normalizeConsumption(value) {
+    const source = value && typeof value === "object" ? value : {};
+    const sourceDays = source.days && typeof source.days === "object" ? source.days : {};
+    const days = {};
+
+    Object.keys(sourceDays).forEach((day) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+        return;
+      }
+
+      const sourcePlatforms = sourceDays[day];
+
+      if (!sourcePlatforms || typeof sourcePlatforms !== "object") {
+        return;
+      }
+
+      const platforms = {};
+
+      Object.keys(sourcePlatforms).forEach((platformName) => {
+        const entry = sourcePlatforms[platformName];
+
+        if (!entry || typeof entry !== "object") {
+          return;
+        }
+
+        const posts = Math.floor(Number(entry.posts));
+
+        if (!(posts > 0)) {
+          return;
+        }
+
+        const sourceTags = entry.tags && typeof entry.tags === "object" ? entry.tags : {};
+        const tags = {};
+
+        CONSUMPTION_TAGS.forEach((tag) => {
+          const count = Math.floor(Number(sourceTags[tag]));
+
+          if (count > 0) {
+            tags[tag] = count;
+          }
+        });
+
+        platforms[platformName] = { posts, tags };
+      });
+
+      if (Object.keys(platforms).length > 0) {
+        days[day] = platforms;
+      }
+    });
+
+    return { days };
+  }
+
   function normalizeFilterCriteria(value) {
     const normalizedCriteria = normalizeCriteria(value);
     const hadLegacyCriterion = normalizedCriteria.includes(LEGACY_UPSIDE_FOMO_CRITERION);
@@ -286,6 +363,9 @@
   }
 
   const api = {
+    CONSUMPTION_KEY,
+    CONSUMPTION_TAGS,
+    DEFAULT_CONSUMPTION,
     DEFAULT_FILTER_CRITERIA,
     DEFAULT_SECRETS,
     DEFAULT_SETTINGS,
@@ -297,6 +377,7 @@
     getPlatformForHost,
     getPlatformForUrl,
     isWithinFocusWindow,
+    normalizeConsumption,
     normalizeSecrets,
     normalizeCriteria,
     normalizeSettings,

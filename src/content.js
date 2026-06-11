@@ -59,6 +59,7 @@
   let speedToastTimer = 0;
   const modelClassifications = new Map();
   const recordedStatKeys = new Set();
+  const recordedConsumptionKeys = new Set();
 
   const platform = getPlatform();
   installMessageListener();
@@ -806,6 +807,7 @@
     const cached = modelClassifications.get(key);
 
     if (cached) {
+      recordConsumptionStat(key, cached);
       applyModelClassification(container, cached, kind);
       return;
     }
@@ -852,6 +854,7 @@
           modelClassifications.set(key, result);
         }
 
+        recordConsumptionStat(key, result);
         applyModelClassification(container, result, kind);
       }
     );
@@ -865,9 +868,31 @@
     }
   }
 
+  function recordConsumptionStat(key, result) {
+    // Only posts the user actually gets to see count as consumed: blocked
+    // posts never reach the eyes, and disabled/error verdicts carry no tags.
+    if (
+      !settings.consumptionFactsEnabled ||
+      result.blocked ||
+      result.classifier !== "claude-haiku" ||
+      recordedConsumptionKeys.has(key) ||
+      !hasChromeRuntime()
+    ) {
+      return;
+    }
+
+    recordedConsumptionKeys.add(key);
+    chrome.runtime.sendMessage({
+      type: "recordConsumption",
+      source: platform === "unknown" ? "other" : platform,
+      tags: Array.isArray(result.tags) ? result.tags : []
+    });
+  }
+
   function getClassificationKey(text) {
     return JSON.stringify({
       classifier: "claude-haiku",
+      consumption: Boolean(settings.consumptionFactsEnabled),
       criteria: settings.filterCriteria,
       source: platform,
       text
