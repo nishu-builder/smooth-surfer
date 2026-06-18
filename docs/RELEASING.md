@@ -5,17 +5,23 @@ Claude session (or anyone) can run every step except the ones marked
 **human**, which need the store account.
 
 Extension ID: `cgmineplcpnmdfokdblnnapnbpknfghe`
-(dashboard: https://chrome.google.com/webstore/devconsole)
+- Public listing: https://chromewebstore.google.com/detail/smooth-surfer/cgmineplcpnmdfokdblnnapnbpknfghe
+- Dashboard: https://chrome.google.com/webstore/devconsole
+
+**Status:** Smooth Surfer is published and live on the Chrome Web Store. The
+one-time setup below (steps 1–4) is done. What remains optional is wiring the
+auto-publish credentials in step 5 so tagged releases publish without a manual
+upload.
 
 ## One-time setup (human)
 
-1. Register at the [developer dashboard](https://chrome.google.com/webstore/devconsole)
+1. ✅ Register at the [developer dashboard](https://chrome.google.com/webstore/devconsole)
    ($5 one-time, 2FA required on the Google account).
-2. Create the item: upload `dist/smooth-surfer.zip`, then fill in the Store
+2. ✅ Create the item: upload `dist/smooth-surfer.zip`, then fill in the Store
    listing and Privacy tabs from [store-listing.md](store-listing.md).
    Screenshots live in [store-assets/](store-assets/).
-3. Submit for review. Approval gives the extension a permanent ID.
-4. Install the release workflow (automation tokens cannot write workflow
+3. ✅ Submit for review. Approval gives the extension a permanent ID.
+4. ✅ Install the release workflow (automation tokens cannot write workflow
    files, so this needs a human push):
 
    ```sh
@@ -24,7 +30,7 @@ Extension ID: `cgmineplcpnmdfokdblnnapnbpknfghe`
    git commit -m "Install release workflow" && git push
    ```
 
-5. To enable automated publishing afterwards (optional but recommended):
+5. ⬜ To enable automated publishing (optional but recommended — not yet wired):
    - Follow the [chrome-webstore-upload keys guide](https://github.com/fregante/chrome-webstore-upload-keys)
      to create a Google Cloud OAuth client and refresh token for the
      Chrome Web Store API.

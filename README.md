@@ -1,6 +1,7 @@
 # Smooth Surfer
 
 [![CI](https://github.com/nishu-builder/smooth-surfer/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/nishu-builder/smooth-surfer/actions/workflows/ci.yml)
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/cgmineplcpnmdfokdblnnapnbpknfghe?label=Chrome%20Web%20Store)](https://chromewebstore.google.com/detail/smooth-surfer/cgmineplcpnmdfokdblnnapnbpknfghe)
 
 <img src="assets/smooth-surfer-icon.png" alt="Smooth Surfer icon" width="420">
 
@@ -17,7 +18,25 @@ The popup also includes:
 - A stats panel counting what was hidden per site today and this week.
 - Settings export/import as JSON (the API key is never exported).
 
-## Setup
+## Install
+
+Most people want the published build from the Chrome Web Store — it stays up to
+date automatically:
+
+**[Install Smooth Surfer from the Chrome Web Store →](https://chromewebstore.google.com/detail/smooth-surfer/cgmineplcpnmdfokdblnnapnbpknfghe)**
+
+The store build is packaged from this repository; see
+[docs/RELEASING.md](docs/RELEASING.md) for how a tagged commit becomes a store
+release.
+
+After installing, pin Smooth Surfer from Chrome's extensions menu. To enable
+Haiku filtering, open the toolbar popup and save an Anthropic API key. Without a
+key, `Filter out content` does not hide posts.
+
+## Build from source
+
+To run the extension straight from this repo (for development, or to use an
+unreleased version):
 
 ```sh
 git clone git@github.com:nishu-builder/smooth-surfer.git
@@ -30,9 +49,8 @@ cd smooth-surfer
 4. Select the `smooth-surfer` folder.
 5. Pin Smooth Surfer from Chrome's extensions menu.
 
-After changing files or pulling updates, reload the extension on `chrome://extensions`, then refresh open target tabs.
-
-To enable Haiku filtering, open the toolbar popup and save an Anthropic API key. Without a key, `Filter out content` does not hide posts.
+After changing files or pulling updates, reload the extension on
+`chrome://extensions`, then refresh open target tabs.
 
 ```sh
 npm run check
