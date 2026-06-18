@@ -437,7 +437,7 @@ try {
     delay(2000).then(() => chrome.kill("SIGKILL"))
   ]);
   await closeServer(fixtureServer);
-  await rm(tmpDir, { recursive: true, force: true });
+  await removeTempDir(tmpDir);
 }
 
 // End-to-end check of the real unpacked extension: a Cmd/Ctrl+Shift+S
@@ -542,7 +542,18 @@ async function verifyExtensionPopupOpens() {
       delay(2000).then(() => extensionChrome.kill("SIGKILL"))
     ]);
     await closeServer(bareServer);
-    await rm(extProfileDir, { recursive: true, force: true });
+    await removeTempDir(extProfileDir);
+  }
+}
+
+// Chrome's child processes keep flushing into the profile dir briefly after
+// the parent is killed, so cleanup can hit ENOTEMPTY. Retry, and never let a
+// temp-dir cleanup failure fail (or mask the real result of) the test.
+async function removeTempDir(dir) {
+  try {
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  } catch (error) {
+    console.log(`Warning: could not remove temp dir ${dir}: ${error.code || error.message}`);
   }
 }
 
