@@ -123,6 +123,10 @@ const chrome = spawn(chromePath, [
   `--remote-debugging-port=${port}`,
   `--user-data-dir=${profileDir}`,
   "--no-sandbox",
+  // /dev/shm is tiny on CI runners/containers; without this Chrome's tab can
+  // hang on startup and never expose a debugging target.
+  "--disable-dev-shm-usage",
+  "--disable-gpu",
   "--no-first-run",
   "--no-default-browser-check",
   "--disable-background-networking",
@@ -464,6 +468,8 @@ async function verifyExtensionPopupOpens() {
     `--remote-debugging-port=${debugPort}`,
     `--user-data-dir=${extProfileDir}`,
     "--no-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-gpu",
     "--no-first-run",
     "--no-default-browser-check",
     "--remote-allow-origins=*",
@@ -657,7 +663,8 @@ async function evaluate(client, expression) {
 }
 
 async function waitForPageTarget(port) {
-  const deadline = Date.now() + 10000;
+  // Cold Chrome startup right after a fresh download can be slow on CI runners.
+  const deadline = Date.now() + 30000;
 
   while (Date.now() < deadline) {
     try {
