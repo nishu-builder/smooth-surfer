@@ -12,6 +12,7 @@
   const SPEED_MIN = 0.25;
   const SPEED_MAX = 4;
   const SPEED_STEP = 0.25;
+  const SETTINGS_HOTKEY_DOUBLE_TAP_MS = 500;
   const CONTENT_FILTER_SETTING_BY_PLATFORM = {
     twitter: "twitterFilterContent",
     reddit: "redditFilterContent",
@@ -57,6 +58,7 @@
   let lastEffectsActive = null;
   let speedToast = null;
   let speedToastTimer = 0;
+  let lastSettingsHotkeyTime = 0;
   const modelClassifications = new Map();
   const recordedStatKeys = new Set();
   const recordedConsumptionKeys = new Set();
@@ -64,6 +66,7 @@
   const platform = getPlatform();
   installMessageListener();
   installVideoSpeedHotkeys();
+  installSettingsHotkey();
 
   start();
 
@@ -715,17 +718,20 @@
           return;
         }
 
-        if (event.ctrlKey || event.metaKey || event.altKey || isEditableElement(event.target)) {
+        if (!speedModifierMatches(event) || isEditableElement(event.target)) {
           return;
         }
 
+        // Match on physical key position rather than event.key: holding
+        // Alt/Option remaps event.key on macOS (Option+] becomes "‘"), but
+        // event.code stays "BracketRight".
         let delta = 0;
 
-        if (event.key === "]") {
+        if (event.code === "BracketRight") {
           delta = SPEED_STEP;
-        } else if (event.key === "[") {
+        } else if (event.code === "BracketLeft") {
           delta = -SPEED_STEP;
-        } else if (event.key !== "\\") {
+        } else if (event.code !== "Backslash") {
           return;
         }
 
@@ -748,6 +754,72 @@
       },
       true
     );
+  }
+
+  function speedModifierMatches(event) {
+    const required = settings.videoSpeedModifier || "alt";
+    const held = {
+      alt: event.altKey,
+      ctrl: event.ctrlKey,
+      shift: event.shiftKey,
+      meta: event.metaKey
+    };
+
+    if (required === "none") {
+      return !held.alt && !held.ctrl && !held.shift && !held.meta;
+    }
+
+    // The chosen modifier must be down and no other modifier may be, so the
+    // shortcut doesn't collide with combos like Ctrl+Alt+].
+    return Object.keys(held).every((key) =>
+      key === required ? held[key] : !held[key]
+    );
+  }
+
+  function installSettingsHotkey() {
+    document.addEventListener(
+      "keydown",
+      (event) => {
+        if (!settings.enabled || !settings.settingsHotkeyEnabled || event.repeat) {
+          return;
+        }
+
+        // Cmd+Shift+S on macOS, Ctrl+Shift+S elsewhere. Two taps within the
+        // window open the popup.
+        if (
+          !(event.metaKey || event.ctrlKey) ||
+          !event.shiftKey ||
+          event.altKey ||
+          event.code !== "KeyS"
+        ) {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        const now = Date.now();
+
+        if (now - lastSettingsHotkeyTime <= SETTINGS_HOTKEY_DOUBLE_TAP_MS) {
+          lastSettingsHotkeyTime = 0;
+          requestOpenSettings();
+        } else {
+          lastSettingsHotkeyTime = now;
+        }
+      },
+      true
+    );
+  }
+
+  function requestOpenSettings() {
+    if (!hasChromeRuntime()) {
+      return;
+    }
+
+    chrome.runtime.sendMessage({ type: "openSmoothSurferSettings" }, () => {
+      // The popup may not be openable (e.g. older Chrome); swallow the error.
+      void chrome.runtime.lastError;
+    });
   }
 
   function clampSpeed(rate) {

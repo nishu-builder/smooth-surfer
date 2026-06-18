@@ -54,6 +54,11 @@ importScripts("settings.js", "storage.js");
       return false;
     }
 
+    if (message.type === "openSmoothSurferSettings") {
+      openSettingsPopup();
+      return false;
+    }
+
     if (message.type !== "classifyContent" && message.type !== "classifyTweetContent") {
       return false;
     }
@@ -71,6 +76,16 @@ importScripts("settings.js", "storage.js");
 
     return true;
   });
+
+  function openSettingsPopup() {
+    // chrome.action.openPopup() landed in Chrome 127; degrade quietly on older
+    // builds where the keyboard shortcut simply does nothing.
+    if (!chrome.action || typeof chrome.action.openPopup !== "function") {
+      return;
+    }
+
+    Promise.resolve(chrome.action.openPopup()).catch(() => {});
+  }
 
   async function recordHide(source, reasons) {
     if (!statsPromise) {

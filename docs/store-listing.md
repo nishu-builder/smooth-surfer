@@ -29,7 +29,9 @@ Per-site cleanup:
 - Hacker News: hide scores.
 - Everywhere: hide sticky/floating video players, soften distracting
   elements, get a gentle "surf break" prompt after deep scrolling, and
-  control video speed from the keyboard (] faster, [ slower, \ reset).
+  control video speed from the keyboard (Alt+] faster, Alt+[ slower, Alt+\
+  reset; modifier configurable). Open the popup with a Cmd/Ctrl+Shift+S
+  double-tap.
 
 Stay in control:
 

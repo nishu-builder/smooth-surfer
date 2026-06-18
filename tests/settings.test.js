@@ -42,9 +42,17 @@ assert.equal(defaults.softenDistractingElements, true);
 assert.equal(defaults.youtubeHideComments, false);
 assert.equal(defaults.redditHideComments, false);
 assert.equal(defaults.videoSpeedHotkeys, true);
+assert.equal(defaults.videoSpeedModifier, "alt");
+assert.equal(defaults.settingsHotkeyEnabled, true);
 assert.equal(defaults.focusScheduleEnabled, false);
 assert.equal(defaults.focusScheduleStart, "09:00");
 assert.equal(defaults.focusScheduleEnd, "17:00");
+
+assert.equal(settings.normalizeSettings({ videoSpeedModifier: "CTRL" }).videoSpeedModifier, "ctrl");
+assert.equal(settings.normalizeSettings({ videoSpeedModifier: "none" }).videoSpeedModifier, "none");
+assert.equal(settings.normalizeSettings({ videoSpeedModifier: "bogus" }).videoSpeedModifier, "alt");
+assert.equal(settings.normalizeSettings({ settingsHotkeyEnabled: 0 }).settingsHotkeyEnabled, false);
+assert.deepEqual(settings.VIDEO_SPEED_MODIFIERS, ["none", "alt", "ctrl", "shift", "meta"]);
 
 assert.equal(settings.normalizeSettings({ focusScheduleStart: "7:05" }).focusScheduleStart, "07:05");
 assert.equal(settings.normalizeSettings({ focusScheduleStart: "25:00" }).focusScheduleStart, "09:00");

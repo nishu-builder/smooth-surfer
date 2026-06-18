@@ -155,9 +155,23 @@
           <span>Gray distracting media</span>
           <input type="checkbox" data-setting="softenDistractingElements">
         </label>
-        <label class="switch-row" data-description="Press ] to speed up, [ to slow down, and \ to reset playback speed on any video.">
+        <label class="switch-row" data-description="Hold the speed modifier with ] to speed up, [ to slow down, and \ to reset playback speed on any video.">
           <span>Video speed keys</span>
           <input type="checkbox" data-setting="videoSpeedHotkeys">
+        </label>
+        <label class="field-row">
+          <span>Speed key modifier</span>
+          <select data-setting="videoSpeedModifier">
+            <option value="alt">Alt / Option</option>
+            <option value="ctrl">Ctrl</option>
+            <option value="shift">Shift</option>
+            <option value="meta">Cmd / Meta</option>
+            <option value="none">No modifier</option>
+          </select>
+        </label>
+        <label class="switch-row" data-description="Press Cmd+Shift+S (Ctrl+Shift+S on Windows/Linux) twice quickly to open this popup.">
+          <span>Settings shortcut</span>
+          <input type="checkbox" data-setting="settingsHotkeyEnabled">
         </label>
       </section>
 

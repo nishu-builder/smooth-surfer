@@ -13,7 +13,8 @@ The popup also includes:
 
 - A Consumption Facts label: a nutrition-facts-style breakdown of the emotional ingredients (outrage, joy, humor, fear, curiosity/beauty, memes, polls) in the posts you actually saw today. It rides on the same Haiku classification calls as filtering, so it also needs an Anthropic key.
 - Comment hiding for YouTube and Reddit.
-- Video speed keys on any site: `]` faster, `[` slower, `\` reset.
+- Video speed keys on any site: `Alt+]` faster, `Alt+[` slower, `Alt+\` reset. The modifier is configurable (Alt/Ctrl/Shift/Cmd, or no modifier) in the popup.
+- A settings shortcut: press `Cmd+Shift+S` (`Ctrl+Shift+S` on Windows/Linux) twice quickly to open the popup.
 - A focus schedule that runs effects only during chosen hours.
 - A stats panel counting what was hidden per site today and this week.
 - Settings export/import as JSON (the API key is never exported).
