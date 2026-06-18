@@ -1,6 +1,13 @@
+// Headless browser smoke test driven over the DevTools Protocol.
+//
+// Chrome resolution order: CHROME_BIN, macOS Google Chrome, a cached
+// .cache/chrome-linux64 build, then (on Linux) an automatic Chrome for Testing
+// download. Branded Chrome 137+ ignores --load-extension, so the extension-mode
+// check needs Chrome for Testing. Set SKIP_CHROME_SMOKE=1 to skip entirely; the
+// test also skips quietly when no browser can be resolved (e.g. offline macOS).
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { execFileSync, spawn } from "node:child_process";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import http from "node:http";
 import net from "node:net";
@@ -9,10 +16,12 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
-const chromePath = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+const cacheDir = path.join(root, ".cache");
 
-if (!existsSync(chromePath)) {
-  console.log("Skipping Chrome smoke test: Google Chrome is not installed.");
+const chromePath = await resolveChrome();
+
+if (!chromePath) {
+  console.log("Skipping Chrome smoke test: no Chrome for Testing binary available.");
   process.exit(0);
 }
 
@@ -113,6 +122,7 @@ const chrome = spawn(chromePath, [
   "--headless=new",
   `--remote-debugging-port=${port}`,
   `--user-data-dir=${profileDir}`,
+  "--no-sandbox",
   "--no-first-run",
   "--no-default-browser-check",
   "--disable-background-networking",
@@ -241,6 +251,52 @@ try {
   assert.ok(
     popupState.stored.filterCriteria.includes("high-pressure AI investing hype")
   );
+
+  // Video speed keys (default Alt modifier) and the settings double-tap. The
+  // fixture stubs chrome.runtime so requestOpenSettings has a sink to record.
+  await navigate(client, `http://youtube.com.test:${fixturePort}/video-content.html`);
+  await waitForExpression(client, `Boolean(window.SmoothSurferSettings)`);
+  const speedState = await evaluate(client, `(() => {
+    const video = document.querySelector("#speed-video");
+    const press = (code, modifiers = {}) =>
+      document.body.dispatchEvent(
+        new KeyboardEvent("keydown", Object.assign({ code, bubbles: true, cancelable: true }, modifiers))
+      );
+
+    video.playbackRate = 1;
+    press("BracketRight", { altKey: true });
+    const afterFaster = video.playbackRate;
+    press("BracketLeft", { altKey: true });
+    const afterSlower = video.playbackRate;
+    press("BracketRight", { altKey: true });
+    press("Backslash", { altKey: true });
+    const afterReset = video.playbackRate;
+
+    video.playbackRate = 1;
+    press("BracketRight");
+    const afterBareKey = video.playbackRate;
+
+    window.__smoothSurferMessages.length = 0;
+    press("KeyS", { ctrlKey: true, shiftKey: true });
+    const afterSingleTap = window.__smoothSurferMessages.length;
+    press("KeyS", { ctrlKey: true, shiftKey: true });
+
+    return {
+      afterFaster,
+      afterSlower,
+      afterReset,
+      afterBareKey,
+      afterSingleTap,
+      messages: window.__smoothSurferMessages.slice()
+    };
+  })()`);
+
+  assert.equal(speedState.afterFaster, 1.25);
+  assert.equal(speedState.afterSlower, 1);
+  assert.equal(speedState.afterReset, 1);
+  assert.equal(speedState.afterBareKey, 1);
+  assert.equal(speedState.afterSingleTap, 0);
+  assert.deepEqual(speedState.messages, [{ type: "openSmoothSurferSettings" }]);
 
   await navigate(client, `http://youtube.com.test:${fixturePort}/youtube-content.html`);
   await waitForExpression(
@@ -384,6 +440,163 @@ try {
   await rm(tmpDir, { recursive: true, force: true });
 }
 
+// End-to-end check of the real unpacked extension: a Cmd/Ctrl+Shift+S
+// double-tap on a page should reach the background and open the popup via
+// chrome.action.openPopup().
+await verifyExtensionPopupOpens();
+
+async function verifyExtensionPopupOpens() {
+  const extProfileDir = await mkdtemp(path.join(os.tmpdir(), "smooth-surfer-ext-"));
+  const debugPort = await getFreePort();
+  const barePort = await getFreePort();
+  const bareServer = http.createServer((request, response) => {
+    sendHtml(
+      response,
+      `<!doctype html><html><head><meta charset="utf-8"></head>
+       <body><video id="speed-video" style="width:320px;height:240px"></video></body></html>`
+    );
+  });
+
+  await listen(bareServer, barePort);
+
+  const extensionChrome = spawn(chromePath, [
+    "--headless=new",
+    `--remote-debugging-port=${debugPort}`,
+    `--user-data-dir=${extProfileDir}`,
+    "--no-sandbox",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--remote-allow-origins=*",
+    `--load-extension=${root}`,
+    `--disable-extensions-except=${root}`,
+    "about:blank"
+  ]);
+
+  extensionChrome.stderr.on("data", () => {});
+
+  try {
+    let worker = null;
+    const workerDeadline = Date.now() + 10000;
+
+    while (Date.now() < workerDeadline && !worker) {
+      try {
+        const targets = await requestJson(debugPort, "/json");
+        worker = targets.find((target) => (target.url || "").includes("/src/background.js"));
+      } catch {
+        // Extension service worker not registered yet.
+      }
+
+      if (!worker) {
+        await delay(200);
+      }
+    }
+
+    assert.ok(
+      worker,
+      "extension background service worker loaded (Chrome for Testing required; branded Chrome 137+ ignores --load-extension)"
+    );
+
+    const page = await waitForPageTarget(debugPort);
+    const client = await CdpClient.connect(page.webSocketDebuggerUrl);
+
+    await client.send("Page.enable");
+    await client.send("Runtime.enable");
+    await navigate(client, `http://127.0.0.1:${barePort}/bare-video.html`);
+    await evaluate(
+      client,
+      `(() => {
+        const press = () =>
+          document.body.dispatchEvent(
+            new KeyboardEvent("keydown", {
+              code: "KeyS",
+              ctrlKey: true,
+              shiftKey: true,
+              bubbles: true,
+              cancelable: true
+            })
+          );
+        press();
+        press();
+        return true;
+      })()`
+    );
+
+    let popup = null;
+    const popupDeadline = Date.now() + 5000;
+
+    while (Date.now() < popupDeadline && !popup) {
+      const targets = await requestJson(debugPort, "/json");
+      popup = targets.find((target) => (target.url || "").endsWith("popup.html"));
+
+      if (!popup) {
+        await delay(150);
+      }
+    }
+
+    assert.ok(popup, "Ctrl+Shift+S double-tap opened the extension popup");
+    client.close();
+  } finally {
+    extensionChrome.kill("SIGTERM");
+    await Promise.race([
+      new Promise((resolve) => extensionChrome.once("exit", resolve)),
+      delay(2000).then(() => extensionChrome.kill("SIGKILL"))
+    ]);
+    await closeServer(bareServer);
+    await rm(extProfileDir, { recursive: true, force: true });
+  }
+}
+
+async function resolveChrome() {
+  if (process.env.SKIP_CHROME_SMOKE) {
+    return null;
+  }
+
+  const candidates = [
+    process.env.CHROME_BIN,
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    path.join(cacheDir, "chrome-linux64", "chrome")
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  // Only auto-download on Linux, where Chrome for Testing ships a portable
+  // build and the extension can be loaded with --load-extension.
+  if (process.platform !== "linux") {
+    return null;
+  }
+
+  try {
+    return await downloadChromeForTesting();
+  } catch (error) {
+    console.log("Chrome for Testing download failed:", error.message);
+    return null;
+  }
+}
+
+async function downloadChromeForTesting() {
+  console.log("Downloading Chrome for Testing (linux64)...");
+  await mkdir(cacheDir, { recursive: true });
+
+  const versions = await (
+    await fetch(
+      "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json"
+    )
+  ).json();
+  const download = versions.channels.Stable.downloads.chrome.find(
+    (entry) => entry.platform === "linux64"
+  );
+  const zipPath = path.join(cacheDir, "chrome-linux64.zip");
+
+  await writeFile(zipPath, Buffer.from(await (await fetch(download.url)).arrayBuffer()));
+  execFileSync("unzip", ["-q", "-o", zipPath, "-d", cacheDir]);
+
+  return path.join(cacheDir, "chrome-linux64", "chrome");
+}
+
 async function navigate(client, url) {
   await client.send("Page.navigate", { url });
   await waitForExpression(client, "document.readyState === 'complete'");
@@ -504,6 +717,11 @@ function createFixtureServer() {
         return;
       }
 
+      if (requestUrl.pathname === "/video-content.html") {
+        sendHtml(response, videoContentFixture());
+        return;
+      }
+
       if (requestUrl.pathname === "/twitter-content.html" || requestUrl.pathname === "/home") {
         sendHtml(response, twitterContentFixture());
         return;
@@ -555,6 +773,37 @@ async function sendRepoFile(response, relativePath) {
 function sendHtml(response, body) {
   response.writeHead(200, { "content-type": "text/html" });
   response.end(body);
+}
+
+function videoContentFixture() {
+  return `<!doctype html>
+  <html>
+    <head>
+      <meta charset="utf-8">
+      <link rel="stylesheet" href="/src/styles.css">
+    </head>
+    <body>
+      <video id="speed-video" style="width: 320px; height: 240px"></video>
+      <script>
+        // Stand in for the extension messaging channel so the settings-open
+        // shortcut has somewhere to deliver its message.
+        window.__smoothSurferMessages = [];
+        window.chrome = {
+          runtime: {
+            lastError: null,
+            sendMessage(message, callback) {
+              window.__smoothSurferMessages.push(message);
+              if (callback) callback();
+            },
+            onMessage: { addListener() {} }
+          }
+        };
+      </script>
+      <script src="/src/settings.js"></script>
+      <script src="/src/storage.js"></script>
+      <script src="/src/content.js"></script>
+    </body>
+  </html>`;
 }
 
 function youtubeContentFixture() {
