@@ -37,6 +37,9 @@
     TAG_OVERLOAD_CRITERION,
     LINKEDIN_STYLE_CRITERION
   ];
+  // Modifier required alongside the video speed keys (] [ \). "none" keeps the
+  // old bare-key behaviour; the others require that modifier and no other.
+  const VIDEO_SPEED_MODIFIERS = ["none", "alt", "ctrl", "shift", "meta"];
   const SITE_RULES = [
     { id: "youtube", label: "YouTube" },
     { id: "twitter", label: "X / Twitter" },
@@ -74,6 +77,8 @@
     pauseDeepScrolling: true,
     softenDistractingElements: true,
     videoSpeedHotkeys: true,
+    videoSpeedModifier: "alt",
+    settingsHotkeyEnabled: true,
     focusScheduleEnabled: false,
     focusScheduleStart: "09:00",
     focusScheduleEnd: "17:00"
@@ -147,6 +152,8 @@
     next.pauseDeepScrolling = Boolean(next.pauseDeepScrolling);
     next.softenDistractingElements = Boolean(next.softenDistractingElements);
     next.videoSpeedHotkeys = Boolean(next.videoSpeedHotkeys);
+    next.videoSpeedModifier = normalizeModifier(next.videoSpeedModifier);
+    next.settingsHotkeyEnabled = Boolean(next.settingsHotkeyEnabled);
     next.focusScheduleEnabled = Boolean(next.focusScheduleEnabled);
     next.focusScheduleStart = normalizeTime(next.focusScheduleStart, DEFAULT_SETTINGS.focusScheduleStart);
     next.focusScheduleEnd = normalizeTime(next.focusScheduleEnd, DEFAULT_SETTINGS.focusScheduleEnd);
@@ -154,6 +161,14 @@
     delete next.twitterFilterCriteria;
 
     return next;
+  }
+
+  function normalizeModifier(value) {
+    const modifier = String(value || "").trim().toLowerCase();
+
+    return VIDEO_SPEED_MODIFIERS.includes(modifier)
+      ? modifier
+      : DEFAULT_SETTINGS.videoSpeedModifier;
   }
 
   function normalizeTime(value, fallback) {
@@ -374,6 +389,7 @@
     SITE_RULES,
     STATS_KEY,
     STORAGE_KEY,
+    VIDEO_SPEED_MODIFIERS,
     getPlatformForHost,
     getPlatformForUrl,
     isWithinFocusWindow,
