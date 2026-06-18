@@ -7,7 +7,7 @@
 
 Smooth Surfer is a small Chrome extension for browsing with less feed noise. It hides or softens selected YouTube, X/Twitter, Reddit, Substack, Hacker News, and generic feed distractions from the toolbar popup.
 
-Content filtering is disabled unless you save an Anthropic key. When a key is present, Smooth Surfer uses Claude Haiku with your filter criteria, batching visible posts into shared classification calls.
+Content filtering is disabled unless you save an Anthropic key. When a key is present, Smooth Surfer uses Claude Haiku 4.5 to filter X/Twitter, Reddit, Substack, and Hacker News against your filter criteria, batching visible posts into shared classification calls.
 
 The popup also includes:
 

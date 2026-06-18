@@ -8,8 +8,8 @@ extension changes.
 **Name:** Smooth Surfer
 
 **Summary (132 chars max):**
-Surf the web with only the waves you want. Hide ads, recommendations, Shorts,
-and AI-classified noise on YouTube, X, Reddit & more.
+Surf with only the waves you want. Hide ads, recommendations, Shorts and
+comments, with optional AI filtering on X, Reddit & more.
 
 **Description:**
 
@@ -22,11 +22,12 @@ Per-site cleanup:
 - YouTube: grayscale thumbnails, hide recommendations, hide/block Shorts,
   hide games, live chat, end screens, engagement stats, and comments;
   disable autoplay.
-- X / Twitter: hide ads and trends, keep the Following tab selected.
+- X / Twitter: hide ads and trends, and prefer the Following timeline (you
+  can still switch to For You).
 - Reddit: hide promoted posts, "communities you might like" modules, and
   comment threads.
 - Substack: hide recommendation modules.
-- Hacker News: hide scores.
+- Hacker News: hide story scores.
 - Everywhere: hide sticky/floating video players, soften distracting
   elements, get a gentle "surf break" prompt after deep scrolling, and
   control video speed from the keyboard (Alt+] faster, Alt+[ slower, Alt+\
@@ -42,9 +43,13 @@ Stay in control:
   included).
 
 Optional AI filtering (off by default): if you save your own Anthropic API
-key, Smooth Surfer can hide posts that match filter criteria you write in
-plain English (e.g. engagement bait, hashtag spam, FOMO hype) using Claude
-Haiku. Without a key, no text ever leaves your browser.
+key, Smooth Surfer can hide posts on X, Reddit, Substack, and Hacker News
+that match filter criteria you write in plain English (e.g. engagement bait,
+hashtag spam, FOMO hype), using Claude Haiku. The same classification powers
+Consumption Facts, a nutrition-label-style daily summary of the emotional
+ingredients (outrage, joy, humor, fear, curiosity, memes, polls) in the posts
+you actually saw. Without a key, no feed text ever leaves your browser and
+both features stay off.
 
 No accounts, no analytics, no data collection. Open source:
 https://github.com/nishu-builder/smooth-surfer
@@ -62,17 +67,20 @@ sites.
 
 **Permission justifications:**
 
-- `storage`: Saves the user's per-site toggle settings (synced) and their
-  optional Anthropic API key (local only).
-- Host permissions (YouTube, X/Twitter, Reddit, Substack, Hacker News):
-  Required to detect and hide ads, recommendation modules, Shorts, and other
-  feed items on the supported sites.
-- `api.anthropic.com`: Used only when the user saves their own Anthropic API
-  key, to classify visible feed text against the user's filter criteria.
-- Content script on `<all_urls>`: Powers the cross-site features the user can
-  toggle — hiding sticky/floating video players, softening distracting
-  elements, and the deep-scroll pause — which apply on any site the user
-  visits. No data is read or transmitted from these pages.
+- `storage`: Saves the user's toggle settings (synced via
+  `chrome.storage.sync`) and their optional Anthropic API key (local only via
+  `chrome.storage.local`).
+- `api.anthropic.com` host permission: Used only when the user saves their own
+  Anthropic API key, to classify visible feed text against the user's filter
+  criteria and compute the Consumption Facts label.
+- Content script on `<all_urls>`: Powers every on-page effect the user can
+  toggle — the per-site cleanups on YouTube, X/Twitter, Reddit, Substack, and
+  Hacker News (ads, recommendations, Shorts, comments, scores) and the
+  cross-site effects (hiding sticky/floating video players, graying
+  distracting media, the deep-scroll pause, video speed keys, and the settings
+  shortcut). Page content is read locally; nothing is transmitted except when
+  the user enables AI filtering, which sends visible feed text to their own
+  Anthropic key.
 
 **Remote code:** No, I am not using remote code. (The extension calls the
 Anthropic REST API for text classification but does not fetch or execute
@@ -81,9 +89,10 @@ code.)
 **Data usage disclosures:**
 
 - Collects "Website content" (visible feed text), used only for the app's
-  core functionality (AI content filtering), only when the user has saved
-  their own API key. Sent to Anthropic's API; not sold, not used for
-  unrelated purposes, not transferred for ads or creditworthiness.
+  core functionality (AI content filtering and the Consumption Facts label),
+  only when the user has saved their own API key. Sent to Anthropic's API; not
+  sold, not used for unrelated purposes, not transferred for ads or
+  creditworthiness.
 - The user's Anthropic API key is stored locally via `chrome.storage.local`
   and sent only to `api.anthropic.com`.
 - No analytics, no tracking, no sale of data.
