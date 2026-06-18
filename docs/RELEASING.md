@@ -34,9 +34,36 @@ upload.
    - Follow the [chrome-webstore-upload keys guide](https://github.com/fregante/chrome-webstore-upload-keys)
      to create a Google Cloud OAuth client and refresh token for the
      Chrome Web Store API.
-   - Add GitHub Actions secrets: `CWS_EXTENSION_ID`, `CWS_CLIENT_ID`,
-     `CWS_CLIENT_SECRET`, `CWS_REFRESH_TOKEN`.
+   - Create a GitHub Environment named `chrome-web-store`
+     (Settings → Environments). The `publish` job references it, so the
+     secrets below live on the environment, not repo-wide.
+   - Add the secrets to that environment: `CWS_EXTENSION_ID`,
+     `CWS_CLIENT_ID`, `CWS_CLIENT_SECRET`, `CWS_REFRESH_TOKEN`.
    - Set the repository variable `CWS_PUBLISH` to `true`.
+   - See [Security hardening](#security-hardening-human) to restrict the
+     environment to `main`/`v*` and require manual approval before publish.
+
+## Security hardening (human)
+
+The release workflow now refuses to publish from a commit that isn't on
+`main` and runs with a read-only `GITHUB_TOKEN`. The remaining protections
+are GitHub dashboard toggles only a maintainer can set:
+
+1. ⬜ **Gate the publish environment** (Settings → Environments →
+   `chrome-web-store`):
+   - Deployment branches and tags → "Selected" → allow `main` and `v*` only.
+   - Add yourself as a **required reviewer** so each publish pauses for a
+     manual approve before it uploads to the store.
+2. ⬜ **Require approval for fork PRs** (Settings → Actions → General → Fork
+   pull request workflows) → "Require approval for all external
+   contributors". Keep CI on `pull_request`; never switch to
+   `pull_request_target`.
+3. ⬜ **Protect `main`** (Settings → Rules/Branches): require the `Check`
+   status to pass, require branch up to date, block force-pushes and
+   deletion, require a PR before merge.
+4. ⬜ **Restrict who can create `v*` tags** (Settings → Rules → tag ruleset)
+   to maintainers.
+5. ⬜ **Enable secret scanning + push protection** (Settings → Code security).
 
 ## Every release (automatable)
 
