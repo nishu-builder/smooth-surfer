@@ -8,10 +8,10 @@ Extension ID: `cgmineplcpnmdfokdblnnapnbpknfghe`
 - Public listing: https://chromewebstore.google.com/detail/smooth-surfer/cgmineplcpnmdfokdblnnapnbpknfghe
 - Dashboard: https://chrome.google.com/webstore/devconsole
 
-**Status:** Smooth Surfer is published and live on the Chrome Web Store. The
-one-time setup below (steps 1–4) is done. What remains optional is wiring the
-auto-publish credentials in step 5 so tagged releases publish without a manual
-upload.
+**Status:** Smooth Surfer is published and live on the Chrome Web Store, and
+the setup below is complete — including auto-publish. Pushing a `v*` tag
+builds the release and, once a maintainer approves the deployment, publishes
+it to the store.
 
 ## One-time setup (human)
 
@@ -30,18 +30,12 @@ upload.
    git commit -m "Install release workflow" && git push
    ```
 
-5. ⬜ To enable automated publishing (optional but recommended — not yet wired):
-   - Follow the [chrome-webstore-upload keys guide](https://github.com/fregante/chrome-webstore-upload-keys)
-     to create a Google Cloud OAuth client and refresh token for the
-     Chrome Web Store API.
-   - Create a GitHub Environment named `chrome-web-store`
-     (Settings → Environments). The `publish` job references it, so the
-     secrets below live on the environment, not repo-wide.
-   - Add the secrets to that environment: `CWS_EXTENSION_ID`,
-     `CWS_CLIENT_ID`, `CWS_CLIENT_SECRET`, `CWS_REFRESH_TOKEN`.
-   - Set the repository variable `CWS_PUBLISH` to `true`.
-   - See [Security hardening](#security-hardening-human) to restrict the
-     environment to `main`/`v*` and require manual approval before publish.
+5. ✅ Automated publishing is enabled. A Chrome Web Store API client and the
+   credentials the `publish` job needs are configured, and publishing is gated
+   behind a manual deployment approval (see
+   [Security hardening](#security-hardening-human)). The
+   [chrome-webstore-upload keys guide](https://github.com/fregante/chrome-webstore-upload-keys)
+   covers creating or rotating the API client if that's ever needed.
 
 ## Security hardening (human)
 
@@ -49,11 +43,10 @@ The release workflow now refuses to publish from a commit that isn't on
 `main` and runs with a read-only `GITHUB_TOKEN`. The remaining protections
 are GitHub dashboard toggles only a maintainer can set:
 
-1. ⬜ **Gate the publish environment** (Settings → Environments →
-   `chrome-web-store`):
-   - Deployment branches and tags → "Selected" → allow `main` and `v*` only.
-   - Add yourself as a **required reviewer** so each publish pauses for a
-     manual approve before it uploads to the store.
+1. ✅ **Gate the publish environment** — a required reviewer is configured, so
+   each publish pauses for a manual approval before it uploads to the store.
+   (Recommended companion setting: restrict the environment's deployment
+   branches and tags to `main` and `v*`.)
 2. ⬜ **Require approval for fork PRs** (Settings → Actions → General → Fork
    pull request workflows) → "Require approval for all external
    contributors". Keep CI on `pull_request`; never switch to
@@ -78,11 +71,11 @@ are GitHub dashboard toggles only a maintainer can set:
 5. Tag and push: `git tag v<version> && git push origin v<version>`.
 
 The `Release` workflow then verifies the tag matches the manifest, runs
-checks, builds the zip, stores it as a build artifact, and — when
-`CWS_PUBLISH` is `true` and the secrets exist — uploads it to the Web Store
-with auto-publish. New versions of an approved extension are usually
-reviewed much faster than the first submission.
+checks, builds the zip, and stores it as a build artifact. With auto-publish
+enabled, it pauses for a maintainer to approve the deployment, then uploads to
+the Web Store. New versions of an approved extension are usually reviewed much
+faster than the first submission.
 
-Until the API credentials exist, the last step is manual: download the zip
+If auto-publish is ever turned off, the fallback is manual: download the zip
 from the workflow artifact (or run `npm run package`) and upload it in the
 developer dashboard.
