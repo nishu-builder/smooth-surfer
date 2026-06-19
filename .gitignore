@@ -6,5 +6,5 @@ node_modules/
 dist/
 coverage/
 *.zip
-dist/
 .cache/
+chrome/

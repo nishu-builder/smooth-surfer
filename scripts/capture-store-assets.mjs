@@ -1,6 +1,8 @@
 #!/usr/bin/env node
-// Captures the Chrome Web Store screenshots (1280x800) into docs/store-assets/
-// with the extension loaded against live sites.
+// Captures the Chrome Web Store screenshots (1280x800) into docs/store-assets/.
+// The shots walk through the toolbar popup itself: the full menu is rendered
+// with the extension loaded, then sliced at section boundaries into a handful
+// of readable panels centered on a brand-colored canvas.
 //
 // Usage: node scripts/capture-store-assets.mjs
 //
@@ -21,11 +23,17 @@ import { fileURLToPath } from "node:url";
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = path.join(root, "docs", "store-assets");
 const cacheDir = path.join(root, ".cache");
-const searchUrl = "https://www.youtube.com/results?search_query=surfing";
-const fontCandidates = [
-  "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-  "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-  "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
+const canvas = { width: 1280, height: 800, background: "0x176b5d" };
+// Popup body is 320px wide; at deviceScaleFactor 2 the column is 640px.
+const popupColumnWidth = 640;
+// Curated section groups, one store screenshot each. Labels match a section's
+// data-site-section or its lowercased <h2>; "header" is the title row. Stats
+// and Backup are left out of the store set as utility sections.
+const groups = [
+  ["header", "youtube"],
+  ["twitter", "reddit", "substack", "hacker-news"],
+  ["content filter", "everywhere", "focus schedule"],
+  ["consumption facts"]
 ];
 
 await mkdir(outDir, { recursive: true });
@@ -89,62 +97,59 @@ class CdpClient {
 const chromeBin = await findChrome();
 console.log("using chrome:", chromeBin);
 
-const raw = {};
-
 await withChrome([`--load-extension=${root}`], async (client, port) => {
-  const targets = await requestJson(port, "/json");
-  const worker = targets.find((target) => (target.url || "").includes("/src/background.js"));
-
-  if (!worker) {
-    throw new Error(
-      "Extension did not load. Branded Chrome 137+ ignores --load-extension; use Chrome for Testing."
-    );
-  }
-
+  const worker = await waitForWorker(port);
   const extensionId = new URL(worker.url).hostname;
 
-  await navigate(client, searchUrl, 10000);
-  raw.youtubeClean = await shoot(client, "youtube-clean");
-
-  await navigate(client, "https://news.ycombinator.com/", 5000);
-  raw.hackerNews = await shoot(client, "hn-clean");
-
+  // Narrow viewport so the popup renders at its natural 320px width; the body
+  // cap is lifted in setup so the whole menu lays out for a full-page capture.
   await client.send("Emulation.setDeviceMetricsOverride", {
-    width: 340,
-    height: 1500,
+    width: 360,
+    height: 900,
     deviceScaleFactor: 2,
     mobile: false
   });
-  await navigate(client, `chrome-extension://${extensionId}/popup.html`, 1500);
-  raw.popup = await shoot(client, "popup");
+  await navigate(client, `chrome-extension://${extensionId}/popup.html`, 1200);
+  await evaluate(client, popupSetupExpression());
+  await delay(700);
+
+  const menuPng = await shootFull(client, "menu");
+  const blocks = await evaluate(client, blocksExpression());
+
+  composeMenuShots(menuPng, blocks);
 });
-
-await withChrome([], async (client) => {
-  await navigate(client, searchUrl, 10000);
-  raw.youtubeRaw = await shoot(client, "youtube-raw");
-});
-
-const font = fontCandidates.find((candidate) => existsSync(candidate));
-const label = (text, color) =>
-  font
-    ? `,drawtext=fontfile=${font}:text='${text}':x=24:y=24:fontsize=40:fontcolor=white:box=1:boxcolor=${color}:boxborderw=14`
-    : "";
-
-compose(
-  ["-i", raw.youtubeRaw, "-i", raw.youtubeClean],
-  `[0]crop=928:1160:300:140,scale=640:800${label("Before", "black@0.65")}[l];` +
-    `[1]crop=928:1160:300:440,scale=640:800${label("After", "0x176b5d@0.85")}[r];` +
-    "[l][r]hstack",
-  "shot-1-before-after.png"
-);
-compose(
-  ["-i", raw.youtubeClean, "-i", raw.popup],
-  "[1]crop=680:1180:0:0[p];[0][p]overlay=1800:210,scale=1280:800",
-  "shot-2-popup.png"
-);
-compose(["-i", raw.hackerNews], "scale=1280:800", "shot-3-hn.png");
 
 console.log("store assets written to", outDir);
+
+function composeMenuShots(menuPng, blocks) {
+  const byLabel = new Map(blocks.map((block) => [block.label, block]));
+  let written = 0;
+
+  groups.forEach((labels, index) => {
+    const members = labels.map((label) => byLabel.get(label)).filter(Boolean);
+
+    if (members.length === 0) {
+      console.warn(`no sections found for group ${labels.join(", ")}; skipped`);
+      return;
+    }
+
+    const top = Math.min(...members.map((member) => member.top));
+    const bottom = Math.max(...members.map((member) => member.bottom));
+    const y = Math.max(0, Math.round(top * 2 - 8));
+    const h = Math.round((bottom - top) * 2 + 16);
+
+    compose(
+      ["-i", menuPng],
+      `crop=${popupColumnWidth}:${h}:0:${y},` +
+        `scale=520:764:force_original_aspect_ratio=decrease,` +
+        `pad=${canvas.width}:${canvas.height}:(${canvas.width}-iw)/2:(${canvas.height}-ih)/2:color=${canvas.background}`,
+      `shot-${index + 1}-menu.png`
+    );
+    written += 1;
+  });
+
+  console.log(`composed ${written} menu shots`);
+}
 
 function compose(inputs, filter, name) {
   execFileSync("ffmpeg", [
@@ -154,6 +159,62 @@ function compose(inputs, filter, name) {
     path.join(outDir, name)
   ]);
   console.log("composed", name);
+}
+
+function popupSetupExpression() {
+  return `(() => {
+    document.body.style.maxHeight = "none";
+    document.body.style.overflow = "visible";
+    const d = new Date();
+    const key =
+      d.getFullYear() +
+      "-" + String(d.getMonth() + 1).padStart(2, "0") +
+      "-" + String(d.getDate()).padStart(2, "0");
+    const data = { days: { [key]: { twitter: { posts: 86, tags: {
+      "outrage-political": 14, "outrage-callout": 6, "outrage-other": 4,
+      "joy": 11, "humor": 17,
+      "fear-existential": 5, "fear-safety": 3, "fear-societal": 4, "fear-political": 7,
+      "curiosity-beauty": 13, "poll": 4, "meme": 9
+    } } } } };
+    return new Promise((resolve) => {
+      if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.set({ smoothSurferConsumption: data }, () => resolve(true));
+      } else {
+        resolve(false);
+      }
+    });
+  })()`;
+}
+
+function blocksExpression() {
+  return `(() => {
+    const blocks = Array.from(document.querySelectorAll(".popup > header, .popup > section"));
+    return blocks.map((el) => {
+      let label = "header";
+      if (el.tagName.toLowerCase() === "section") {
+        const h2 = el.querySelector("h2");
+        label = el.getAttribute("data-site-section") || (h2 ? h2.textContent.trim().toLowerCase() : "");
+      }
+      const r = el.getBoundingClientRect();
+      return { label, top: r.top + window.scrollY, bottom: r.bottom + window.scrollY };
+    });
+  })()`;
+}
+
+async function evaluate(client, expression) {
+  const { result, exceptionDetails } = await client.send("Runtime.evaluate", {
+    expression,
+    awaitPromise: true,
+    returnByValue: true
+  });
+
+  if (exceptionDetails) {
+    throw new Error(
+      (exceptionDetails.exception && exceptionDetails.exception.description) || "Runtime.evaluate failed"
+    );
+  }
+
+  return result.value;
 }
 
 async function findChrome() {
@@ -236,6 +297,7 @@ async function withChrome(extraArgs, callback) {
     const client = await CdpClient.connect(page.webSocketDebuggerUrl);
 
     await client.send("Page.enable");
+    await client.send("Runtime.enable");
     await client.send("Emulation.setDeviceMetricsOverride", {
       width: 1280,
       height: 800,
@@ -251,13 +313,33 @@ async function withChrome(extraArgs, callback) {
   }
 }
 
+async function waitForWorker(port) {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const targets = await requestJson(port, "/json");
+    const worker = targets.find((target) => (target.url || "").includes("/src/background.js"));
+
+    if (worker) {
+      return worker;
+    }
+
+    await delay(200);
+  }
+
+  throw new Error(
+    "Extension did not load. Branded Chrome 137+ ignores --load-extension; use Chrome for Testing."
+  );
+}
+
 async function navigate(client, url, settleMs) {
   await client.send("Page.navigate", { url });
   await delay(settleMs);
 }
 
-async function shoot(client, name) {
-  const shot = await client.send("Page.captureScreenshot", { format: "png" });
+async function shootFull(client, name) {
+  const shot = await client.send("Page.captureScreenshot", {
+    format: "png",
+    captureBeyondViewport: true
+  });
   const filePath = path.join(os.tmpdir(), `store-assets-${name}.png`);
 
   await writeFile(filePath, Buffer.from(shot.data, "base64"));
@@ -290,4 +372,3 @@ function requestJson(port, pathName) {
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
-

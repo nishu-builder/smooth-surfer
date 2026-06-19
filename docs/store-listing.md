@@ -103,8 +103,9 @@ https://github.com/nishu-builder/smooth-surfer/blob/main/PRIVACY.md
 ## Assets needed before submitting
 
 - [x] Icon 128x128 (`icons/icon128.png`)
-- [x] Screenshots, 1280x800 (`docs/store-assets/`): YouTube before/after,
-      popup over a grayscaled page, Hacker News with scores hidden
+- [x] Screenshots, 1280x800 (`docs/store-assets/`): four popup-menu panels —
+      per-site controls, the AI content filter, cross-site effects, and the
+      Consumption Facts label
 - [ ] Optional: small promo tile 440x280 (used in some store surfaces)
 
 ## Submission checklist
