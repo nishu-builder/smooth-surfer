@@ -9,6 +9,13 @@
   } = window.SmoothSurferStorage;
   const { getPlatformForUrl, isWithinFocusWindow } = window.SmoothSurferSettings;
   const SCAN_DEBOUNCE_MS = 120;
+  // A feed that never stops mutating (X repaints the timeline and fires scroll
+  // events far faster than the debounce window) would otherwise push the scan
+  // out forever, so every scan request also carries a deadline.
+  const SCAN_MAX_DELAY_MS = 600;
+  // How long an item may sit hidden waiting for a verdict before it is shown
+  // anyway. A dropped message channel must not leave a hole in the feed.
+  const PENDING_TIMEOUT_MS = 10000;
   const SPEED_MIN = 0.25;
   const SPEED_MAX = 4;
   const SPEED_STEP = 0.25;
@@ -50,6 +57,7 @@
   let secrets = window.SmoothSurferSettings.normalizeSecrets();
   let observer = null;
   let scanTimer = 0;
+  let scanDeadline = 0;
   let scrollPause = null;
   let scrollLimit = 0;
   let scrollPauseInputBlockersInstalled = false;
@@ -226,8 +234,22 @@
   }
 
   function scheduleScan() {
+    const now = Date.now();
+
+    if (!scanTimer) {
+      scanDeadline = now + SCAN_MAX_DELAY_MS;
+    }
+
     window.clearTimeout(scanTimer);
-    scanTimer = window.setTimeout(scanPage, SCAN_DEBOUNCE_MS);
+    scanTimer = window.setTimeout(
+      runScan,
+      Math.max(0, Math.min(SCAN_DEBOUNCE_MS, scanDeadline - now))
+    );
+  }
+
+  function runScan() {
+    scanTimer = 0;
+    scanPage();
   }
 
   function scanPage() {
@@ -235,6 +257,7 @@
       applyRootClasses();
     }
 
+    releaseStalePendingElements();
     scanCommonPage();
 
     if (platform === "youtube") {
@@ -355,6 +378,8 @@
       return;
     }
 
+    releaseStalePendingTweets();
+
     document.querySelectorAll('article[data-testid="tweet"]').forEach((article) => {
       processTweetArticle(article, canFilterContent);
     });
@@ -362,22 +387,225 @@
 
   function processTweetArticle(article, canFilterContent) {
     const container = getTweetContainer(article);
-    const reasons = [];
 
     if (settings.twitterHideAds && isPromotedTweet(article)) {
-      reasons.push("ad");
-    }
-
-    if (reasons.length > 0) {
-      hideTweet(container, reasons);
+      setTweetVerdict(article, "blocked", ["ad"]);
+      applyTweetContainer(container);
       return;
     }
 
-    if (canFilterContent) {
-      requestModelClassification(container, getTweetText(article), "tweet");
+    if (!canFilterContent) {
+      setTweetVerdict(article, "clear", []);
+      applyTweetContainer(container);
+      return;
+    }
+
+    requestTweetClassification(article, container);
+  }
+
+  function requestTweetClassification(article, container) {
+    const text = normalizeInlineText(getTweetText(article));
+
+    if (!text) {
+      setTweetVerdict(article, "clear", []);
+      applyTweetContainer(container);
+      return;
+    }
+
+    const key = getClassificationKey(text);
+    const cached = modelClassifications.get(key);
+
+    if (cached) {
+      recordConsumptionStat(key, cached);
+      applyTweetClassification(article, cached);
+      return;
+    }
+
+    if (article.dataset.smoothSurferPendingKey === key) {
+      return;
+    }
+
+    article.dataset.smoothSurferPendingKey = key;
+
+    if (!hasChromeRuntime()) {
+      const fallback = {
+        blocked: false,
+        reasons: []
+      };
+      modelClassifications.set(key, fallback);
+      applyTweetClassification(article, fallback);
+      return;
+    }
+
+    // Hold an unreviewed tweet hidden until its verdict arrives: revealing it
+    // late beats yanking it out of the feed once Haiku answers. A tweet that
+    // already passed review stays on screen while it is re-checked, so a post
+    // the reader is looking at never blinks out.
+    if (article.dataset.smoothSurferTweetCleared !== "true") {
+      setTweetVerdict(article, "pending", []);
+      applyTweetContainer(container);
+    }
+
+    chrome.runtime.sendMessage(
+      {
+        type: "classifyContent",
+        source: platform,
+        text
+      },
+      (response) => {
+        if (article.dataset.smoothSurferPendingKey === key) {
+          delete article.dataset.smoothSurferPendingKey;
+        }
+
+        if (chrome.runtime.lastError) {
+          setTweetVerdict(article, "clear", []);
+          applyTweetContainer(getTweetContainer(article));
+          return;
+        }
+
+        const result = response || { blocked: false, reasons: [] };
+
+        // Error fallbacks are transient; caching them would permanently mark
+        // the tweet clean. Leave them uncached so a later scan retries.
+        if (result.classifier !== "error") {
+          modelClassifications.set(key, result);
+        }
+
+        recordConsumptionStat(key, result);
+        applyTweetClassification(article, result);
+      }
+    );
+  }
+
+  function applyTweetClassification(article, classification) {
+    if (classification.blocked) {
+      setTweetVerdict(article, "blocked", classification.reasons || []);
     } else {
+      setTweetVerdict(article, "clear", []);
+    }
+
+    applyTweetContainer(getTweetContainer(article));
+  }
+
+  // Verdicts live on the article rather than on the cell around it: a grouped
+  // conversation cell holds several tweets, and a single shared slot would let
+  // them overwrite each other's pending key, re-request on every scan, and
+  // flip the cell between hidden and visible as each verdict lands.
+  function setTweetVerdict(article, state, reasons) {
+    article.dataset.smoothSurferTweetState = state;
+    article.dataset.smoothSurferTweetReasons = reasons.join("; ");
+
+    if (state === "pending") {
+      article.dataset.smoothSurferTweetPendingSince = String(Date.now());
+      return;
+    }
+
+    delete article.dataset.smoothSurferTweetPendingSince;
+
+    if (state === "clear") {
+      article.dataset.smoothSurferTweetCleared = "true";
+    }
+  }
+
+  function applyTweetContainer(container) {
+    if (!container) {
+      return;
+    }
+
+    const articles = getTweetArticles(container);
+
+    if (articles.length === 0) {
+      restoreElement(container);
+      return;
+    }
+
+    // The usual cell wraps a single tweet, so hide the cell and its padding
+    // goes with it. A conversation cell wraps several; there each tweet is
+    // hidden on its own so one filtered reply doesn't take the thread with it.
+    if (articles.length === 1) {
+      // A cell that used to hold a conversation may have hidden this tweet on
+      // its own; the cell takes the verdict back over now that it is alone.
+      if (articles[0] !== container && articles[0].dataset.smoothSurferHiddenKind === "tweet") {
+        restoreElement(articles[0]);
+      }
+
+      applyTweetVerdictToElement(container, articles[0]);
+      return;
+    }
+
+    if (container !== articles[0]) {
       restoreElement(container);
     }
+
+    articles.forEach((article) => {
+      applyTweetVerdictToElement(article, article);
+    });
+  }
+
+  function applyTweetVerdictToElement(element, article) {
+    const state = article.dataset.smoothSurferTweetState || "pending";
+    const reasons = (article.dataset.smoothSurferTweetReasons || "")
+      .split("; ")
+      .filter(Boolean);
+
+    if (state === "blocked") {
+      hideTweet(element, reasons);
+      return;
+    }
+
+    if (state === "pending") {
+      markPendingElement(element, "tweet");
+      return;
+    }
+
+    restoreElement(element);
+  }
+
+  function getTweetArticles(container) {
+    if (container.matches('article[data-testid="tweet"]')) {
+      return [container];
+    }
+
+    return Array.from(container.querySelectorAll('article[data-testid="tweet"]'));
+  }
+
+  function releaseStalePendingTweets() {
+    const now = Date.now();
+
+    document
+      .querySelectorAll('[data-smooth-surfer-tweet-state="pending"]')
+      .forEach((article) => {
+        const since = Number(article.dataset.smoothSurferTweetPendingSince || 0);
+
+        if (!since || now - since < PENDING_TIMEOUT_MS) {
+          return;
+        }
+
+        // The verdict never came back — a dropped message channel, or a
+        // service worker that died mid-batch. Show the tweet rather than leave
+        // a hole in the feed, and let this scan ask again.
+        delete article.dataset.smoothSurferPendingKey;
+        setTweetVerdict(article, "clear", []);
+        applyTweetContainer(getTweetContainer(article));
+      });
+  }
+
+  function releaseStalePendingElements() {
+    const now = Date.now();
+
+    document.querySelectorAll('[data-smooth-surfer-pending="true"]').forEach((element) => {
+      // Tweets carry their verdict on the article inside the cell, so they are
+      // released by releaseStalePendingTweets instead.
+      if (element.dataset.smoothSurferHiddenKind === "tweet") {
+        return;
+      }
+
+      const since = Number(element.dataset.smoothSurferPendingSince || 0);
+
+      if (since && now - since >= PENDING_TIMEOUT_MS) {
+        restoreElement(element);
+      }
+    });
   }
 
   function fastProcessAddedNodes(mutations) {
@@ -900,9 +1128,13 @@
       return;
     }
 
-    // Hold the item hidden until the verdict arrives. Revealing late beats
-    // rendering content and yanking it out of the feed once Haiku answers.
-    markPendingContent(container, kind);
+    // Hold an unreviewed item hidden until the verdict arrives: revealing it
+    // late beats rendering content and yanking it out of the feed once Haiku
+    // answers. An item that already passed review stays on screen while it is
+    // re-checked, so a post the reader is looking at never blinks out.
+    if (container.dataset.smoothSurferCleared !== "true") {
+      markPendingContent(container, kind);
+    }
 
     chrome.runtime.sendMessage(
       {
@@ -936,6 +1168,7 @@
     if (classification.blocked) {
       hideContentElement(container, classification.reasons, kind);
     } else {
+      container.dataset.smoothSurferCleared = "true";
       restoreContentElement(container, kind);
     }
   }
@@ -1002,16 +1235,34 @@
   }
 
   function getTweetText(article) {
-    const tweetTextNodes = Array.from(article.querySelectorAll('[data-testid="tweetText"]'));
-
     // textContent, not innerText: innerText changes once the element is
     // display:none, which would give hidden tweets a new classification key
     // and make them oscillate between hidden and restored.
-    if (tweetTextNodes.length > 0) {
-      return tweetTextNodes.map((node) => node.textContent || "").join(" ");
+    const parts = Array.from(article.querySelectorAll('[data-testid="tweetText"]')).map(
+      (node) => node.textContent || ""
+    );
+
+    if (parts.length > 0) {
+      return parts.join(" ");
     }
 
-    return article.textContent || "";
+    // Media-only posts carry no tweet text. Read the parts of the card that
+    // stay put rather than the whole article: its view, like and reply counts
+    // and its relative timestamp tick over every few seconds, and each change
+    // would hand the next scan a brand new classification key — a fresh Haiku
+    // call, and a post blinking out of the feed while it waits for the answer.
+    article.querySelectorAll('[data-testid="card.wrapper"]').forEach((card) => {
+      parts.push(card.textContent || "");
+    });
+    article.querySelectorAll("img[alt]").forEach((image) => {
+      const alt = image.getAttribute("alt");
+
+      if (alt && alt !== "Image") {
+        parts.push(alt);
+      }
+    });
+
+    return parts.join(" ");
   }
 
   function getTweetContainer(article) {
@@ -1129,6 +1380,7 @@
     element.classList.add("smooth-surfer-hidden");
     element.dataset.smoothSurferHidden = "true";
     element.dataset.smoothSurferPending = "true";
+    element.dataset.smoothSurferPendingSince = String(Date.now());
     element.dataset.smoothSurferReasons = "pending classification";
 
     if (kind) {
@@ -1177,6 +1429,7 @@
     }
 
     delete element.dataset.smoothSurferPending;
+    delete element.dataset.smoothSurferPendingSince;
     element.classList.add("smooth-surfer-hidden");
     element.dataset.smoothSurferHidden = "true";
     element.dataset.smoothSurferReasons = reasons.join("; ");
@@ -1214,6 +1467,7 @@
     delete element.dataset.smoothSurferHidden;
     delete element.dataset.smoothSurferHiddenKind;
     delete element.dataset.smoothSurferPending;
+    delete element.dataset.smoothSurferPendingSince;
     delete element.dataset.smoothSurferReasons;
     delete element.dataset.smoothSurferPendingKey;
   }

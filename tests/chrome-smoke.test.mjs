@@ -388,6 +388,122 @@ try {
   assert.equal(twitterContentState.linkedinHidden, false);
   assert.equal(twitterContentState.trendDisplay, "none");
 
+  // Content filtering with a saved key. The fixture answers classification
+  // messages itself, so verdicts land one at a time. It seeds a key into this
+  // origin's localStorage, so it has to run after the unfiltered checks above.
+  await navigate(client, `http://twitter.com.test:${fixturePort}/twitter-filtered.html`);
+  await waitForExpression(client, `window.__smoothSurferRequests.length >= 5`);
+  const pendingState = await evaluate(client, `(() => {
+    const pending = (id) => document.querySelector(id).dataset.smoothSurferPending === "true";
+
+    return {
+      requestTexts: window.__smoothSurferRequestTexts(),
+      cleanPending: pending("#clean-cell"),
+      baitPending: pending("#bait-cell"),
+      mediaPending: pending("#media-cell"),
+      threadCellPending: pending("#thread-cell"),
+      threadRootPending: pending("#thread-root"),
+      threadReplyPending: pending("#thread-reply")
+    };
+  })()`);
+
+  // A media-only post is classified on its stable parts. Sending the whole
+  // article would fold in the view count and the relative timestamp, so every
+  // tick would look like a new post: another Haiku call, and a post already on
+  // screen blinking out while it waits for the answer.
+  assert.ok(pendingState.requestTexts.includes("Sunrise over the pier"));
+  assert.equal(
+    pendingState.requestTexts.some((text) => text.includes("views")),
+    false
+  );
+  assert.equal(pendingState.cleanPending, true);
+  assert.equal(pendingState.baitPending, true);
+  assert.equal(pendingState.mediaPending, true);
+  // Each tweet in a conversation cell is held on its own, so one filtered
+  // reply cannot take the whole thread with it.
+  assert.equal(pendingState.threadCellPending, false);
+  assert.equal(pendingState.threadRootPending, true);
+  assert.equal(pendingState.threadReplyPending, true);
+
+  const verdictState = await evaluate(client, `(async () => {
+    const respond = window.__smoothSurferRespond;
+    const blocked = { blocked: true, reasons: ["engagement bait"], classifier: "claude-haiku", tags: [] };
+    const clear = { blocked: false, reasons: [], classifier: "claude-haiku", tags: [] };
+    const answered =
+      respond("Reply below", blocked) +
+      respond("Repost this", blocked) +
+      respond("Ferry timetable", clear) +
+      respond("Notes from the harbour", clear) +
+      respond("Sunrise over the pier", clear);
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    const hiddenKind = (id) => document.querySelector(id).dataset.smoothSurferHiddenKind || "";
+
+    return {
+      answered,
+      cleanHidden: hiddenKind("#clean-cell"),
+      baitHidden: hiddenKind("#bait-cell"),
+      baitReasons: document.querySelector("#bait-cell").dataset.smoothSurferReasons,
+      mediaHidden: hiddenKind("#media-cell"),
+      threadCellHidden: hiddenKind("#thread-cell"),
+      threadRootHidden: hiddenKind("#thread-root"),
+      threadReplyHidden: hiddenKind("#thread-reply"),
+      stuckPending: document.querySelector("#stuck-cell").dataset.smoothSurferPending === "true"
+    };
+  })()`);
+
+  assert.equal(verdictState.answered, 5);
+  assert.equal(verdictState.cleanHidden, "");
+  assert.equal(verdictState.baitHidden, "tweet");
+  assert.equal(verdictState.baitReasons, "engagement bait");
+  assert.equal(verdictState.mediaHidden, "");
+  assert.equal(verdictState.threadCellHidden, "");
+  assert.equal(verdictState.threadRootHidden, "");
+  assert.equal(verdictState.threadReplyHidden, "tweet");
+  assert.equal(verdictState.stuckPending, true);
+
+  const churnState = await evaluate(client, `(async () => {
+    const requestsBeforeChurn = window.__smoothSurferRequests.length;
+    const stuck = document.querySelector("#stuck-tweet");
+
+    // Backdate the tweet whose verdict never arrived, then keep the page
+    // mutating and scrolling the way a live timeline does. A scan has to run
+    // through that churn and release the tweet instead of leaving a hole.
+    stuck.dataset.smoothSurferTweetPendingSince = String(Date.now() - 60000);
+    document.querySelector("#media-views").textContent = "5,102 views";
+
+    const churn = setInterval(() => {
+      const filler = document.createElement("div");
+      document.body.append(filler);
+      filler.remove();
+      window.dispatchEvent(new Event("scroll"));
+    }, 25);
+
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    clearInterval(churn);
+
+    return {
+      requestsBeforeChurn,
+      requestTexts: window.__smoothSurferRequestTexts(),
+      stuckHidden: document.querySelector("#stuck-cell").dataset.smoothSurferHiddenKind || "",
+      mediaHidden: document.querySelector("#media-cell").dataset.smoothSurferHiddenKind || ""
+    };
+  })()`);
+
+  assert.equal(churnState.stuckHidden, "");
+  // The released tweet goes back for another verdict...
+  assert.equal(
+    churnState.requestTexts.filter((text) => text.includes("verdict that never lands")).length,
+    2
+  );
+  // ...while a changed view count leaves the media post alone.
+  assert.equal(churnState.mediaHidden, "");
+  assert.equal(
+    churnState.requestTexts.filter((text) => text.includes("Sunrise over the pier")).length,
+    1
+  );
+
   await navigate(client, `http://reddit.com.test:${fixturePort}/reddit-content.html`);
   await waitForExpression(
     client,
@@ -753,6 +869,11 @@ function createFixtureServer() {
         return;
       }
 
+      if (requestUrl.pathname === "/twitter-filtered.html") {
+        sendHtml(response, twitterFilteredFixture());
+        return;
+      }
+
       if (requestUrl.pathname === "/work-content.html") {
         sendHtml(response, workContentFixture());
         return;
@@ -912,6 +1033,87 @@ Then I learned one simple thing.<br>
 Consistency beats intensity when nobody is watching.<br>
 Trust compounds slowly before results appear.<br>
 That changed everything for my work.</div>
+          </article>
+        </div>
+      </main>
+      <script src="/src/settings.js"></script>
+      <script src="/src/storage.js"></script>
+      <script src="/src/content.js"></script>
+    </body>
+  </html>`;
+}
+
+function twitterFilteredFixture() {
+  // Content filtering only runs with a saved key, and the page stands in for
+  // the service worker so verdicts can be released one at a time.
+  return `<!doctype html>
+  <html>
+    <head>
+      <meta charset="utf-8">
+      <link rel="stylesheet" href="/src/styles.css">
+      <script>
+        localStorage.setItem(
+          "smoothSurferSecrets",
+          JSON.stringify({ anthropicApiKey: "test-key" })
+        );
+        window.__smoothSurferRequests = [];
+        window.__smoothSurferRespond = function (match, response) {
+          const waiting = window.__smoothSurferRequests.filter(
+            (entry) => !entry.answered && entry.message.text.includes(match)
+          );
+
+          waiting.forEach((entry) => {
+            entry.answered = true;
+            entry.callback(response);
+          });
+
+          return waiting.length;
+        };
+        window.__smoothSurferRequestTexts = function () {
+          return window.__smoothSurferRequests.map((entry) => entry.message.text);
+        };
+        window.chrome = {
+          runtime: {
+            sendMessage(message, callback) {
+              if (typeof callback !== "function") {
+                return;
+              }
+
+              window.__smoothSurferRequests.push({ message, callback, answered: false });
+            }
+          }
+        };
+      </script>
+    </head>
+    <body>
+      <main>
+        <div data-testid="cellInnerDiv" id="clean-cell">
+          <article data-testid="tweet">
+            <div data-testid="tweetText">Ferry timetable changes next week.</div>
+          </article>
+        </div>
+        <div data-testid="cellInnerDiv" id="bait-cell">
+          <article data-testid="tweet">
+            <div data-testid="tweetText">Reply below if you agree.</div>
+          </article>
+        </div>
+        <div data-testid="cellInnerDiv" id="thread-cell">
+          <article data-testid="tweet" id="thread-root">
+            <div data-testid="tweetText">Notes from the harbour walk.</div>
+          </article>
+          <article data-testid="tweet" id="thread-reply">
+            <div data-testid="tweetText">Repost this if you want part two.</div>
+          </article>
+        </div>
+        <div data-testid="cellInnerDiv" id="media-cell">
+          <article data-testid="tweet">
+            <img alt="Sunrise over the pier">
+            <span id="media-views">312 views</span>
+          </article>
+        </div>
+        <div data-testid="cellInnerDiv" id="stuck-cell">
+          <article data-testid="tweet" id="stuck-tweet">
+            <div data-testid="tweetText">Waiting on a verdict that never lands.</div>
           </article>
         </div>
       </main>
