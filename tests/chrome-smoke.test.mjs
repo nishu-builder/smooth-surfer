@@ -391,6 +391,11 @@ try {
   assert.equal(twitterContentState.linkedinHidden, false);
   assert.equal(twitterContentState.trendDisplay, "none");
 
+  // The tab labels are matched case-insensitively, so a timeline that renders
+  // them differently still starts on Following.
+  await navigate(client, `http://twitter.com.test:${fixturePort}/home?labels=mixed`);
+  await waitForExpression(client, `document.querySelector("#following-tab").dataset.clicked === "true"`);
+
   // Content filtering with a saved key. The fixture answers classification
   // messages itself, so verdicts land one at a time. It seeds a key into this
   // origin's localStorage, so it has to run after the unfiltered checks above.
@@ -909,7 +914,7 @@ function createFixtureServer() {
       }
 
       if (requestUrl.pathname === "/twitter-content.html" || requestUrl.pathname === "/home") {
-        sendHtml(response, twitterContentFixture());
+        sendHtml(response, twitterContentFixture(requestUrl.searchParams.get("labels")));
         return;
       }
 
@@ -1038,7 +1043,12 @@ function youtubeContentFixture() {
   </html>`;
 }
 
-function twitterContentFixture() {
+function twitterContentFixture(labels) {
+  // X has shipped both "For you" and "For You"; the mixed variant stands in
+  // for a timeline that cases its tab labels differently.
+  const forYouLabel = labels === "mixed" ? "For You" : "For you";
+  const followingLabel = labels === "mixed" ? "FOLLOWING" : "Following";
+
   return `<!doctype html>
   <html>
     <head>
@@ -1047,14 +1057,14 @@ function twitterContentFixture() {
     </head>
     <body>
       <main>
-        <button id="for-you-tab" role="tab" aria-selected="true">For you</button>
+        <button id="for-you-tab" role="tab" aria-selected="true">${forYouLabel}</button>
         <button
           id="following-tab"
           role="tab"
           aria-selected="false"
           onclick="this.dataset.clicked = 'true'; this.dataset.clicks = String(Number(this.dataset.clicks || 0) + 1); this.setAttribute('aria-selected', 'true'); document.querySelector('#for-you-tab').setAttribute('aria-selected', 'false');"
         >
-          Following
+          ${followingLabel}
         </button>
         <script>
           document.querySelector("#for-you-tab").addEventListener("click", function () {
