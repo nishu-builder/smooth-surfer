@@ -144,7 +144,9 @@ try {
   await client.send("Runtime.enable");
 
   await navigate(client, pathToFileURL(fixturePath).href);
-  const youtubeStyles = await evaluate(client, `(() => {
+  const youtubeStyles = await evaluate(
+    client,
+    `(() => {
     const display = (selector) => getComputedStyle(document.querySelector(selector)).display;
     return {
       homeGrid: display("#home-grid"),
@@ -160,7 +162,8 @@ try {
       coreWatchThumbFilter: getComputedStyle(document.querySelector("#core-watch-thumb")).filter,
       viewModelThumbFilter: getComputedStyle(document.querySelector("#view-model-thumb")).filter
     };
-  })()`);
+  })()`
+  );
 
   assert.notEqual(youtubeStyles.homeGrid, "none");
   assert.notEqual(youtubeStyles.homeSection, "none");
@@ -194,7 +197,9 @@ try {
   });
   await navigate(client, pathToFileURL(path.join(root, "popup.html")).href);
   await waitForExpression(client, `Boolean(document.querySelector("[data-phrase-input]"))`);
-  const popupState = await evaluate(client, `(async () => {
+  const popupState = await evaluate(
+    client,
+    `(async () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     const filterLabel = [...document.querySelectorAll("label")].find((label) =>
       label.textContent.includes("Filter out content")
@@ -229,7 +234,8 @@ try {
       pillText: document.querySelector("[data-phrase-list]").textContent,
       stored: JSON.parse(localStorage.getItem("smoothSurferSettings"))
     };
-  })()`);
+  })()`
+  );
   await client.send("Page.removeScriptToEvaluateOnNewDocument", {
     identifier: popupScript.identifier
   });
@@ -252,15 +258,15 @@ try {
   assert.match(popupState.pillText, /high-pressure AI investing hype/);
   assert.match(popupState.pillText, /missed upside/);
   assert.match(popupState.pillText, /one short sentence/);
-  assert.ok(
-    popupState.stored.filterCriteria.includes("high-pressure AI investing hype")
-  );
+  assert.ok(popupState.stored.filterCriteria.includes("high-pressure AI investing hype"));
 
   // Video speed keys (default Alt modifier) and the settings double-tap. The
   // fixture stubs chrome.runtime so requestOpenSettings has a sink to record.
   await navigate(client, `http://youtube.com.test:${fixturePort}/video-content.html`);
   await waitForExpression(client, `Boolean(window.SmoothSurferSettings)`);
-  const speedState = await evaluate(client, `(() => {
+  const speedState = await evaluate(
+    client,
+    `(() => {
     const video = document.querySelector("#speed-video");
     const press = (code, modifiers = {}) =>
       document.body.dispatchEvent(
@@ -293,7 +299,8 @@ try {
       afterSingleTap,
       messages: window.__smoothSurferMessages.slice()
     };
-  })()`);
+  })()`
+  );
 
   assert.equal(speedState.afterFaster, 1.25);
   assert.equal(speedState.afterSlower, 1);
@@ -307,21 +314,32 @@ try {
     client,
     `document.querySelector("#shorts-section").classList.contains("smooth-surfer-hidden")`
   );
-  const youtubeContentState = await evaluate(client, `(() => ({
+  const youtubeContentState = await evaluate(
+    client,
+    `(() => ({
     shortsHidden: document.querySelector("#shorts-section").classList.contains("smooth-surfer-hidden"),
     gamesHidden: document.querySelector("#games-section").classList.contains("smooth-surfer-hidden"),
     autoplayClicked: document.querySelector("#autoplay").dataset.clicked === "true",
     stickyHidden: document.querySelector("#sticky-player").dataset.smoothSurferHiddenKind === "sticky-video"
-  }))()`);
+  }))()`
+  );
 
   assert.equal(youtubeContentState.shortsHidden, true);
   assert.equal(youtubeContentState.gamesHidden, true);
   assert.equal(youtubeContentState.autoplayClicked, true);
   assert.equal(youtubeContentState.stickyHidden, true);
 
-  await evaluate(client, `window.scrollTo(0, window.innerHeight * 9); window.dispatchEvent(new Event("scroll"))`);
-  await waitForExpression(client, `document.documentElement.classList.contains("smooth-surfer-scroll-paused")`);
-  const scrollPauseState = await evaluate(client, `(() => {
+  await evaluate(
+    client,
+    `window.scrollTo(0, window.innerHeight * 9); window.dispatchEvent(new Event("scroll"))`
+  );
+  await waitForExpression(
+    client,
+    `document.documentElement.classList.contains("smooth-surfer-scroll-paused")`
+  );
+  const scrollPauseState = await evaluate(
+    client,
+    `(() => {
     const pause = document.querySelector(".smooth-surfer-scroll-pause");
     const beforeClickY = window.scrollY;
     pause.querySelector("button").click();
@@ -331,7 +349,8 @@ try {
       beforeClickY,
       afterClickY: window.scrollY
     };
-  })()`);
+  })()`
+  );
 
   assert.equal(scrollPauseState.wasVisible, true);
   assert.equal(scrollPauseState.isPaused, false);
@@ -339,14 +358,20 @@ try {
   assert.equal(scrollPauseState.afterClickY, scrollPauseState.beforeClickY);
 
   await navigate(client, `http://github.com.test:${fixturePort}/work-content.html`);
-  await evaluate(client, `window.scrollTo(0, window.innerHeight * 9); window.dispatchEvent(new Event("scroll"))`);
+  await evaluate(
+    client,
+    `window.scrollTo(0, window.innerHeight * 9); window.dispatchEvent(new Event("scroll"))`
+  );
   await evaluate(client, `new Promise((resolve) => setTimeout(resolve, 400))`);
-  const workSiteState = await evaluate(client, `(() => ({
+  const workSiteState = await evaluate(
+    client,
+    `(() => ({
     isPaused: document.documentElement.classList.contains("smooth-surfer-scroll-paused"),
     hasPausePrompt: Boolean(document.querySelector(".smooth-surfer-scroll-pause")),
     stickyHidden: document.querySelector("#sticky-player").dataset.smoothSurferHiddenKind === "sticky-video",
     thumbFilter: getComputedStyle(document.querySelector("#work-image")).filter
-  }))()`);
+  }))()`
+  );
 
   assert.equal(workSiteState.isPaused, false);
   assert.equal(workSiteState.hasPausePrompt, false);
@@ -354,8 +379,13 @@ try {
   assert.equal(workSiteState.thumbFilter, "none");
 
   await navigate(client, `http://twitter.com.test:${fixturePort}/home`);
-  await waitForExpression(client, `document.querySelector("#following-tab").dataset.clicked === "true"`);
-  const twitterContentState = await evaluate(client, `(async () => {
+  await waitForExpression(
+    client,
+    `document.querySelector("#following-tab").dataset.clicked === "true"`
+  );
+  const twitterContentState = await evaluate(
+    client,
+    `(async () => {
     const followingTab = document.querySelector("#following-tab");
     const forYouTab = document.querySelector("#for-you-tab");
     const followingClicksBeforeForYou = Number(followingTab.dataset.clicks || 0);
@@ -375,7 +405,8 @@ try {
       linkedinHidden: document.querySelector("#linkedin-cell").dataset.smoothSurferHiddenKind === "tweet",
       trendDisplay: getComputedStyle(document.querySelector("#trend-module")).display
     };
-  })()`);
+  })()`
+  );
 
   assert.equal(twitterContentState.followingClicked, true);
   assert.equal(
@@ -394,14 +425,19 @@ try {
   // The tab labels are matched case-insensitively, so a timeline that renders
   // them differently still starts on Following.
   await navigate(client, `http://twitter.com.test:${fixturePort}/home?labels=mixed`);
-  await waitForExpression(client, `document.querySelector("#following-tab").dataset.clicked === "true"`);
+  await waitForExpression(
+    client,
+    `document.querySelector("#following-tab").dataset.clicked === "true"`
+  );
 
   // Content filtering with a saved key. The fixture answers classification
   // messages itself, so verdicts land one at a time. It seeds a key into this
   // origin's localStorage, so it has to run after the unfiltered checks above.
   await navigate(client, `http://twitter.com.test:${fixturePort}/twitter-filtered.html`);
   await waitForExpression(client, `window.__smoothSurferRequests.length >= 5`);
-  const pendingState = await evaluate(client, `(() => {
+  const pendingState = await evaluate(
+    client,
+    `(() => {
     const pending = (id) => document.querySelector(id).dataset.smoothSurferPending === "true";
 
     return {
@@ -413,7 +449,8 @@ try {
       threadRootPending: pending("#thread-root"),
       threadReplyPending: pending("#thread-reply")
     };
-  })()`);
+  })()`
+  );
 
   // A media-only post is classified on its stable parts. Sending the whole
   // article would fold in the view count and the relative timestamp, so every
@@ -433,7 +470,9 @@ try {
   assert.equal(pendingState.threadRootPending, true);
   assert.equal(pendingState.threadReplyPending, true);
 
-  const verdictState = await evaluate(client, `(async () => {
+  const verdictState = await evaluate(
+    client,
+    `(async () => {
     const respond = window.__smoothSurferRespond;
     const blocked = { blocked: true, reasons: ["engagement bait"], classifier: "claude-haiku", tags: [] };
     const clear = { blocked: false, reasons: [], classifier: "claude-haiku", tags: [] };
@@ -459,7 +498,8 @@ try {
       threadReplyHidden: hiddenKind("#thread-reply"),
       stuckPending: document.querySelector("#stuck-cell").dataset.smoothSurferPending === "true"
     };
-  })()`);
+  })()`
+  );
 
   assert.equal(verdictState.answered, 5);
   assert.equal(verdictState.cleanHidden, "");
@@ -471,7 +511,9 @@ try {
   assert.equal(verdictState.threadReplyHidden, "tweet");
   assert.equal(verdictState.stuckPending, true);
 
-  const churnState = await evaluate(client, `(async () => {
+  const churnState = await evaluate(
+    client,
+    `(async () => {
     const requestsBeforeChurn = window.__smoothSurferRequests.length;
     const stuck = document.querySelector("#stuck-tweet");
 
@@ -497,7 +539,8 @@ try {
       stuckHidden: document.querySelector("#stuck-cell").dataset.smoothSurferHiddenKind || "",
       mediaHidden: document.querySelector("#media-cell").dataset.smoothSurferHiddenKind || ""
     };
-  })()`);
+  })()`
+  );
 
   assert.equal(churnState.stuckHidden, "");
   // The released tweet goes back for another verdict...
@@ -517,12 +560,15 @@ try {
     client,
     `document.querySelector("#reddit-ad").dataset.smoothSurferHiddenKind === "reddit-post"`
   );
-  const redditContentState = await evaluate(client, `(() => ({
+  const redditContentState = await evaluate(
+    client,
+    `(() => ({
     promotedHidden: document.querySelector("#reddit-ad").dataset.smoothSurferHiddenKind === "reddit-post",
     recommendationHidden: document.querySelector("#reddit-recommendation").dataset.smoothSurferHiddenKind === "reddit-post",
     moduleHidden: document.querySelector("#reddit-module").dataset.smoothSurferHiddenKind === "reddit-module",
     normalHidden: document.querySelector("#reddit-normal").dataset.smoothSurferHiddenKind === "reddit-post"
-  }))()`);
+  }))()`
+  );
 
   assert.equal(redditContentState.promotedHidden, true);
   assert.equal(redditContentState.recommendationHidden, true);
@@ -534,7 +580,9 @@ try {
   // each change would otherwise read as a new post: another Haiku call.
   await navigate(client, `http://reddit.com.test:${fixturePort}/reddit-filtered.html`);
   await waitForExpression(client, `window.__smoothSurferRequests.length >= 1`);
-  const redditFilteredState = await evaluate(client, `(async () => {
+  const redditFilteredState = await evaluate(
+    client,
+    `(async () => {
     const before = window.__smoothSurferRequestTexts();
 
     document.querySelector("#reddit-score").textContent = "4.8k points";
@@ -543,7 +591,8 @@ try {
     await new Promise((resolve) => setTimeout(resolve, 900));
 
     return { before, after: window.__smoothSurferRequestTexts() };
-  })()`);
+  })()`
+  );
 
   assert.deepEqual(redditFilteredState.before, [
     "Harbour renovation timeline The works start in March and run for six weeks."
@@ -555,24 +604,33 @@ try {
     client,
     `document.querySelector("#substack-recommendation").dataset.smoothSurferHiddenKind === "substack-module"`
   );
-  const substackContentState = await evaluate(client, `(() => ({
+  const substackContentState = await evaluate(
+    client,
+    `(() => ({
     recommendationHidden: document.querySelector("#substack-recommendation").dataset.smoothSurferHiddenKind === "substack-module",
     normalHidden: document.querySelector("#substack-post").dataset.smoothSurferHiddenKind === "substack-post"
-  }))()`);
+  }))()`
+  );
 
   assert.equal(substackContentState.recommendationHidden, true);
   assert.equal(substackContentState.normalHidden, false);
 
-  await navigate(client, `http://news.ycombinator.com.test:${fixturePort}/hacker-news-content.html`);
+  await navigate(
+    client,
+    `http://news.ycombinator.com.test:${fixturePort}/hacker-news-content.html`
+  );
   await waitForExpression(
     client,
     `getComputedStyle(document.querySelector("#hn-score")).display === "none"`
   );
-  const hackerNewsContentState = await evaluate(client, `(() => ({
+  const hackerNewsContentState = await evaluate(
+    client,
+    `(() => ({
     scoreDisplay: getComputedStyle(document.querySelector("#hn-score")).display,
     storyHidden: document.querySelector("#hn-story").dataset.smoothSurferHiddenKind === "hacker-news-story",
     commentHidden: document.querySelector("#hn-comment").dataset.smoothSurferHiddenKind === "hacker-news-comment"
-  }))()`);
+  }))()`
+  );
 
   assert.equal(hackerNewsContentState.scoreDisplay, "none");
   assert.equal(hackerNewsContentState.storyHidden, false);
@@ -580,9 +638,14 @@ try {
 
   // Hacker News comments are classified on the comment body: the head above it
   // carries an age that reads "3 hours ago" until it reads "4 hours ago".
-  await navigate(client, `http://news.ycombinator.com.test:${fixturePort}/hacker-news-filtered.html`);
+  await navigate(
+    client,
+    `http://news.ycombinator.com.test:${fixturePort}/hacker-news-filtered.html`
+  );
   await waitForExpression(client, `window.__smoothSurferRequests.length >= 2`);
-  const hackerNewsFilteredState = await evaluate(client, `(async () => {
+  const hackerNewsFilteredState = await evaluate(
+    client,
+    `(async () => {
     const before = window.__smoothSurferRequestTexts();
 
     document.querySelector("#hn-age").textContent = "4 hours ago";
@@ -590,7 +653,8 @@ try {
     await new Promise((resolve) => setTimeout(resolve, 900));
 
     return { before, after: window.__smoothSurferRequestTexts() };
-  })()`);
+  })()`
+  );
 
   assert.deepEqual(hackerNewsFilteredState.before.slice().sort(), [
     "A useful systems paper example.com",
@@ -805,11 +869,14 @@ async function waitForExpression(client, expression) {
     await delay(100);
   }
 
-  const diagnostic = await evaluate(client, `({
+  const diagnostic = await evaluate(
+    client,
+    `({
     url: location.href,
     title: document.title,
     text: document.body ? document.body.innerText.slice(0, 300) : ""
-  })`);
+  })`
+  );
   throw new Error(`Timed out waiting for ${expression}: ${JSON.stringify(diagnostic)}`);
 }
 
@@ -839,7 +906,7 @@ async function waitForPageTarget(port) {
       if (page) {
         return page;
       }
-    } catch (error) {
+    } catch {
       // Chrome is still starting.
     }
 

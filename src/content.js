@@ -1,12 +1,7 @@
 (function installSmoothSurfer() {
   "use strict";
 
-  const {
-    loadSecrets,
-    loadSettings,
-    watchSecrets,
-    watchSettings
-  } = window.SmoothSurferStorage;
+  const { loadSecrets, loadSettings, watchSecrets, watchSettings } = window.SmoothSurferStorage;
   const { getPlatformForUrl, isWithinFocusWindow } = window.SmoothSurferSettings;
   const SCAN_DEBOUNCE_MS = 120;
   // A feed that never stops mutating (X repaints the timeline and fires scroll
@@ -335,7 +330,9 @@
 
   function hideYouTubeShelves() {
     document
-      .querySelectorAll("ytd-rich-section-renderer, ytd-rich-shelf-renderer, ytd-reel-shelf-renderer")
+      .querySelectorAll(
+        "ytd-rich-section-renderer, ytd-rich-shelf-renderer, ytd-reel-shelf-renderer"
+      )
       .forEach((section) => {
         const title = getYouTubeShelfTitle(section);
         const isShorts = effectsEnabled() && settings.youtubeHideShorts && title.includes("shorts");
@@ -555,9 +552,7 @@
 
   function applyTweetVerdictToElement(element, article) {
     const state = article.dataset.smoothSurferTweetState || "pending";
-    const reasons = (article.dataset.smoothSurferTweetReasons || "")
-      .split("; ")
-      .filter(Boolean);
+    const reasons = (article.dataset.smoothSurferTweetReasons || "").split("; ").filter(Boolean);
 
     if (state === "blocked") {
       hideTweet(element, reasons);
@@ -583,22 +578,20 @@
   function releaseStalePendingTweets() {
     const now = Date.now();
 
-    document
-      .querySelectorAll('[data-smooth-surfer-tweet-state="pending"]')
-      .forEach((article) => {
-        const since = Number(article.dataset.smoothSurferTweetPendingSince || 0);
+    document.querySelectorAll('[data-smooth-surfer-tweet-state="pending"]').forEach((article) => {
+      const since = Number(article.dataset.smoothSurferTweetPendingSince || 0);
 
-        if (!since || now - since < PENDING_TIMEOUT_MS) {
-          return;
-        }
+      if (!since || now - since < PENDING_TIMEOUT_MS) {
+        return;
+      }
 
-        // The verdict never came back — a dropped message channel, or a
-        // service worker that died mid-batch. Show the tweet rather than leave
-        // a hole in the feed, and let this scan ask again.
-        delete article.dataset.smoothSurferPendingKey;
-        setTweetVerdict(article, "clear", []);
-        applyTweetContainer(getTweetContainer(article));
-      });
+      // The verdict never came back — a dropped message channel, or a
+      // service worker that died mid-batch. Show the tweet rather than leave
+      // a hole in the feed, and let this scan ask again.
+      delete article.dataset.smoothSurferPendingKey;
+      setTweetVerdict(article, "clear", []);
+      applyTweetContainer(getTweetContainer(article));
+    });
   }
 
   function releaseStalePendingElements() {
@@ -939,8 +932,7 @@
   function isEditableElement(element) {
     return Boolean(
       element &&
-        (element.isContentEditable ||
-          /^(input|select|textarea)$/i.test(element.tagName || ""))
+      (element.isContentEditable || /^(input|select|textarea)$/i.test(element.tagName || ""))
     );
   }
 
@@ -990,9 +982,7 @@
         event.stopPropagation();
 
         const rate =
-          delta === 0
-            ? 1
-            : clampSpeed(Math.round((video.playbackRate + delta) * 100) / 100);
+          delta === 0 ? 1 : clampSpeed(Math.round((video.playbackRate + delta) * 100) / 100);
 
         video.playbackRate = rate;
         showSpeedToast(rate);
@@ -1016,9 +1006,7 @@
 
     // The chosen modifier must be down and no other modifier may be, so the
     // shortcut doesn't collide with combos like Ctrl+Alt+].
-    return Object.keys(held).every((key) =>
-      key === required ? held[key] : !held[key]
-    );
+    return Object.keys(held).every((key) => (key === required ? held[key] : !held[key]));
   }
 
   function installSettingsHotkey() {
@@ -1073,9 +1061,7 @@
 
   function findActiveVideo() {
     const videos = Array.from(document.querySelectorAll("video"));
-    const playing = videos.find(
-      (video) => !video.paused && !video.ended && video.readyState > 1
-    );
+    const playing = videos.find((video) => !video.paused && !video.ended && video.readyState > 1);
 
     if (playing) {
       return playing;
@@ -1228,10 +1214,7 @@
     const settingName = CONTENT_FILTER_SETTING_BY_PLATFORM[targetPlatform];
 
     return Boolean(
-      effectsEnabled() &&
-        settingName &&
-        settings[settingName] &&
-        secrets.anthropicApiKey
+      effectsEnabled() && settingName && settings[settingName] && secrets.anthropicApiKey
     );
   }
 
@@ -1303,7 +1286,10 @@
           "shreddit-post, article, [data-testid='post-container'], [data-testid='post'], [slot='post-container']"
         )
       )
-        .map((element) => element.closest("shreddit-post, article, [data-testid='post-container']") || element)
+        .map(
+          (element) =>
+            element.closest("shreddit-post, article, [data-testid='post-container']") || element
+        )
         .filter((element) => element && document.body.contains(element))
     );
   }
@@ -1316,11 +1302,13 @@
       return true;
     }
 
-    return Array.from(container.querySelectorAll("span, div, faceplate-tracker")).some((element) => {
-      const text = normalizeInlineText(element.textContent).toLowerCase();
+    return Array.from(container.querySelectorAll("span, div, faceplate-tracker")).some(
+      (element) => {
+        const text = normalizeInlineText(element.textContent).toLowerCase();
 
-      return text === "promoted" || text === "sponsored";
-    });
+        return text === "promoted" || text === "sponsored";
+      }
+    );
   }
 
   function isRedditRecommendation(container) {
@@ -1342,7 +1330,10 @@
           "article, [data-testid*='post'], [class*='post-preview'], [class*='feed-item'], [class*='note']"
         )
       )
-        .map((element) => element.closest("article, [data-testid*='post'], [class*='post-preview']") || element)
+        .map(
+          (element) =>
+            element.closest("article, [data-testid*='post'], [class*='post-preview']") || element
+        )
         .filter((element) => element && document.body.contains(element))
     );
   }
@@ -1379,7 +1370,9 @@
     const title = row.querySelector(".titleline, .storylink, .title a");
     const site = row.querySelector(".sitestr");
 
-    return normalizeInlineText(`${title ? title.textContent : row.textContent} ${site ? site.textContent : ""}`);
+    return normalizeInlineText(
+      `${title ? title.textContent : row.textContent} ${site ? site.textContent : ""}`
+    );
   }
 
   function hasRecommendationText(text) {
@@ -1538,11 +1531,9 @@
   }
 
   function restoreHiddenElementsByKind(kind) {
-    document
-      .querySelectorAll(`[data-smooth-surfer-hidden-kind="${kind}"]`)
-      .forEach((element) => {
-        restoreElement(element);
-      });
+    document.querySelectorAll(`[data-smooth-surfer-hidden-kind="${kind}"]`).forEach((element) => {
+      restoreElement(element);
+    });
   }
 
   function normalizeInlineText(text) {
@@ -1556,5 +1547,4 @@
 
     return WORK_SITE_HOSTS.some((workHost) => host === workHost || host.endsWith("." + workHost));
   }
-
 })();
