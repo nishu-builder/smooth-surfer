@@ -1240,7 +1240,14 @@
     }
 
     return Array.from(article.querySelectorAll("span, div")).some((element) => {
+      // The badge is a leaf label in the post's chrome. Words inside the post
+      // itself don't count, or a post that just says "Ad" reads as one.
+      if (element.firstElementChild || element.closest('[data-testid="tweetText"]')) {
+        return false;
+      }
+
       const text = normalizeInlineText(element.textContent);
+
       return text === "Promoted" || text === "Ad";
     });
   }

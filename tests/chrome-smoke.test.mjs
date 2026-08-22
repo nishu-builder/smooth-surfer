@@ -369,6 +369,7 @@ try {
       followingClicksAfterForYou: Number(followingTab.dataset.clicks || 0),
       forYouSelected: forYouTab.getAttribute("aria-selected") === "true",
       promotedHidden: document.querySelector("#promoted-cell").dataset.smoothSurferHiddenKind === "tweet",
+      adTextHidden: document.querySelector("#ad-text-cell").dataset.smoothSurferHiddenKind === "tweet",
       baitHidden: document.querySelector("#bait-cell").dataset.smoothSurferHiddenKind === "tweet",
       tagSpamHidden: document.querySelector("#tag-spam-cell").dataset.smoothSurferHiddenKind === "tweet",
       linkedinHidden: document.querySelector("#linkedin-cell").dataset.smoothSurferHiddenKind === "tweet",
@@ -383,6 +384,8 @@ try {
   );
   assert.equal(twitterContentState.forYouSelected, true);
   assert.equal(twitterContentState.promotedHidden, true);
+  // The badge marks a promotion; a post that merely says "Ad" is not one.
+  assert.equal(twitterContentState.adTextHidden, false);
   assert.equal(twitterContentState.baitHidden, false);
   assert.equal(twitterContentState.tagSpamHidden, false);
   assert.equal(twitterContentState.linkedinHidden, false);
@@ -1065,6 +1068,11 @@ function twitterContentFixture() {
           <article data-testid="tweet">
             <span>Promoted</span>
             <div data-testid="tweetText">Sponsored post</div>
+          </article>
+        </div>
+        <div data-testid="cellInnerDiv" id="ad-text-cell">
+          <article data-testid="tweet">
+            <div data-testid="tweetText">Ad</div>
           </article>
         </div>
         <div data-testid="cellInnerDiv" id="bait-cell">
