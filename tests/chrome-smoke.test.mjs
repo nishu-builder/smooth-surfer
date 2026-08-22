@@ -425,7 +425,10 @@ try {
   // The tab labels are matched case-insensitively, so a timeline that renders
   // them differently still starts on Following.
   await navigate(client, `http://twitter.com.test:${fixturePort}/home?labels=mixed`);
-  await waitForExpression(client, `document.querySelector("#following-tab").dataset.clicked === "true"`);
+  await waitForExpression(
+    client,
+    `document.querySelector("#following-tab").dataset.clicked === "true"`
+  );
 
   // Content filtering with a saved key. The fixture answers classification
   // messages itself, so verdicts land one at a time. It seeds a key into this
