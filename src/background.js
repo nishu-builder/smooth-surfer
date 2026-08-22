@@ -32,6 +32,11 @@ importScripts("settings.js", "storage.js");
     "hacker-news": "Hacker News story or comment"
   };
   const resultCache = new Map();
+  // Classification keys already counted today, so the same post open in two
+  // tabs counts once. Each tab dedupes its own view; only the worker sees
+  // them all. It is memory-only, so a worker restart may let a post through
+  // a second time — an overcount of one beats persisting a growing key list.
+  const countedConsumptionKeys = new Set();
   let batchQueue = [];
   let batchTimer = 0;
   let statsPromise = null;
@@ -50,7 +55,7 @@ importScripts("settings.js", "storage.js");
     }
 
     if (message.type === "recordConsumption") {
-      recordConsumption(message.source, message.tags);
+      recordConsumption(message.source, message.tags, message.key);
       return false;
     }
 
@@ -104,7 +109,19 @@ importScripts("settings.js", "storage.js");
     scheduleStatsWrite();
   }
 
-  async function recordConsumption(source, tags) {
+  async function recordConsumption(source, tags, key) {
+    if (key) {
+      if (countedConsumptionKeys.has(key)) {
+        return;
+      }
+
+      countedConsumptionKeys.add(key);
+
+      if (countedConsumptionKeys.size > MAX_CACHE_ENTRIES) {
+        countedConsumptionKeys.delete(countedConsumptionKeys.values().next().value);
+      }
+    }
+
     if (!consumptionPromise) {
       consumptionPromise = loadConsumption();
     }

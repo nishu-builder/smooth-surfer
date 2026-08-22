@@ -148,6 +148,24 @@ function classify(text, source) {
   );
   messageListener({ type: "recordConsumption", source: "twitter", tags: ["joy"] }, {}, () => {});
   messageListener({ type: "recordConsumption", source: "reddit", tags: [] }, {}, () => {});
+
+  // The same post seen in two tabs arrives twice and counts once; a different
+  // post still counts, and a message with no key counts as it always did.
+  messageListener(
+    { type: "recordConsumption", source: "reddit", tags: ["humor"], key: "post-a" },
+    {},
+    () => {}
+  );
+  messageListener(
+    { type: "recordConsumption", source: "reddit", tags: ["humor"], key: "post-a" },
+    {},
+    () => {}
+  );
+  messageListener(
+    { type: "recordConsumption", source: "reddit", tags: [], key: "post-b" },
+    {},
+    () => {}
+  );
   await new Promise((resolve) => setTimeout(resolve, 1200));
 
   const day = Object.keys(self.savedStats.days)[0];
@@ -162,8 +180,8 @@ function classify(text, source) {
   assert.equal(consumptionDay.twitter.tags.joy, 2);
   assert.equal(consumptionDay.twitter.tags["outrage-political"], 1);
   assert.equal(Object.hasOwn(consumptionDay.twitter.tags, "bogus"), false);
-  assert.equal(consumptionDay.reddit.posts, 1);
-  assert.deepEqual(consumptionDay.reddit.tags, {});
+  assert.equal(consumptionDay.reddit.posts, 3, "duplicate key counted once");
+  assert.deepEqual(consumptionDay.reddit.tags, { humor: 1 });
 
   console.log("background tests passed");
   process.exit(0);

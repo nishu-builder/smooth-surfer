@@ -1198,8 +1198,11 @@
     }
 
     recordedConsumptionKeys.add(key);
+    // The key travels with the count so the service worker can drop a post
+    // this tab is seeing for the first time but another tab already counted.
     chrome.runtime.sendMessage({
       type: "recordConsumption",
+      key,
       source: platform === "unknown" ? "other" : platform,
       tags: Array.isArray(result.tags) ? result.tags : []
     });
