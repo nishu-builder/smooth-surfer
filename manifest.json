@@ -10,9 +10,7 @@
     "128": "icons/icon128.png"
   },
   "permissions": ["storage"],
-  "host_permissions": [
-    "https://api.anthropic.com/*"
-  ],
+  "host_permissions": ["https://api.anthropic.com/*"],
   "background": {
     "service_worker": "src/background.js"
   },
@@ -28,9 +26,7 @@
   },
   "content_scripts": [
     {
-      "matches": [
-        "<all_urls>"
-      ],
+      "matches": ["<all_urls>"],
       "css": ["src/styles.css"],
       "js": ["src/settings.js", "src/storage.js", "src/content.js"],
       "run_at": "document_idle"

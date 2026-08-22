@@ -53,6 +53,22 @@ cd smooth-surfer
 After changing files or pulling updates, reload the extension on
 `chrome://extensions`, then refresh open target tabs.
 
+## Checks
+
+The extension itself has no dependencies and ships as plain source, so the
+tests run with nothing installed:
+
 ```sh
-npm run check
+npm run check   # syntax checks, unit tests, and the Chrome smoke test
 ```
+
+Linting and formatting need the dev dependencies (`npm ci`):
+
+```sh
+npm run lint          # ESLint
+npm run format        # Prettier, writing changes
+npm run verify        # lint + format check + npm run check
+```
+
+Prettier covers JavaScript and JSON; HTML, CSS and Markdown stay
+hand-formatted.

@@ -1,0 +1,9 @@
+.cache/
+dist/
+node_modules/
+package-lock.json
+
+# Markup, styles and prose stay hand-formatted.
+*.css
+*.html
+*.md

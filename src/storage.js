@@ -112,7 +112,7 @@
     try {
       const stored = root.localStorage.getItem(key);
       return Promise.resolve(normalize(stored ? JSON.parse(stored) : defaults));
-    } catch (error) {
+    } catch {
       return Promise.resolve(normalize(defaults));
     }
   }
