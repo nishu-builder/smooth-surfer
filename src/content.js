@@ -810,9 +810,9 @@
           return;
         }
 
-        const label = normalizeInlineText(tab.textContent);
+        const label = normalizeInlineText(tab.textContent).toLowerCase();
 
-        if (label === "For you" || label === "Following") {
+        if (label === "for you" || label === "following") {
           twitterFollowingPreferenceResolved = true;
         }
       },
@@ -824,9 +824,15 @@
     return window.location.pathname === "/home" || window.location.pathname === "/";
   }
 
+  // Matched case-insensitively because X has shipped both "For you" and
+  // "For You". These are the English labels: on a timeline in another
+  // language nothing matches and the preference quietly does nothing, which
+  // is the right failure — clicking an unidentified tab would be worse.
   function findTwitterTab(label) {
+    const wanted = label.toLowerCase();
+
     return Array.from(document.querySelectorAll('[role="tab"]')).find(
-      (tab) => normalizeInlineText(tab.textContent) === label
+      (tab) => normalizeInlineText(tab.textContent).toLowerCase() === wanted
     );
   }
 
