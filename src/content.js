@@ -35,6 +35,17 @@
     "PageDown",
     "PageUp"
   ]);
+  // Where Reddit keeps a post's own words, across the markups it ships. The
+  // score, comment count and "3 hr. ago" stamp live in the chrome around
+  // these, and every tick of them would read as a brand new post.
+  const REDDIT_TEXT_SELECTORS = [
+    '[slot="title"]',
+    '[slot="text-body"]',
+    '[data-testid="post-title"]',
+    '[data-click-id="text"]',
+    "a.title",
+    ".usertext-body"
+  ];
   const WORK_SITE_HOSTS = [
     "app.asana.com",
     "atlassian.net",
@@ -668,7 +679,7 @@
       }
 
       if (canFilterContent) {
-        requestModelClassification(container, getElementText(container), "reddit-post");
+        requestModelClassification(container, getRedditPostText(container), "reddit-post");
       } else {
         restoreElement(container);
       }
@@ -761,7 +772,7 @@
       requestModelClassification(row, getHackerNewsStoryText(row), "hacker-news-story");
     });
     document.querySelectorAll("tr.comtr").forEach((row) => {
-      requestModelClassification(row, getElementText(row), "hacker-news-comment");
+      requestModelClassification(row, getHackerNewsCommentText(row), "hacker-news-comment");
     });
   }
 
@@ -1318,6 +1329,34 @@
         .map((element) => element.closest("article, [data-testid*='post'], [class*='post-preview']") || element)
         .filter((element) => element && document.body.contains(element))
     );
+  }
+
+  function getRedditPostText(container) {
+    const parts = [];
+
+    REDDIT_TEXT_SELECTORS.forEach((selector) => {
+      container.querySelectorAll(selector).forEach((node) => {
+        parts.push(node.textContent || "");
+      });
+    });
+
+    if (parts.length > 0) {
+      return parts.join(" ");
+    }
+
+    const postTitle = container.getAttribute && container.getAttribute("post-title");
+
+    // Nothing named the post's own words, so take the whole card and accept
+    // that its counters make the classification key less stable.
+    return postTitle || getElementText(container);
+  }
+
+  function getHackerNewsCommentText(row) {
+    const comment = row.querySelector(".commtext");
+
+    // The comment head carries the author and an age that reads "3 hours ago"
+    // until it reads "4 hours ago"; only the body itself stays put.
+    return comment ? comment.textContent || "" : getElementText(row);
   }
 
   function getHackerNewsStoryText(row) {

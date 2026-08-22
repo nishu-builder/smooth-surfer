@@ -521,6 +521,27 @@ try {
   assert.equal(redditContentState.moduleHidden, true);
   assert.equal(redditContentState.normalHidden, false);
 
+  // Reddit posts are classified on the post's own words. The score, comment
+  // count and age sit in the chrome around them and change on their own, and
+  // each change would otherwise read as a new post: another Haiku call.
+  await navigate(client, `http://reddit.com.test:${fixturePort}/reddit-filtered.html`);
+  await waitForExpression(client, `window.__smoothSurferRequests.length >= 1`);
+  const redditFilteredState = await evaluate(client, `(async () => {
+    const before = window.__smoothSurferRequestTexts();
+
+    document.querySelector("#reddit-score").textContent = "4.8k points";
+    document.querySelector("#reddit-age").textContent = "5 hr. ago";
+    window.dispatchEvent(new Event("scroll"));
+    await new Promise((resolve) => setTimeout(resolve, 900));
+
+    return { before, after: window.__smoothSurferRequestTexts() };
+  })()`);
+
+  assert.deepEqual(redditFilteredState.before, [
+    "Harbour renovation timeline The works start in March and run for six weeks."
+  ]);
+  assert.deepEqual(redditFilteredState.after, redditFilteredState.before);
+
   await navigate(client, `http://substack.com.test:${fixturePort}/substack-content.html`);
   await waitForExpression(
     client,
@@ -548,6 +569,26 @@ try {
   assert.equal(hackerNewsContentState.scoreDisplay, "none");
   assert.equal(hackerNewsContentState.storyHidden, false);
   assert.equal(hackerNewsContentState.commentHidden, false);
+
+  // Hacker News comments are classified on the comment body: the head above it
+  // carries an age that reads "3 hours ago" until it reads "4 hours ago".
+  await navigate(client, `http://news.ycombinator.com.test:${fixturePort}/hacker-news-filtered.html`);
+  await waitForExpression(client, `window.__smoothSurferRequests.length >= 2`);
+  const hackerNewsFilteredState = await evaluate(client, `(async () => {
+    const before = window.__smoothSurferRequestTexts();
+
+    document.querySelector("#hn-age").textContent = "4 hours ago";
+    window.dispatchEvent(new Event("scroll"));
+    await new Promise((resolve) => setTimeout(resolve, 900));
+
+    return { before, after: window.__smoothSurferRequestTexts() };
+  })()`);
+
+  assert.deepEqual(hackerNewsFilteredState.before.slice().sort(), [
+    "A useful systems paper example.com",
+    "Ferries are the most underrated infrastructure."
+  ]);
+  assert.deepEqual(hackerNewsFilteredState.after, hackerNewsFilteredState.before);
 
   client.close();
 } finally {
@@ -884,6 +925,11 @@ function createFixtureServer() {
         return;
       }
 
+      if (requestUrl.pathname === "/reddit-filtered.html") {
+        sendHtml(response, redditFilteredFixture());
+        return;
+      }
+
       if (requestUrl.pathname === "/substack-content.html") {
         sendHtml(response, substackContentFixture());
         return;
@@ -891,6 +937,11 @@ function createFixtureServer() {
 
       if (requestUrl.pathname === "/hacker-news-content.html") {
         sendHtml(response, hackerNewsContentFixture());
+        return;
+      }
+
+      if (requestUrl.pathname === "/hacker-news-filtered.html") {
+        sendHtml(response, hackerNewsFilteredFixture());
         return;
       }
 
@@ -1043,15 +1094,10 @@ That changed everything for my work.</div>
   </html>`;
 }
 
-function twitterFilteredFixture() {
-  // Content filtering only runs with a saved key, and the page stands in for
-  // the service worker so verdicts can be released one at a time.
-  return `<!doctype html>
-  <html>
-    <head>
-      <meta charset="utf-8">
-      <link rel="stylesheet" href="/src/styles.css">
-      <script>
+function classificationStubScript() {
+  // Filtering only runs with a saved key, and the page stands in for the
+  // service worker so verdicts can be released one at a time.
+  return `      <script>
         localStorage.setItem(
           "smoothSurferSecrets",
           JSON.stringify({ anthropicApiKey: "test-key" })
@@ -1083,7 +1129,16 @@ function twitterFilteredFixture() {
             }
           }
         };
-      </script>
+      </script>`;
+}
+
+function twitterFilteredFixture() {
+  return `<!doctype html>
+  <html>
+    <head>
+      <meta charset="utf-8">
+      <link rel="stylesheet" href="/src/styles.css">
+      ${classificationStubScript()}
     </head>
     <body>
       <main>
@@ -1150,6 +1205,66 @@ function redditContentFixture() {
         <h2>Communities you might like</h2>
         <p>Recommended communities</p>
       </aside>
+      <script src="/src/settings.js"></script>
+      <script src="/src/storage.js"></script>
+      <script src="/src/content.js"></script>
+    </body>
+  </html>`;
+}
+
+function redditFilteredFixture() {
+  return `<!doctype html>
+  <html>
+    <head>
+      <meta charset="utf-8">
+      <link rel="stylesheet" href="/src/styles.css">
+      ${classificationStubScript()}
+    </head>
+    <body>
+      <main>
+        <shreddit-post id="reddit-post" post-title="Harbour renovation timeline">
+          <span slot="title">Harbour renovation timeline</span>
+          <div slot="text-body">The works start in March and run for six weeks.</div>
+          <span id="reddit-score">1.2k points</span>
+          <span id="reddit-comments">342 comments</span>
+          <span id="reddit-age">3 hr. ago</span>
+        </shreddit-post>
+      </main>
+      <script src="/src/settings.js"></script>
+      <script src="/src/storage.js"></script>
+      <script src="/src/content.js"></script>
+    </body>
+  </html>`;
+}
+
+function hackerNewsFilteredFixture() {
+  return `<!doctype html>
+  <html>
+    <head>
+      <meta charset="utf-8">
+      <link rel="stylesheet" href="/src/styles.css">
+      ${classificationStubScript()}
+    </head>
+    <body>
+      <table class="itemlist">
+        <tbody>
+          <tr class="athing" id="hn-story">
+            <td class="title">
+              <span class="titleline"><a href="https://example.com">A useful systems paper</a></span>
+              <span class="sitestr">example.com</span>
+            </td>
+          </tr>
+          <tr>
+            <td class="subtext"><span class="score" id="hn-score">42 points</span> <a href="item?id=1">12 comments</a></td>
+          </tr>
+          <tr class="comtr" id="hn-comment">
+            <td>
+              <div class="comhead"><a class="hnuser">someone</a> <span class="age" id="hn-age">3 hours ago</span></div>
+              <div class="comment"><div class="commtext">Ferries are the most underrated infrastructure.</div></div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
       <script src="/src/settings.js"></script>
       <script src="/src/storage.js"></script>
       <script src="/src/content.js"></script>
