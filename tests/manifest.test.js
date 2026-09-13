@@ -28,6 +28,7 @@ for (const file of [
   ...Object.values(manifest.action.default_icon),
   "filters.html",
   "src/filters.js",
+  "src/calibration.js",
   "src/filters.css",
   "review.html",
   "src/review.js",

@@ -3,6 +3,13 @@
 Notable changes per released version. Versions match `manifest.json`, and a
 release is a `v*` tag; see [docs/RELEASING.md](docs/RELEASING.md).
 
+## 0.2.6
+
+- Replace restore/edit controls in review with per-rule Good ruling / Bad ruling feedback and optional explanations.
+- Add explicit rule recalibration: bounded balanced examples, withheld examples when available, independent replay, regression rejection, stale-state checks, and undo history.
+- Show triggering rules above a tweet-style preview with saved author details, line breaks, media, and quoted text.
+- Retain local feedback separately from review history and fail open on incomplete classifier replies.
+
 ## 0.2.5
 
 - Simplify interface copy and use a compact black-and-white theme with Fogg-inspired typography and geometry.

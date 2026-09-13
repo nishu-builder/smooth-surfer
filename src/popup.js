@@ -109,7 +109,7 @@
   const renderReviewCount = (review) => {
     const count = review.items.filter((item) => !review.restored.includes(item.id)).length;
     const link = document.querySelector("[data-review-link]");
-    if (link) link.textContent = `Recently filtered (${count})`;
+    if (link) link.textContent = `Review rulings (${count})`;
   };
   loadReview().then(renderReviewCount);
   watchReview(renderReviewCount);
@@ -238,11 +238,29 @@
   });
 
   function saveSettings(partial) {
+    const expectedCriteria = [...settings.filterCriteria];
     settings = normalizeSettings({ ...settings, ...partial });
     render();
-    writeSettings(settings).then(
+    const operation =
+      typeof chrome !== "undefined" && chrome.runtime?.sendMessage
+        ? new Promise((resolve, reject) =>
+            chrome.runtime.sendMessage(
+              { type: "updateSettings", patch: partial, expectedCriteria },
+              (response) => {
+                if (chrome.runtime.lastError || !response?.ok)
+                  reject(new Error(response?.error || "Not saved"));
+                else resolve();
+              }
+            )
+          )
+        : writeSettings(settings);
+    operation.then(
       () => setStatus("Saved"),
-      () => setStatus("Not saved")
+      async (error) => {
+        settings = await loadSettings();
+        render();
+        setStatus(error.message || "Not saved");
+      }
     );
   }
 

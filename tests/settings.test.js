@@ -232,3 +232,13 @@ assert.equal(
   1
 );
 console.log("settings tests passed");
+
+assert.equal(
+  settings.normalizePostDisplay({ avatar: "https://evil.example/avatar.png" }).avatar,
+  ""
+);
+assert.equal(settings.normalizePostDisplay({ postedAt: "not a date" }).postedAt, "");
+assert.equal(
+  settings.normalizePostDisplay({ text: "Line one\nLine two" }).text,
+  "Line one\nLine two"
+);

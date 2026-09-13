@@ -18,12 +18,22 @@ images from X, Reddit, or Substack in each review. It is off by default and adds
 API cost and latency. If classification fails,
 posts remain visible and retries are spaced out.
 
-Open **Recently filtered** at the top of the popup to review posts in a full tab.
-Search previews, see the reason and matching rule, restore a post, or edit a
-rule. The history shows up to 2,000 posts from the last 7 days and stays on your
-device, with a 6 MB storage cap for large previews. Restoring keeps matching posts
-visible across tabs and reloads. Up to 4,000 restore choices are retained.
-Images load from the original provider only when you choose **View images**.
+Open **Review rulings** at the top of the popup to judge each triggering rule in
+a full tab. Mark **Good ruling** or **Bad ruling**, optionally explaining why.
+The rule appears first, followed by the post with author details, images, and
+quoted text when available. Votes save your judgment; they do not restore the
+post or change a rule immediately.
+
+**Recalibrate rules** uses your API key to propose revisions and replay saved
+examples. Each rule needs at least one good and one bad example. A revision
+applies only if it improves the original and passes every selected example.
+Otherwise the rule stays as it is. The last 30 revisions support undo. This is
+calibration against your examples, not a guarantee of future accuracy. See
+[the algorithm](docs/CALIBRATION.md).
+
+Review keeps up to 2,000 posts from seven days within 6 MB. Feedback is retained
+separately, up to 2,000 judgments within 2 MB, so clearing history does not erase
+what you taught the filter. Media loads lazily from its original host.
 
 On X, the **Less like this** button beside a post's actions opens a rule editor.
 Write your own rule or choose **Suggest filters** to ask Claude for suggestions.
@@ -35,8 +45,8 @@ classification batches running at once. Surf break now allows 16 screens of
 scrolling between breaks.
 
 X also has instant switches for reposts, quote posts, and video posts. These
-work without an API key. Filtered formats appear in Recently filtered, where
-you can restore one post or allow that format again. Repost detection uses X's
+work without an API key. Filtered formats appear in Review rulings. Their judgments are saved, but
+recalibration only rewrites AI content rules; format switches remain in the popup. Repost detection uses X's
 English repost label or a supported repost marker.
 
 Open **Filter sets** from the popup or review page to save named sets, preview

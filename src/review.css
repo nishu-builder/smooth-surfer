@@ -62,3 +62,39 @@ dialog p { color: var(--ss-muted); }
 
 .review-images { display: flex; flex-wrap: wrap; gap: 8px; }
 .review-images img { max-width: 100%; max-height: 240px; object-fit: contain; margin-bottom: 8px; }
+
+/* Review decisions first; render the saved post underneath with native hierarchy. */
+.review-page main { max-width: 900px; }
+.review-help { margin: 5px 0; color: var(--ss-muted); font-size: 12px; }
+.review-page .post { padding: 0; overflow: hidden; }
+.rulings { background: var(--ss-gray); border-bottom: 1px solid var(--ss-line); padding: 10px 12px; }
+.ruling-heading { font: 11px/1.4 var(--ss-mono); color: var(--ss-muted); margin: 0 0 6px; }
+.ruling + .ruling { border-top: 1px solid var(--ss-line); margin-top: 8px; padding-top: 8px; }
+.trigger-rule { margin: 0 0 6px; font-weight: 600; font-size: 13px; overflow-wrap: anywhere; }
+.judgments { display: inline-flex; gap: 5px; }
+.judgments [aria-pressed="true"] { background: var(--ss-ink); color: white; }
+.feedback-note { margin-top: 6px; font-size: 12px; }
+.feedback-note summary { cursor: pointer; color: var(--ss-muted); }
+.feedback-note textarea { display: block; margin: 6px 0; font-size: 13px; }
+.ruling-note, .ruling-reason { font-size: 11px; color: var(--ss-muted); margin: 5px 0; overflow-wrap: anywhere; }
+.tweet-preview { padding: 12px; }
+.tweet-author { display: flex; align-items: center; gap: 8px; }
+.avatar { position: relative; width: 36px; height: 36px; flex: 0 0 36px; border-radius: 50%; background: var(--ss-gray); display: grid; place-items: center; overflow: hidden; font-weight: 700; }
+.avatar-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.author-lines { display: flex; flex-wrap: wrap; gap: 5px; min-width: 0; }
+.author-name { font-size: 14px; overflow-wrap: anywhere; }
+.author-handle, .post-time { color: var(--ss-muted); font-size: 12px; }
+.post-time { margin-left: auto; white-space: nowrap; }
+.tweet-text { font-size: 15px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; margin: 9px 0; }
+.tweet-text:empty { display: none; }
+.tweet-media { display: flex; gap: 4px; overflow: hidden; border-radius: 10px; margin: 8px 0; }
+.tweet-media img { width: 100%; min-width: 0; max-height: 360px; object-fit: contain; background: var(--ss-gray); }
+.tweet-media:has(img + img) img { width: calc(50% - 2px); }
+.quoted-post { border: 1px solid var(--ss-line); border-radius: 10px; padding: 10px; margin-top: 8px; font-size: 13px; }
+.quoted-post .author-handle { margin-left: 5px; }
+.quoted-post .tweet-text { font-size: 14px; margin-bottom: 0; }
+.post-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 11px; color: var(--ss-muted); margin-top: 10px; }
+.calibration-result, .revision { padding: 10px; margin: 8px 0; border: 1px solid var(--ss-line); font-size: 12px; overflow-wrap: anywhere; }
+.calibration-result p, .revision p { margin: 4px 0; }
+.revision small { display: block; margin-bottom: 6px; }
+#revision-history summary { cursor: pointer; font: 12px var(--ss-mono); margin: 8px 0; }

@@ -2,6 +2,8 @@
   "use strict";
 
   const {
+    CALIBRATION_KEY,
+    normalizeCalibration,
     FILTER_SETS_KEY,
     normalizeFilterSets,
     REVIEW_KEY,
@@ -20,6 +22,16 @@
     normalizeSettings,
     normalizeStats
   } = root.SmoothSurferSettings;
+
+  function loadCalibration() {
+    return read("local", CALIBRATION_KEY, {}, normalizeCalibration);
+  }
+  function saveCalibration(value) {
+    return write("local", CALIBRATION_KEY, normalizeCalibration(value));
+  }
+  function watchCalibration(callback) {
+    watchStorage("local", CALIBRATION_KEY, normalizeCalibration, callback);
+  }
 
   function loadFilterSets() {
     return read("local", FILTER_SETS_KEY, [], normalizeFilterSets);
@@ -169,6 +181,9 @@
   }
 
   root.SmoothSurferStorage = {
+    loadCalibration,
+    saveCalibration,
+    watchCalibration,
     loadFilterSets,
     saveFilterSets,
     watchFilterSets,

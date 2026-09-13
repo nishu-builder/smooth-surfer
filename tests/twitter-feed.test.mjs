@@ -296,6 +296,28 @@ export async function verifyTwitterFeed({
     `messages.some(message => message.type === 'addFilterCriterion' && message.criterion === 'Giveaway posts asking for reposts')`
   );
 
+  // Save post presentation separately from normalized classification text.
+  await open();
+  await run(`(() => {
+    const article=document.querySelector('#cell-0 article');
+    article.insertAdjacentHTML('afterbegin','<div data-testid="User-Name"><a href="/alex">Alex Chen</a><span>@alex</span></div>');
+    document.querySelector('#text-0').innerHTML='First line<br>Second line';
+    article.querySelector('time').dateTime='2026-09-13T12:00:00Z';
+    article.insertAdjacentHTML('beforeend','<div data-testid="quoteTweet"><div data-testid="User-Name"><a href="/sam">Sam</a><span>@sam</span></div><div data-testid="tweetText">Quoted text</div></div>');
+  })()`);
+  await wait(`requests.some(r=>r.message.text.includes('Quoted text'))`);
+  await run(
+    `requests.find(r=>r.message.text.includes('Quoted text')).callback({blocked:true,classifier:'claude-haiku',matchedCriteria:['Test rule'],reasons:['Test match']})`
+  );
+  await wait(`messages.some(m=>m.post?.display?.quoted)`);
+  const presentation = await run(`messages.find(m=>m.post?.display?.quoted).post.display`);
+  assert.equal(presentation.name, "Alex Chen");
+  assert.equal(presentation.handle, "@alex");
+  assert.equal(presentation.text, "First line\nSecond line");
+  assert.equal(presentation.quoted.text, "Quoted text");
+  assert.equal(presentation.quoted.name, "Sam");
+  assert.equal(presentation.postedAt, "2026-09-13T12:00:00Z");
+
   // Format detection works without inference and ignores words in ordinary text.
   await open();
   await run(`updateSecrets({anthropicApiKey:''}); updateSettings({twitterHideAds:false,twitterHideReposts:true,twitterHideQuotes:true,twitterHideVideos:true});
