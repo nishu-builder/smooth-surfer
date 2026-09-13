@@ -370,7 +370,12 @@
     return node;
   }
   function rulesFor(item) {
-    return [...item.criteria, ...item.formats.map((key) => `format:${key}`)];
+    const unique = new Map();
+    for (const rule of [...item.criteria, ...item.formats.map((key) => `format:${key}`)]) {
+      const current = resolveCalibratedRule(rule, calibration.revisions);
+      if (!unique.has(current)) unique.set(current, rule);
+    }
+    return [...unique.values()];
   }
   function voteFor(item, rule) {
     const current = resolveCalibratedRule(rule, calibration.revisions);
@@ -496,7 +501,7 @@
     });
     input.classList.toggle("has-text", Boolean(input.value));
     input.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && !event.isComposing) {
+      if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
         event.preventDefault();
         selectRuling(key, true);
       }
@@ -552,7 +557,7 @@
     }
     const saveNote = button("Save explanation", (node) => save(node, vote?.judgment, false));
     saveNote.hidden = !vote || input.value === vote.explanation;
-    const hint = el("p", "note-hint", "Esc to return to rulings");
+    const hint = el("p", "note-hint", "Enter to return · Shift+Enter for a new line");
     notes.append(input, hint, saveNote);
     row.append(controls, notes);
     return row;

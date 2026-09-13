@@ -55,7 +55,11 @@
         // Use exactly the persisted representation for compare-and-swap undo.
         state.feedback = normalizeCalibration(state).feedback;
         const undoToken = `${Date.now()}:${Math.random().toString(36).slice(2)}`;
-        state.undo.unshift({ token: undoToken, previous, recorded: state.feedback[0] });
+        state.undo.unshift({
+          token: undoToken,
+          previous,
+          recorded: state.feedback.find((item) => item.postKey === post.id && item.rule === rule)
+        });
         return { undoToken };
       });
     }

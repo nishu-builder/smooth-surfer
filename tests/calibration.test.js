@@ -117,6 +117,34 @@ function fixture() {
     2,
     "reviewed examples have no seven-day cutoff"
   );
+  const duplicates = fixture();
+  duplicates.posts[0].url = "https://x.com/a/status/123";
+  duplicates.posts[1].url = "https://twitter.com/a/status/123?s=20";
+  duplicates.posts[1].criteria = [before, "Unrelated rule"];
+  duplicates.deps.loadReview = async () =>
+    S.normalizeReview({ items: duplicates.posts, restored: [] });
+  const duplicateVote = await duplicates.api.record({
+    postId: "twitter:status:123",
+    rule: before,
+    judgment: "good",
+    explanation: "Keep this match."
+  });
+  await duplicates.api.record({
+    postId: "twitter:status:123",
+    rule: "Unrelated rule",
+    judgment: "bad"
+  });
+  assert.equal(
+    duplicates.state.feedback.length,
+    2,
+    "distinct rules keep independent feedback on the merged tweet"
+  );
+  await duplicates.api.undoFeedback(duplicateVote.undoToken);
+  assert.equal(
+    duplicates.state.feedback.length,
+    1,
+    "undo changes only the intended rule on a merged tweet"
+  );
   const f = fixture();
   await Promise.all([f.vote(0, "good"), f.vote(1, "bad", "The deadline is factual.")]);
   assert.equal(f.state.feedback.length, 2, "concurrent judgments survive");

@@ -29,3 +29,8 @@ The approach draws on [Anthropic's example-driven prompt improvement workflow](h
 Reviewed examples of both judgments remain visible after rolling history expires or is cleared. Their post metadata is retained with feedback, within the existing 2,000-judgment / 2 MB budget. Left marks bad, right marks good, up/down navigate between rulings, and Cmd/Ctrl+Z undoes the latest judgment. Typing fields keep normal arrow behavior. The selected rule–post pair is highlighted; voting advances selection and moves the judgment between Uncategorized, Good rulings, and Bad rulings. Each inbox shows only its matching rule–post pairs. A post remains in Uncategorized while any of its rulings are unanswered. Undo restores the prior judgment and explanation, and refuses to overwrite intervening edits. Up to 50 undo receipts are stored with feedback within a separate 512 KB budget. They survive worker restarts; the current page keeps the action order. Empty undo shows an explicit message.
 
 Native tweet rendering uses X’s hosted `https://platform.twitter.com/embed/Tweet.html` frame. Its sizing messages use the `twttr.embed` envelope with `twttr.private.resize`, as observed in X’s own widget implementation. This protocol may change; a 15-second deadline falls back to the saved post when no valid sizing message arrives. Frames are loaded near the viewport and preserved across votes.
+
+Twitter review records use the permanent status ID across X/Twitter URL variants.
+Existing text-based duplicates merge when read, keeping their distinct triggering
+rules. Feedback is deduplicated per tweet and rule; the latest judgment and its
+explanation win. Enter leaves the explanation box; Shift+Enter adds a new line.

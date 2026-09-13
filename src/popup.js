@@ -8,13 +8,10 @@
     normalizeCriteria,
     normalizeSecrets,
     normalizeSettings,
-    reviewItemsWithFeedback
+    REVIEW_KEY,
+    CALIBRATION_KEY
   } = window.SmoothSurferSettings;
   const {
-    loadReview,
-    watchReview,
-    loadCalibration,
-    watchCalibration,
     watchSettings,
     loadConsumption,
     loadSecrets,
@@ -109,22 +106,43 @@
     consumption = nextConsumption;
     renderFacts();
   });
-  let reviewCountVersion = 0;
-  const renderReviewCount = async () => {
-    const version = ++reviewCountVersion;
-    try {
-      const [review, calibration] = await Promise.all([loadReview(), loadCalibration()]);
-      if (version !== reviewCountVersion) return;
-      const count = reviewItemsWithFeedback(review, calibration).length;
-      const link = document.querySelector("[data-review-link]");
-      if (link) link.textContent = `Review rulings (${count})`;
-    } catch {
-      /* Keep navigation available if its count cannot load. */
-    }
+  // Keep multi-megabyte review records out of the popup's rendering thread.
+  // The worker returns only a count; navigation and settings never wait for it.
+  let reviewCountTimer = 0,
+    reviewCountLoading = false,
+    reviewCountDirty = false;
+  const scheduleReviewCount = () => {
+    reviewCountDirty = true;
+    if (reviewCountTimer || reviewCountLoading) return;
+    reviewCountTimer = window.setTimeout(() => {
+      reviewCountTimer = 0;
+      if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) return;
+      reviewCountLoading = true;
+      reviewCountDirty = false;
+      chrome.runtime.sendMessage({ type: "getReviewCount" }, (response) => {
+        const failed = chrome.runtime.lastError;
+        reviewCountLoading = false;
+        if (
+          !failed &&
+          response?.ok &&
+          Number.isSafeInteger(response.count) &&
+          response.count >= 0
+        ) {
+          const link = document.querySelector("[data-review-link]");
+          if (link) link.textContent = `Review rulings (${response.count})`;
+        }
+        if (reviewCountDirty) scheduleReviewCount();
+      });
+    }, 150);
   };
-  void renderReviewCount();
-  watchReview(renderReviewCount);
-  watchCalibration(renderReviewCount);
+  window.requestAnimationFrame(() => window.requestAnimationFrame(scheduleReviewCount));
+  if (typeof chrome !== "undefined" && chrome.storage?.onChanged?.addListener) {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      // Do not normalize changed history records merely to invalidate a count.
+      if (area === "local" && (changes[REVIEW_KEY] || changes[CALIBRATION_KEY]))
+        scheduleReviewCount();
+    });
+  }
   watchSettings((next) => {
     settings = next;
     render();

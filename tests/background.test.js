@@ -254,7 +254,7 @@ function classify(text, source, priority = 0) {
     text,
     reasons: ["engagement bait"],
     criteria: ["Engagement bait"],
-    url: "https://x.com/a/status/123"
+    url: `https://x.com/a/status/${text === "one" ? "123" : "456"}`
   });
   await Promise.all([
     message({ type: "recordFilteredPost", post: post("one") }),
@@ -268,9 +268,29 @@ function classify(text, source, priority = 0) {
   });
   assert.equal(reviewState.items.length, 2, "new rulings refresh a post without duplicating it");
   assert.deepEqual(reviewState.items.find((item) => item.text === "one").criteria, [
+    "Engagement bait",
     "A newly triggering rule"
   ]);
-  const id = self.SmoothSurferSettings.getReviewPostKey("twitter", "one");
+  await message({
+    type: "recordFilteredPost",
+    post: {
+      ...post("one"),
+      text: "one with updated poll totals",
+      url: "https://twitter.com/a/status/123?s=20",
+      criteria: ["Polls"]
+    }
+  });
+  assert.equal(
+    reviewState.items.length,
+    2,
+    "changed text and URL aliases still identify one tweet"
+  );
+  assert.deepEqual(reviewState.items.find((item) => item.url.includes("123")).criteria, [
+    "Engagement bait",
+    "A newly triggering rule",
+    "Polls"
+  ]);
+  const id = self.SmoothSurferSettings.getReviewPostKey("twitter", "one", [], post("one").url);
   assert.equal((await message({ type: "restoreFilteredPost", id })).ok, true);
   assert.deepEqual(reviewState.restored, [id]);
   await message({ type: "recordFilteredPost", post: post("one") });

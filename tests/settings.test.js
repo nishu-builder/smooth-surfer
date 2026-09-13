@@ -242,3 +242,59 @@ assert.equal(
   settings.normalizePostDisplay({ text: "Line one\nLine two" }).text,
   "Line one\nLine two"
 );
+
+// Tweet identity survives text, media and URL changes, including legacy history.
+{
+  const S = require("../src/settings.js");
+  const now = Date.now();
+  const base = {
+    source: "twitter",
+    text: "Poll: 10 votes",
+    url: "https://x.com/person/status/123",
+    at: now,
+    criteria: ["Polls"]
+  };
+  const other = { ...base, id: "different-tweet", url: "https://x.com/person/status/456" };
+  const history = S.normalizeReview({
+    items: [
+      { ...base, id: "legacy-new", at: now + 1, text: "Poll: 11 votes", criteria: ["FOMO"] },
+      { ...base, id: "legacy-old", url: "https://mobile.twitter.com/person/status/123?s=20" },
+      other
+    ],
+    restored: ["legacy-old"]
+  });
+  assert.equal(history.items.length, 2);
+  assert.equal(history.items[0].id, "twitter:status:123");
+  assert.deepEqual(history.items[0].criteria, ["FOMO", "Polls"]);
+  assert.equal(history.items[0].text, "Poll: 11 votes");
+  assert.deepEqual(history.restored, ["twitter:status:123"]);
+  assert.equal(
+    S.getReviewPostKey("twitter", "changed", [], "https://x.com/i/web/status/123/photo/1"),
+    history.items[0].id
+  );
+  assert.notEqual(S.getReviewPostKey("twitter", base.text, [], other.url), history.items[0].id);
+  assert.equal(S.canonicalReviewId("twitter", "https://x.com.evil.test/a/status/123"), "");
+  assert.equal(S.canonicalReviewId("twitter", "https://x.com/person/status/123abc"), "");
+  const calibration = S.normalizeCalibration({
+    feedback: [
+      { ...base, rule: "Polls", postKey: "legacy-old", judgment: "good", at: now },
+      {
+        ...base,
+        rule: "Polls",
+        postKey: "legacy-new",
+        judgment: "bad",
+        explanation: "An ordinary poll is fine.",
+        at: now + 2
+      },
+      { ...base, rule: "FOMO", postKey: "legacy-new", judgment: "good", at: now + 1 }
+    ]
+  });
+  assert.equal(calibration.feedback.length, 2, "one latest judgment per tweet and rule");
+  assert.equal(calibration.feedback[0].judgment, "bad");
+  assert.equal(calibration.feedback[0].explanation, "An ordinary poll is fine.");
+  assert.equal(
+    S.reviewItemsWithFeedback(history, calibration).length,
+    2,
+    "archived feedback merges with its tweet"
+  );
+}

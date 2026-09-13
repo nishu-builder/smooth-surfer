@@ -66,6 +66,15 @@ importScripts("settings.js", "storage.js", "calibration.js");
     }
 
     const reviewActions = {
+      getReviewCount: async () => {
+        const [review, feedback] = await Promise.all([
+          loadReview(),
+          self.SmoothSurferStorage.loadCalibration()
+        ]);
+        const ids = new Set(review.items.map((item) => item.id));
+        for (const vote of feedback.feedback) ids.add(vote.postKey);
+        return { count: ids.size };
+      },
       updateSettings: () => updateSettings(message.patch, message.expectedCriteria),
       recordRuleFeedback: () => calibration.record(message),
       undoRuleFeedback: () => calibration.undoFeedback(message.undoToken),
@@ -149,8 +158,13 @@ importScripts("settings.js", "storage.js", "calibration.js");
       return {};
     return mutateReview((review) => {
       const source = normalizeSource(post.source);
-      const id = getReviewPostKey(source, post.text, normalizeImageUrls(post.images));
-      if (review.restored.includes(id)) return;
+      const images = normalizeImageUrls(post.images);
+      const id = getReviewPostKey(source, post.text, images, post.url);
+      if (
+        review.restored.includes(id) ||
+        review.restored.includes(getReviewPostKey(source, post.text, images))
+      )
+        return;
       const index = review.items.findIndex((item) => item.id === id);
       if (index >= 0) {
         const previous = review.items[index];
@@ -159,6 +173,16 @@ importScripts("settings.js", "storage.js", "calibration.js");
           JSON.stringify(previous.formats) === JSON.stringify(post.formats || [])
         )
           return;
+        post = {
+          ...post,
+          criteria: normalizeCriteria([
+            ...previous.criteria,
+            ...(Array.isArray(post.criteria) ? post.criteria : [])
+          ]),
+          formats: [
+            ...new Set([...previous.formats, ...(Array.isArray(post.formats) ? post.formats : [])])
+          ]
+        };
         review.items.splice(index, 1);
       }
       review.items.unshift({ ...post, id, source, url: safePostUrl(post.url), at: Date.now() });

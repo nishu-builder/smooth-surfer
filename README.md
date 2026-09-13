@@ -23,7 +23,7 @@ a full tab. Mark **Good ruling** or **Bad ruling**, optionally explaining why.
 The post appears first, with its rulings underneath and dividers between posts.
 X posts use native embeds; saved copies remain available when an embed cannot load.
 Use Left for Bad, Right for Good, Up/Down to move between rulings, and Cmd/Ctrl+Z
-to undo. Start typing to add an explanation to the selected ruling; Esc returns
+to undo. Start typing to add an explanation to the selected ruling; Enter returns
 to navigation. A brief green or red confirmation fades before the ruling leaves
 its inbox. Votes save your judgment; they do not restore the post or change a
 rule immediately.

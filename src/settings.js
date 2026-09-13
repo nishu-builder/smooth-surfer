@@ -499,7 +499,10 @@
     const seen = new Set();
     let bytes = 0;
     const feedback = [];
-    for (const item of Array.isArray(data.feedback) ? data.feedback : []) {
+    const newestFeedback = (Array.isArray(data.feedback) ? [...data.feedback] : []).sort(
+      (a, b) => (Number(b?.at) || 0) - (Number(a?.at) || 0)
+    );
+    for (const item of newestFeedback) {
       if (
         !item ||
         typeof item.rule !== "string" ||
@@ -510,7 +513,8 @@
         continue;
       const entry = {
         rule: item.rule.slice(0, 500),
-        postKey: item.postKey.slice(0, 128),
+        postKey:
+          canonicalReviewId(item.source || "twitter", item.url) || item.postKey.slice(0, 128),
         judgment: item.judgment,
         explanation: String(item.explanation || "").slice(0, 800),
         text: String(item.text || "").slice(0, 2000),
@@ -621,7 +625,21 @@
   const REVIEW_KEY = "smoothSurferReview";
   const DEFAULT_REVIEW = { items: [], restored: [] };
 
-  function getReviewPostKey(source, text, images = []) {
+  function canonicalReviewId(source, value) {
+    if (source !== "twitter") return "";
+    try {
+      const url = new URL(safePostUrl(value));
+      if (!/^(?:www\.|mobile\.)?(?:twitter\.com|x\.com)$/.test(url.hostname)) return "";
+      const id = url.pathname.match(/^\/(?:[^/]+|i\/web)\/status\/(\d+)(?:\/|$)/)?.[1];
+      return id ? `twitter:status:${id}` : "";
+    } catch {
+      return "";
+    }
+  }
+
+  function getReviewPostKey(source, text, images = [], url = "") {
+    const canonical = canonicalReviewId(source, url);
+    if (canonical) return canonical;
     const normalized = `${source}|${String(text || "")
       .replace(/\s+/g, " ")
       .trim()
@@ -639,24 +657,36 @@
   function normalizeReview(value) {
     const data = value || {};
     const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    const seen = new Set();
-    const items = (Array.isArray(data.items) ? data.items : [])
-      .filter((item) => {
-        if (
-          !item ||
-          typeof item.id !== "string" ||
-          (!item.text && !normalizeImageUrls(item.images).length) ||
-          !Number.isFinite(item.at) ||
-          item.at < cutoff ||
-          seen.has(item.id)
-        )
-          return false;
-        seen.add(item.id);
-        return true;
-      })
-      .slice(0, REVIEW_LIMIT)
-      .map((item) => ({
-        id: item.id.slice(0, 2050),
+    const remappedIds = new Map();
+    const merged = new Map();
+    const candidates = (Array.isArray(data.items) ? [...data.items] : []).sort(
+      (a, b) => (Number(b?.at) || 0) - (Number(a?.at) || 0)
+    );
+    for (const item of candidates) {
+      if (
+        !item ||
+        typeof item.id !== "string" ||
+        (!item.text && !normalizeImageUrls(item.images).length) ||
+        !Number.isFinite(item.at) ||
+        item.at < cutoff
+      )
+        continue;
+      const id = canonicalReviewId(item.source, item.url) || item.id.slice(0, 2050);
+      remappedIds.set(item.id, id);
+      const previous = merged.get(id);
+      if (previous) {
+        previous.criteria = normalizeCriteria([
+          ...previous.criteria,
+          ...(Array.isArray(item.criteria) ? item.criteria : [])
+        ]).slice(0, 20);
+        previous.formats = FORMAT_KEYS.filter(
+          (key) => previous.formats.includes(key) || item.formats?.includes(key)
+        );
+        continue;
+      }
+      if (merged.size >= REVIEW_LIMIT) continue;
+      merged.set(id, {
+        id,
         text: String(item.text || "").slice(0, 2000),
         images: normalizeImageUrls(item.images),
         display: normalizePostDisplay(item.display),
@@ -671,12 +701,14 @@
           .slice(0, 20)
           .map((rule) => rule.slice(0, 500)),
         at: item.at
-      }));
+      });
+    }
+    const items = [...merged.values()];
     const restored = [
       ...new Set(
         (Array.isArray(data.restored) ? data.restored : [])
           .filter((id) => typeof id === "string")
-          .map((id) => id.slice(0, 2050))
+          .map((id) => remappedIds.get(id) || id.slice(0, 2050))
       )
     ].slice(-4000);
     const encoder = new TextEncoder();
@@ -763,6 +795,7 @@
     REVIEW_KEY,
     DEFAULT_REVIEW,
     getReviewPostKey,
+    canonicalReviewId,
     normalizeReview,
     safePostUrl,
     CONSUMPTION_KEY,
