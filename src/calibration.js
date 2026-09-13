@@ -94,7 +94,7 @@
         const affected = [
           ...new Set(
             initial.feedback
-              .filter((item) => item.judgment === "bad")
+              .filter((item) => item.judgment === "bad" || item.explanation.trim())
               .map((item) => resolveCalibratedRule(item.rule, initial.revisions))
           )
         ];
@@ -109,7 +109,7 @@
           if (rule.startsWith("format:")) {
             outcomes.push({
               rule,
-              status: "kept",
+              status: "not-supported",
               detail:
                 "Format detection is local. Feedback is saved; recalibration does not rewrite format switches."
             });
@@ -128,17 +128,28 @@
           const latest = initial.revisions.find(
             (revision) => !revision.undone && revision.after === rule
           );
-          if (latest && all.every((item) => item.at <= latest.at)) continue;
-          const good = all.filter((item) => item.judgment === "good");
-          const bad = all.filter((item) => item.judgment === "bad");
-          if (!good.length || !bad.length) {
+          if (latest && !latest.remaining && all.every((item) => item.at <= latest.at)) continue;
+          const usable = settings.imageAnalysisEnabled
+            ? all
+            : all.filter((item) => item.text.trim()).map((item) => ({ ...item, images: [] }));
+          const skipped = all.length - usable.length;
+          if (!usable.length) {
             outcomes.push({
               rule,
-              status: "kept",
-              detail: "Mark at least one good and one bad ruling for this rule first."
+              status: "needs-images",
+              detail:
+                "These examples contain only images. Enable Analyze images to check them; your feedback is still saved."
             });
             continue;
           }
+          const good = usable.filter((item) => item.judgment === "good");
+          const bad = usable.filter((item) => item.judgment === "bad");
+          // Written corrections take priority over otherwise newer labels.
+          for (const group of [good, bad])
+            group.sort(
+              (a, b) =>
+                Number(Boolean(b.explanation.trim())) - Number(Boolean(a.explanation.trim()))
+            );
           // Balance the bounded replay set. With enough evidence, reserve older
           // examples from each class from the proposal prompt for a small holdout.
           const examples = [];
@@ -146,18 +157,11 @@
             if (good[i]) examples.push(good[i]);
             if (bad[i] && examples.length < 40) examples.push(bad[i]);
           }
-          if (examples.some((item) => item.images.length) && !settings.imageAnalysisEnabled) {
-            outcomes.push({
-              rule,
-              status: "kept",
-              detail: "Enable Analyze images to recalibrate this rule using its image examples."
-            });
-            continue;
-          }
           const heldOut = new Set();
           for (const judgment of ["good", "bad"]) {
             const group = examples.filter((item) => item.judgment === judgment);
-            if (group.length >= 3) heldOut.add(group.at(-1).postKey);
+            const withoutNotes = group.filter((item) => !item.explanation.trim());
+            if (group.length >= 3 && withoutNotes.length) heldOut.add(withoutNotes.at(-1).postKey);
           }
           attempted++;
           try {
@@ -172,50 +176,176 @@
                 throw new Error("Settings changed during recalibration. Try again.");
             };
             await checkContext();
-            const candidate = await deps.propose(
-              rule,
-              examples.filter((item) => !heldOut.has(item.postKey)),
-              secrets.anthropicApiKey
-            );
-            if (
-              typeof candidate !== "string" ||
-              !candidate.trim() ||
-              candidate.length > 500 ||
-              candidate.trim() === rule ||
-              settings.filterCriteria.includes(candidate.trim())
-            )
-              throw new Error("No distinct, valid revision was proposed.");
-            const after = candidate.trim();
-            const predictions = [];
-            for (let i = 0; i < examples.length; i += 20) {
-              await checkContext();
-              predictions.push(
-                ...(await deps.evaluate(
-                  examples.slice(i, i + 20),
-                  [rule, after],
-                  secrets.anthropicApiKey
-                ))
+            const proposalExamples = examples.filter((item) => !heldOut.has(item.postKey));
+            const additions = new Map();
+            let after = "",
+              reason = "",
+              evidence = [],
+              oldErrors = 0,
+              newErrors = 0,
+              accepted = false;
+            let baseline = null;
+            for (let attempt = 0; attempt < 2; attempt++) {
+              const candidate = await deps.propose(
+                rule,
+                proposalExamples,
+                secrets.anthropicApiKey,
+                {
+                  activeRules: settings.filterCriteria,
+                  ...(attempt
+                    ? {
+                        failedCandidate: after,
+                        disagreements: evidence.filter(
+                          (item) =>
+                            !heldOut.has(item.postId) &&
+                            item.afterMatched !== (item.judgment === "good")
+                        )
+                      }
+                    : {})
+                }
               );
-            }
-            if (
-              predictions.length !== examples.length ||
-              predictions.some((item) => !Array.isArray(item.matchedCriteria))
-            )
-              throw new Error("The replay was incomplete. No rule changed.");
-            let oldErrors = 0,
+              const proposal = typeof candidate === "string" ? { rule: candidate } : candidate;
+              if (!proposal || typeof proposal !== "object")
+                throw new Error("No valid proposal was returned.");
+              reason = typeof proposal.reason === "string" ? proposal.reason.slice(0, 800) : "";
+              // Additional rules must cite an actual written instruction, not post text.
+              for (const addition of Array.isArray(proposal.additions)
+                ? proposal.additions.slice(0, 2)
+                : []) {
+                const source = proposalExamples[addition?.feedbackIndex - 1];
+                if (
+                  !source ||
+                  typeof addition.rule !== "string" ||
+                  !addition.rule.trim() ||
+                  addition.rule.length > 500 ||
+                  typeof addition.instruction !== "string" ||
+                  addition.instruction.length < 8 ||
+                  !source.explanation.includes(addition.instruction) ||
+                  settings.filterCriteria.includes(addition.rule.trim())
+                )
+                  continue;
+                additions.set(addition.rule.trim(), {
+                  rule: addition.rule.trim(),
+                  instruction: addition.instruction.slice(0, 800)
+                });
+              }
+              if (proposal.rule === null || proposal.rule === rule) {
+                after = "";
+                break;
+              }
+              if (
+                typeof proposal.rule !== "string" ||
+                !proposal.rule.trim() ||
+                proposal.rule.length > 500 ||
+                settings.filterCriteria.includes(proposal.rule.trim())
+              )
+                throw new Error("No distinct, valid revision was proposed.");
+              after = proposal.rule.trim();
+              if (!baseline) {
+                baseline = [];
+                for (let i = 0; i < examples.length; i += 20) {
+                  await checkContext();
+                  baseline.push(
+                    ...(await deps.evaluate(
+                      examples.slice(i, i + 20),
+                      [rule],
+                      secrets.anthropicApiKey
+                    ))
+                  );
+                }
+                if (
+                  baseline.length !== examples.length ||
+                  baseline.some((item) => !Array.isArray(item.matchedCriteria))
+                )
+                  throw new Error("The baseline replay was incomplete. No rule changed.");
+              }
+              const predictions = [];
+              for (let i = 0; i < examples.length; i += 20) {
+                await checkContext();
+                predictions.push(
+                  ...(await deps.evaluate(
+                    examples.slice(i, i + 20),
+                    [after],
+                    secrets.anthropicApiKey
+                  ))
+                );
+              }
+              if (
+                predictions.length !== examples.length ||
+                predictions.some((item) => !Array.isArray(item.matchedCriteria))
+              )
+                throw new Error("The replay was incomplete. No rule changed.");
+              oldErrors = 0;
               newErrors = 0;
-            examples.forEach((example, index) => {
-              const expected = example.judgment === "good";
-              oldErrors += Number(predictions[index].matchedCriteria.includes(rule) !== expected);
-              newErrors += Number(predictions[index].matchedCriteria.includes(after) !== expected);
-            });
-            if (newErrors || !oldErrors) {
+              let regressions = 0;
+              evidence = examples.map((example, index) => {
+                const expected = example.judgment === "good";
+                const beforeMatched = baseline[index].matchedCriteria.includes(rule);
+                const afterMatched = predictions[index].matchedCriteria.includes(after);
+                oldErrors += Number(beforeMatched !== expected);
+                newErrors += Number(afterMatched !== expected);
+                regressions += Number(beforeMatched === expected && afterMatched !== expected);
+                return {
+                  postId: example.postKey,
+                  text: example.text.slice(0, 300),
+                  url: example.url,
+                  judgment: example.judgment,
+                  explanation: example.explanation,
+                  beforeMatched,
+                  afterMatched
+                };
+              });
+              const explicitClarification =
+                examples.some((item) => item.explanation.trim()) && newErrors === 0;
+              accepted = !regressions && (newErrors < oldErrors || explicitClarification);
+              if (accepted) break;
+            }
+            const diagnostics = {
+              after,
+              reason,
+              evidence,
+              additions: [...additions.values()],
+              good: good.length,
+              bad: bad.length,
+              oldErrors,
+              newErrors,
+              skipped,
+              textOnly: !settings.imageAnalysisEnabled && all.some((item) => item.images.length)
+            };
+            if (additions.size)
+              await mutate((state) => {
+                if (signature(examplesFor(state, rule)) !== signature(all))
+                  throw new Error("Feedback changed during recalibration. Try again.");
+                for (const addition of additions.values()) {
+                  if (
+                    state.suggestions.some(
+                      (item) => item.rule.toLowerCase() === addition.rule.toLowerCase()
+                    )
+                  )
+                    continue;
+                  state.suggestions.unshift({
+                    id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+                    ...addition,
+                    sourceRule: rule,
+                    status: "pending",
+                    created: false,
+                    at: Date.now()
+                  });
+                }
+              });
+            if (!accepted) {
               outcomes.push({
                 rule,
-                status: "kept",
-                detail: newErrors
-                  ? "The revision failed saved examples. The rule was kept."
-                  : "The current rule already passed the replay. No change needed."
+                ...diagnostics,
+                status:
+                  additions.size && !after
+                    ? "suggested"
+                    : after && newErrors
+                      ? "rejected"
+                      : "unchanged",
+                detail: after
+                  ? `Replay disagreed with ${newErrors} of ${examples.length} judgments (previously ${oldErrors}). No revision was applied.`
+                  : reason || "No revision to this rule was proposed."
               });
               continue;
             }
@@ -240,7 +370,8 @@
                   after,
                   at: Date.now(),
                   examples: examples.length,
-                  fixed: oldErrors,
+                  fixed: oldErrors - newErrors,
+                  remaining: newErrors,
                   undone: false
                 });
                 // Persist inside the lock; if local storage rejects, roll back the
@@ -255,12 +386,13 @@
             );
             outcomes.push({
               rule,
+              ...diagnostics,
               status: "updated",
               after,
-              detail: `Updated; ${examples.length} examples passed, ${oldErrors} mistakes corrected${heldOut.size ? `, including ${heldOut.size} held-out examples` : ""}.`
+              detail: `${examples.length} examples checked: ${oldErrors} disagreements before, ${newErrors} after${heldOut.size ? `; ${heldOut.size} examples withheld from drafting` : ""}. ${!oldErrors ? "Wording clarified from your explanation." : "Previously correct matches were preserved."}`
             });
           } catch (error) {
-            outcomes.push({ rule, status: "kept", detail: error.message });
+            outcomes.push({ rule, status: "error", detail: error.message });
           }
         }
         await mutate((state) => {
@@ -310,7 +442,54 @@
         }, false)
       );
     }
-    return { record, undoFeedback, recalibrate, undo };
+    async function changeSuggestion(id, action) {
+      return deps.withRuleLock(() =>
+        mutate(async (state) => {
+          const suggestion = state.suggestions.find((item) => item.id === id);
+          if (!suggestion) throw new Error("This suggestion is no longer available.");
+          const settings = await deps.loadSettings();
+          const previous = structuredClone(settings);
+          if (action === "add") {
+            if (suggestion.status !== "pending")
+              throw new Error("This suggestion has already been handled.");
+            suggestion.created = !settings.filterCriteria.includes(suggestion.rule);
+            settings.filterCriteria = root.SmoothSurferSettings.normalizeCriteria([
+              ...settings.filterCriteria,
+              suggestion.rule
+            ]);
+            if (!settings.filterCriteria.includes(suggestion.rule))
+              throw new Error("Remove an existing rule before adding another.");
+            suggestion.status = "added";
+          } else if (action === "undo") {
+            if (
+              suggestion.status !== "added" ||
+              !suggestion.created ||
+              !settings.filterCriteria.includes(suggestion.rule)
+            )
+              throw new Error("This rule has changed since it was added.");
+            settings.filterCriteria = settings.filterCriteria.filter(
+              (rule) => rule !== suggestion.rule
+            );
+            suggestion.status = "pending";
+            suggestion.created = false;
+          } else if (action === "dismiss" && suggestion.status === "pending")
+            suggestion.status = "dismissed";
+          else if (action === "reopen" && suggestion.status === "dismissed")
+            suggestion.status = "pending";
+          else throw new Error("This suggestion has changed. Refresh and try again.");
+          const changed = signature(settings) !== signature(previous);
+          if (changed) await deps.saveSettings(settings);
+          try {
+            await deps.saveCalibration(state);
+          } catch (error) {
+            if (changed) await deps.saveSettings(previous);
+            throw error;
+          }
+          return {};
+        }, false)
+      );
+    }
+    return { record, undoFeedback, recalibrate, undo, changeSuggestion };
   }
   root.SmoothSurferCalibration = { create };
   if (typeof module !== "undefined" && module.exports)

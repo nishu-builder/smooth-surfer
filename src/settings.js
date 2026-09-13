@@ -552,6 +552,7 @@
         at: r.at,
         examples: Math.max(0, Number(r.examples) || 0),
         fixed: Math.max(0, Number(r.fixed) || 0),
+        remaining: Math.max(0, Number(r.remaining) || 0),
         undone: Boolean(r.undone)
       }));
     const attempts = (Array.isArray(data.attempts) ? data.attempts : [])
@@ -577,7 +578,30 @@
       if (undoBytes > 512 * 1024 || undo.length >= 50) break;
       undo.push(entry);
     }
-    return { feedback, revisions, attempts, undo };
+    const suggestions = [];
+    let suggestionBytes = 0;
+    for (const item of Array.isArray(data.suggestions) ? data.suggestions : []) {
+      if (
+        !item ||
+        typeof item.id !== "string" ||
+        typeof item.rule !== "string" ||
+        !item.rule.trim()
+      )
+        continue;
+      const entry = {
+        id: item.id.slice(0, 100),
+        rule: item.rule.trim().slice(0, 500),
+        instruction: String(item.instruction || "").slice(0, 800),
+        sourceRule: String(item.sourceRule || "").slice(0, 500),
+        status: ["pending", "added", "dismissed"].includes(item.status) ? item.status : "pending",
+        created: Boolean(item.created),
+        at: Number.isFinite(item.at) ? item.at : Date.now()
+      };
+      suggestionBytes += new TextEncoder().encode(JSON.stringify(entry)).length;
+      if (suggestionBytes > 100 * 1024 || suggestions.length >= 50) break;
+      if (!suggestions.some((saved) => saved.id === entry.id)) suggestions.push(entry);
+    }
+    return { feedback, revisions, attempts, undo, suggestions };
   }
   function resolveCalibratedRule(rule, revisions) {
     let current = rule;

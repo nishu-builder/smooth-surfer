@@ -1328,6 +1328,28 @@ async function verifyExtensionPopupOpens() {
       "judgments do not restore feed posts"
     );
     await chooseInbox("unreviewed");
+    await chooseInbox("bad");
+    await evaluate(
+      client,
+      `(()=>{const note=document.querySelector('textarea');note.value='Allow ordinary requests to share. Add a separate rule: hide sports betting promotions.';note.dispatchEvent(new Event('input',{bubbles:true}));note.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));})()`
+    );
+    await waitForExpression(
+      client,
+      `!document.getElementById('recalibrate').disabled && document.getElementById('status').textContent.includes('Bad ruling saved')`
+    );
+    assert.equal(
+      await evaluate(
+        workerClient,
+        `(async()=> (await SmoothSurferStorage.loadCalibration()).feedback.find(item=>item.judgment==='bad').explanation)()`
+      ),
+      "Allow ordinary requests to share. Add a separate rule: hide sports betting promotions.",
+      "Enter saves an explanation on an already judged ruling"
+    );
+    await evaluate(
+      client,
+      `(()=>{const note=document.querySelector('textarea');note.value+=' This is an independent preference.';note.dispatchEvent(new Event('input',{bubbles:true}));})()`
+    );
+    await chooseInbox("unreviewed");
     // Stub only the external API in this isolated extension worker. Exercise
     // real message routing, rule updates, local feedback, replay, and undo.
     await evaluate(
@@ -1340,7 +1362,8 @@ async function verifyExtensionPopupOpens() {
         const proposal=body.system.startsWith('Revise one');
         const prompt=body.messages[0].content[0].text;
         const rows=proposal ? [] : prompt.split('Items:')[1].trim().split(/\\n\\n/);
-        const value=proposal ? {rule:'Giveaway engagement bait'} : {results:rows.map((row,index)=>({i:index+1,blocked:true,matches:row.includes('chance to win') ? [1,2] : [1],reasons:[]}))};
+        const revised=!proposal && prompt.includes('1. Giveaway engagement bait');
+        const value=proposal ? {rule:'Giveaway engagement bait',reason:'Exclude ordinary requests; keep giveaway incentives.',additions:[{rule:'Sports betting promotions',feedbackIndex:JSON.parse(prompt).examples.findIndex(item=>item.explanation.includes('Add a separate rule'))+1,instruction:'Add a separate rule: hide sports betting promotions.'}]} : {results:rows.map((row,index)=>({i:index+1,blocked:!revised || row.includes('chance to win'),matches:revised ? (row.includes('chance to win') ? [1] : []) : [1],reasons:[]}))};
         return {ok:true,json:async()=>({stop_reason:'end_turn',content:[{type:'text',text:JSON.stringify(value)}]})};
       };
     })()`
@@ -1348,7 +1371,7 @@ async function verifyExtensionPopupOpens() {
     await evaluate(client, `document.getElementById('recalibrate').click()`);
     await waitForExpression(
       client,
-      `document.getElementById('status').textContent === '1 rule updated.'`
+      `document.getElementById('status').textContent === '1 rule updated. 1 additional rule suggested.'`
     );
     const recalibrated = await evaluate(
       workerClient,
@@ -1357,9 +1380,94 @@ async function verifyExtensionPopupOpens() {
     assert.deepEqual(recalibrated, ["Giveaway engagement bait", "Unsubstantiated predictions"]);
     assert.equal(
       await evaluate(workerClient, `calibrationCalls.length`),
-      2,
-      "one proposal plus one independent replay call"
+      3,
+      "proposal, baseline and candidate use independent calls"
     );
+    assert.equal(
+      await evaluate(
+        workerClient,
+        `JSON.parse(calibrationCalls[0].messages[0].content[0].text).examples.some(item=>item.explanation.endsWith('This is an independent preference.'))`
+      ),
+      true,
+      "recalibration saves and includes an explanation draft from another inbox"
+    );
+    assert.equal(
+      await evaluate(client, `document.querySelectorAll('.suggested-rule').length`),
+      1,
+      "explicit requests for a new rule remain visible"
+    );
+    assert.equal(
+      await evaluate(client, `document.querySelectorAll('.replay-example').length`),
+      2,
+      "recalibration exposes per-example replay decisions"
+    );
+    await client.send("Emulation.setDeviceMetricsOverride", {
+      width: 1100,
+      height: 1000,
+      deviceScaleFactor: 1,
+      mobile: false
+    });
+    await evaluate(
+      client,
+      `document.getElementById('calibration-results').scrollIntoView({block:'start'})`
+    );
+    const calibrationScreenshot = await client.send("Page.captureScreenshot", { format: "png" });
+    await writeFile(
+      path.join(cacheDir, "recalibration-results.png"),
+      Buffer.from(calibrationScreenshot.data, "base64")
+    );
+    await client.send("Emulation.setDeviceMetricsOverride", {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 1,
+      mobile: true
+    });
+    await navigate(client, extensionOrigin + "/review.html");
+    await waitForExpression(
+      client,
+      `Boolean(document.querySelector('.suggested-rule[data-state="pending"]'))`
+    );
+    await evaluate(
+      client,
+      `document.querySelector('.suggested-rule[data-state="pending"] button').click()`
+    );
+    await waitForExpression(
+      client,
+      `Boolean(document.querySelector('.suggested-rule[data-state="added"]'))`
+    );
+    await evaluate(
+      client,
+      `document.querySelector('.suggestion-history').open=true;document.querySelector('.suggested-rule[data-state="added"] button').click()`
+    );
+    await waitForExpression(
+      client,
+      `Boolean(document.querySelector('.suggested-rule[data-state="pending"]'))`
+    );
+    assert.equal(
+      await evaluate(
+        workerClient,
+        `(async()=> (await SmoothSurferStorage.loadSettings()).filterCriteria.includes('Sports betting promotions'))()`
+      ),
+      false,
+      "a rule addition can be undone after reload"
+    );
+    await evaluate(
+      client,
+      `document.querySelector('.suggested-rule[data-state="pending"] button').click()`
+    );
+    await waitForExpression(
+      client,
+      `Boolean(document.querySelector('.suggested-rule[data-state="added"]'))`
+    );
+    assert.equal(
+      await evaluate(
+        workerClient,
+        `(async()=> (await SmoothSurferStorage.loadSettings()).filterCriteria.includes('Sports betting promotions'))()`
+      ),
+      true,
+      "a suggested independent rule can be added"
+    );
+
     await evaluate(
       client,
       `document.getElementById('revision-history').open=true;document.querySelector('#revisions button').click()`
@@ -1780,6 +1888,8 @@ async function waitForExpression(client, expression) {
     `({
     url: location.href,
     title: document.title,
+    status: document.getElementById('status')?.textContent,
+    outcomes: document.getElementById('calibration-results')?.textContent.slice(0,1200),
     text: document.body ? document.body.innerText.slice(0, 300) : ""
   })`
   );

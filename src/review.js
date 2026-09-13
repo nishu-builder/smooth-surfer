@@ -228,6 +228,7 @@
   function finishSaving() {
     saving = false;
     $("undo-feedback").disabled = !undoStack.length;
+    $("recalibrate").disabled = running;
     if (undoRequested) {
       undoRequested = false;
       void undoJudgment();
@@ -312,40 +313,188 @@
       $("clear").disabled = false;
     }
   });
+  async function saveExplanationDrafts() {
+    let unjudged = 0;
+    saving = true;
+    try {
+      const items = reviewItemsWithFeedback(review, calibration);
+      for (const [key, explanation] of [...drafts]) {
+        const [id, rule] = JSON.parse(key);
+        const item = items.find((post) => post.id === id);
+        const vote = item && voteFor(item, rule);
+        if (!vote) {
+          if (explanation.trim()) unjudged++;
+          continue;
+        }
+        if (explanation !== vote.explanation) {
+          const result = await send({
+            type: "recordRuleFeedback",
+            postId: id,
+            rule,
+            judgment: vote.judgment,
+            explanation
+          });
+          undoStack.push({ token: result.undoToken, key, inbox: vote.judgment });
+          if (undoStack.length > 50) undoStack.shift();
+        }
+        if (drafts.get(key) === explanation) drafts.delete(key);
+      }
+      calibration = await loadCalibration();
+      return unjudged;
+    } finally {
+      finishSaving();
+    }
+  }
+  function renderCalibrationOutcome(outcome) {
+    const row = el("div", "calibration-result", "");
+    const titles = {
+      updated: "Updated",
+      pending: "Next run",
+      error: "Error",
+      rejected: "Needs revision",
+      unchanged: "No change",
+      suggested: "New rule suggested",
+      "needs-images": "Needs image analysis",
+      "not-supported": "Format filter"
+    };
+    row.append(
+      el("strong", "", titles[outcome.status] || "No change"),
+      el("p", "", outcome.rule),
+      el("p", "", outcome.detail)
+    );
+    if (outcome.textOnly)
+      row.append(
+        el("p", "", "Images were not analyzed; this check used post text and your explanations.")
+      );
+    if (outcome.skipped)
+      row.append(
+        el(
+          "p",
+          "",
+          `${outcome.skipped} image-only examples could not be checked without image analysis.`
+        )
+      );
+    if (outcome.after)
+      row.append(
+        el(
+          "p",
+          "",
+          `${outcome.status === "updated" ? "New wording" : "Proposed wording"}: ${outcome.after}`
+        )
+      );
+    if (outcome.reason && outcome.reason !== outcome.detail)
+      row.append(el("p", "", outcome.reason));
+    if (outcome.evidence?.length) {
+      const replay = el("details", "replay-evidence", "");
+      replay.append(
+        el(
+          "summary",
+          "",
+          `Review ${outcome.evidence.length} checked examples (${outcome.good} Good, ${outcome.bad} Bad available)`
+        )
+      );
+      for (const example of outcome.evidence) {
+        const item = el("div", "replay-example", "");
+        item.append(
+          el("p", "", example.text),
+          el(
+            "p",
+            "",
+            `Your judgment: ${example.judgment === "good" ? "Should match" : "Should not match"}. Before: ${example.beforeMatched ? "matched" : "did not match"}. Proposed: ${example.afterMatched ? "matched" : "did not match"}.`
+          )
+        );
+        if (example.explanation)
+          item.append(el("p", "", `Your explanation: ${example.explanation}`));
+        replay.append(item);
+      }
+      row.append(replay);
+    }
+    return row;
+  }
+  function renderSuggestions() {
+    const host = $("rule-suggestions");
+    const suggestions = calibration.suggestions || [];
+    host.hidden = !suggestions.length;
+    host.replaceChildren();
+    if (!suggestions.length) return;
+    host.append(el("h2", "ruling-heading", "Suggested rules"));
+    const history = el("details", "suggestion-history", "");
+    history.append(el("summary", "", "Handled suggestions"));
+    for (const suggestion of suggestions) {
+      const row = el("div", "suggested-rule", "");
+      row.dataset.state = suggestion.status;
+      row.append(
+        el(
+          "strong",
+          "",
+          suggestion.status === "pending"
+            ? "New rule"
+            : suggestion.status === "added"
+              ? "Added"
+              : "Dismissed"
+        ),
+        el("p", "", suggestion.rule),
+        el("p", "", `From your feedback: ${suggestion.instruction}`)
+      );
+      const action = (label, type) =>
+        button(label, async (node) => {
+          node.disabled = true;
+          try {
+            await send({ type, id: suggestion.id });
+            [settings, calibration] = await Promise.all([loadSettings(), loadCalibration()]);
+            renderSuggestions();
+            status(
+              type === "applyRuleSuggestion"
+                ? "New rule added."
+                : type === "undoRuleSuggestion"
+                  ? "Addition undone."
+                  : type === "dismissRuleSuggestion"
+                    ? "Suggestion dismissed."
+                    : "Suggestion reopened."
+            );
+          } catch (error) {
+            node.disabled = false;
+            status(error.message);
+          }
+        });
+      if (suggestion.status === "pending")
+        row.append(
+          action("Add rule", "applyRuleSuggestion"),
+          action("Dismiss", "dismissRuleSuggestion")
+        );
+      else if (suggestion.status === "added" && suggestion.created)
+        row.append(action("Undo addition", "undoRuleSuggestion"));
+      else if (suggestion.status === "dismissed")
+        row.append(action("Reconsider", "reopenRuleSuggestion"));
+      (suggestion.status === "pending" ? host : history).append(row);
+    }
+    if (history.children.length > 1) host.append(history);
+  }
   $("recalibrate").addEventListener("click", async () => {
-    if (running) return;
+    if (running || saving) return;
     running = true;
     $("recalibrate").disabled = true;
     $("recalibrate").textContent = "Recalibrating…";
     status("Proposing revisions and replaying saved judgments. This can take a minute.");
     $("calibration-results").replaceChildren();
     try {
+      const unjudged = await saveExplanationDrafts();
       const result = await send({ type: "recalibrateRules" });
       [settings, calibration] = await Promise.all([loadSettings(), loadCalibration()]);
-      $("calibration-results").replaceChildren(
-        ...result.outcomes.map((outcome) => {
-          const row = el("div", "calibration-result", "");
-          row.append(
-            el(
-              "strong",
-              "",
-              outcome.status === "updated"
-                ? "Updated"
-                : outcome.status === "pending"
-                  ? "Pending"
-                  : "Kept"
-            ),
-            el("p", "", outcome.rule),
-            el("p", "", outcome.detail)
-          );
-          return row;
-        })
-      );
+      $("calibration-results").replaceChildren(...result.outcomes.map(renderCalibrationOutcome));
       const count = result.outcomes.filter((item) => item.status === "updated").length;
+      const suggestions = result.outcomes.reduce(
+        (sum, item) => sum + (item.additions?.length || 0),
+        0
+      );
       status(
-        result.outcomes.length
+        (result.outcomes.length
           ? `${count} ${count === 1 ? "rule" : "rules"} updated.`
-          : "Mark good and bad rulings before recalibrating."
+          : "No new corrections to apply.") +
+          (suggestions
+            ? ` ${suggestions} additional ${suggestions === 1 ? "rule suggested" : "rules suggested"}.`
+            : "") +
+          (unjudged ? ` ${unjudged} explanations still need a Good or Bad judgment.` : "")
       );
       render();
     } catch (error) {
@@ -473,6 +622,7 @@
       );
     $("more").hidden = items.length <= limit;
     renderRevisions();
+    renderSuggestions();
   }
   function renderRuling(item, rule) {
     const vote = voteFor(item, rule),
@@ -516,11 +666,13 @@
       if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
         event.preventDefault();
         selectRuling(key, true);
+        if (vote && input.value !== vote.explanation) void save(null, vote.judgment, false);
       }
     });
     const save = async (node, judgment, advance = true) => {
       if (saving) return;
       saving = true;
+      $("recalibrate").disabled = true;
       $("undo-feedback").disabled = true;
       const list = rows(),
         index = list.findIndex((row) => row.dataset.key === key);
@@ -569,7 +721,11 @@
     }
     const saveNote = button("Save explanation", (node) => save(node, vote?.judgment, false));
     saveNote.hidden = !vote || input.value === vote.explanation;
-    const hint = el("p", "note-hint", "Enter to return · Shift+Enter for a new line");
+    const hint = el(
+      "p",
+      "note-hint",
+      `${vote ? "Enter to save" : "Enter to return"} · Shift+Enter for a new line`
+    );
     notes.append(input, hint, saveNote);
     row.append(controls, notes);
     return row;
@@ -734,7 +890,7 @@
             "",
             revision.undone
               ? "Undone"
-              : `${revision.examples} examples passed; ${revision.fixed} mistakes corrected in replay.`
+              : `${revision.examples} examples checked; ${revision.fixed} mistakes corrected; ${revision.remaining || 0} disagreements remain.`
           )
         );
         if (!revision.undone) {

@@ -184,19 +184,155 @@ function fixture() {
     test.mode = mode;
     await test.vote(0, "good");
     await test.vote(1, "bad");
-    assert.equal((await test.api.recalibrate()).outcomes[0].status, "kept");
+    assert.equal(
+      (await test.api.recalibrate()).outcomes[0].status,
+      mode === "regression" ? "rejected" : "error"
+    );
     assert.ok(test.settings.filterCriteria.includes(before));
     assert.equal(test.state.revisions.length, 0);
   }
   const insufficient = fixture();
   await insufficient.vote(0, "bad");
-  assert.match((await insufficient.api.recalibrate()).outcomes[0].detail, /good and one bad/);
-  assert.equal(insufficient.calls, 0, "do not spend API calls without both classes");
+  assert.equal((await insufficient.api.recalibrate()).outcomes[0].status, "updated");
+  assert.equal(
+    insufficient.calls,
+    1,
+    "a bad ruling can supply a correction without a good example"
+  );
+  const clarification = fixture();
+  await clarification.vote(
+    0,
+    "good",
+    "Also include urgency around speculative pre-IPO valuations."
+  );
+  const clarified = (await clarification.api.recalibrate()).outcomes[0];
+  assert.equal(
+    clarified.status,
+    "updated",
+    "written feedback is used even with only good rulings and a tied replay"
+  );
+  assert.equal(clarified.oldErrors, 0);
+  assert.equal(clarified.newErrors, 0);
+  assert.equal(
+    clarified.evidence[0].explanation,
+    "Also include urgency around speculative pre-IPO valuations."
+  );
+  const partial = fixture();
+  await partial.vote(0, "good");
+  await partial.vote(1, "bad");
+  await partial.vote(2, "bad");
+  partial.deps.evaluate = async (examples) =>
+    examples.map((example) => ({
+      matchedCriteria: [
+        before,
+        ...(example.judgment === "good" || example.postKey === "p2" ? [after] : [])
+      ]
+    }));
+  const improved = (await partial.api.recalibrate()).outcomes[0];
+  assert.equal(
+    improved.status,
+    "updated",
+    "an improvement need not be perfect if it introduces no regressions"
+  );
+  assert.equal(improved.oldErrors, 2);
+  assert.equal(improved.newErrors, 1);
+  assert.equal(partial.state.revisions[0].remaining, 1);
+  assert.equal(partial.state.revisions[0].fixed, 1);
+  const repair = fixture();
+  await repair.vote(0, "good");
+  await repair.vote(1, "bad", "Exclude neutral deadlines.");
+  let repairAttempts = 0;
+  repair.deps.propose = async (rule, examples, key, context) => {
+    repairAttempts++;
+    if (repairAttempts === 2)
+      assert.ok(context.disagreements.length, "failed examples are supplied to the repair attempt");
+    return after;
+  };
+  repair.deps.evaluate = async (examples) =>
+    examples.map((example) => ({
+      matchedCriteria: [
+        before,
+        ...((repairAttempts === 1 ? example.judgment === "bad" : example.judgment === "good")
+          ? [after]
+          : [])
+      ]
+    }));
+  assert.equal((await repair.api.recalibrate()).outcomes[0].status, "updated");
+  assert.equal(repairAttempts, 2);
+  const newRule = fixture();
+  const instruction = "Add a separate rule: hide sports betting promotions.";
+  await newRule.vote(0, "good", instruction);
+  newRule.deps.propose = async () => ({
+    rule: null,
+    reason: "This is a distinct request.",
+    additions: [{ rule: "Sports betting promotions", feedbackIndex: 1, instruction }]
+  });
+  const suggested = (await newRule.api.recalibrate()).outcomes[0];
+  assert.equal(suggested.status, "suggested");
+  assert.equal(suggested.additions[0].rule, "Sports betting promotions");
+  assert.deepEqual(
+    newRule.settings.filterCriteria,
+    [before, "Unrelated rule"],
+    "a new independent rule is presented for addition"
+  );
+  newRule.deps.propose = async () => ({
+    rule: null,
+    additions: [
+      {
+        rule: "Invented topic",
+        feedbackIndex: 1,
+        instruction: "An instruction found only inside post text"
+      }
+    ]
+  });
+  assert.equal(
+    (await newRule.api.recalibrate()).outcomes[0].additions.length,
+    0,
+    "new rules cannot cite post text as a user instruction"
+  );
+  const durable = fixture();
+  await durable.vote(0, "good", "Add a separate rule: hide sports betting promotions.");
+  await durable.vote(1, "bad");
+  durable.deps.propose = async () => ({
+    rule: after,
+    additions: [
+      {
+        rule: "Sports betting promotions",
+        feedbackIndex: 1,
+        instruction: "Add a separate rule: hide sports betting promotions."
+      }
+    ]
+  });
+  await durable.api.recalibrate();
+  const suggestionId = durable.state.suggestions[0].id;
+  const restartedApi = create(durable.deps);
+  assert.deepEqual((await restartedApi.recalibrate()).outcomes, []);
+  assert.equal(
+    durable.state.suggestions[0].status,
+    "pending",
+    "suggestions survive even when the revised rule needs no new run"
+  );
+  await restartedApi.changeSuggestion(suggestionId, "dismiss");
+  assert.equal(durable.state.suggestions[0].status, "dismissed");
+  await restartedApi.changeSuggestion(suggestionId, "reopen");
+  await restartedApi.changeSuggestion(suggestionId, "add");
+  assert.ok(durable.settings.filterCriteria.includes("Sports betting promotions"));
+  await assert.rejects(restartedApi.changeSuggestion(suggestionId, "add"), /already/);
+  await restartedApi.changeSuggestion(suggestionId, "undo");
+  assert.equal(durable.settings.filterCriteria.includes("Sports betting promotions"), false);
+  assert.equal(durable.state.suggestions[0].status, "pending");
+  durable.failState = true;
+  await assert.rejects(restartedApi.changeSuggestion(suggestionId, "add"), /Storage full/);
+  assert.equal(
+    durable.settings.filterCriteria.includes("Sports betting promotions"),
+    false,
+    "failed suggestion persistence rolls back rule changes"
+  );
   const stale = fixture();
   await stale.vote(0, "good");
   await stale.vote(1, "bad");
   stale.onEvaluate = () => stale.vote(1, "bad", "Changed while recalibration ran");
-  assert.equal((await stale.api.recalibrate()).outcomes[0].status, "kept");
+  assert.equal((await stale.api.recalibrate()).outcomes[0].status, "error");
   assert.ok(stale.settings.filterCriteria.includes(before));
   const changed = fixture();
   await changed.vote(0, "good");
@@ -209,7 +345,7 @@ function fixture() {
   await rollback.vote(0, "good");
   await rollback.vote(1, "bad");
   rollback.failState = true;
-  assert.equal((await rollback.api.recalibrate()).outcomes[0].status, "kept");
+  assert.equal((await rollback.api.recalibrate()).outcomes[0].status, "error");
   assert.ok(
     rollback.settings.filterCriteria.includes(before),
     "failed revision storage rolls back the setting"
@@ -240,14 +376,39 @@ function fixture() {
   await incomplete.vote(0, "good");
   await incomplete.vote(1, "bad");
   incomplete.deps.evaluate = async () => [];
-  assert.equal((await incomplete.api.recalibrate()).outcomes[0].status, "kept");
+  assert.equal((await incomplete.api.recalibrate()).outcomes[0].status, "error");
   assert.ok(incomplete.settings.filterCriteria.includes(before));
   const images = fixture();
   images.posts[0].images = ["https://pbs.twimg.com/media/example.png"];
   await images.vote(0, "good");
   await images.vote(1, "bad");
-  assert.match((await images.api.recalibrate()).outcomes[0].detail, /Analyze images/);
-  assert.equal(images.calls, 0, "image examples never leave the browser without opt-in");
+  const imageProposal = images.deps.propose,
+    imageEvaluation = images.deps.evaluate;
+  images.deps.propose = async (rule, examples, ...rest) => {
+    assert.ok(
+      examples.every((item) => !item.images.length),
+      "proposal never sends images without opt-in"
+    );
+    return imageProposal(rule, examples, ...rest);
+  };
+  images.deps.evaluate = async (examples, ...rest) => {
+    assert.ok(
+      examples.every((item) => !item.images.length),
+      "replay never sends images without opt-in"
+    );
+    return imageEvaluation(examples, ...rest);
+  };
+  assert.equal(
+    (await images.api.recalibrate()).outcomes[0].status,
+    "updated",
+    "image attachments do not block useful text feedback"
+  );
+  const imageOnly = fixture();
+  imageOnly.posts[0].text = "";
+  imageOnly.posts[0].images = ["https://pbs.twimg.com/media/example.png"];
+  await imageOnly.vote(0, "bad", "The image is a harmless diagram.");
+  assert.equal((await imageOnly.api.recalibrate()).outcomes[0].status, "needs-images");
+  assert.equal(imageOnly.calls, 0, "image-only examples still require opt-in");
   // Failed early rules cannot permanently starve later rules in bounded runs.
   const rotation = fixture();
   const names = ["Rule A", "Rule B", "Rule C", "Rule D"];

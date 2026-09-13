@@ -141,3 +141,11 @@ dialog p { color: var(--ss-muted); }
 
 .return-to-queue { margin-bottom: 6px; }
 @media (max-width: 600px) { .inboxes { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.replay-evidence summary { cursor: pointer; margin-top: 8px; font: 11px var(--ss-mono); }
+.replay-example, .suggested-rule { border-top: 1px solid var(--ss-line); margin-top: 8px; padding-top: 8px; }
+
+#rule-suggestions { border: 1px solid var(--ss-line); padding: 10px; margin: 8px 0; font-size: 12px; }
+.suggested-rule p { margin: 4px 0; }
+.suggested-rule button + button { margin-left: 6px; }
+.suggestion-history summary { cursor: pointer; margin-top: 8px; font: 11px var(--ss-mono); }

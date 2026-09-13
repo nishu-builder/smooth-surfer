@@ -29,9 +29,14 @@ its inbox. Votes save your judgment; they do not restore the post or change a
 rule immediately.
 
 **Recalibrate rules** uses your API key to propose revisions and replay saved
-examples. Each rule needs at least one good and one bad example. A revision
-applies only if it improves the original and passes every selected example.
-Otherwise the rule stays as it is. The last 30 revisions support undo. This is
+examples. Corrections and written explanations can be used without both label
+classes. Revisions must improve the replay without introducing regressions;
+written feedback can also justify clearer wording when both versions pass.
+Results show the proposed wording, per-example decisions, and any additional
+rules suggested by your instructions. Suggestions stay available across sessions,
+with controls to add, dismiss, reconsider, or undo an addition.
+Enter saves edited explanations; starting
+recalibration saves remaining drafts on judged rulings. The last 30 revisions support undo. This is
 calibration against your examples, not a guarantee of future accuracy. See
 [the algorithm](docs/CALIBRATION.md).
 

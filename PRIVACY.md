@@ -21,3 +21,7 @@ Good ruling / Bad ruling judgments and optional explanations are stored locally,
 X posts default to native embeds, loaded near the viewport in a cross-origin frame with no access to extension data or APIs. Only the public post ID is supplied to the renderer. This contacts X and its media providers; X’s own privacy policy applies. The frame requests do-not-track mode. Choose Saved copies to avoid loading native embeds. Saved copies remain available if X cannot render a post. Feedback records also retain the saved author, post link, display data, and reasons so both good and bad examples remain reviewable after the seven-day history expires, within the feedback count and byte limits.
 
 Undo keeps up to 50 prior judgment receipts locally within 512 KB so a background-worker restart does not disable undo. These receipts are not sent to Anthropic.
+
+Rule suggestions retain the proposed rule, its source rule, the supporting excerpt
+from your explanation, and its pending/added/dismissed status locally. Up to 50
+suggestions are kept within 100 KB so they remain available across review sessions.
