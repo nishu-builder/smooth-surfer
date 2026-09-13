@@ -15,6 +15,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { verifyTwitterFeed, twitterFilterFixture } from "./twitter-feed.test.mjs";
+
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cacheDir = path.join(root, ".cache");
 
@@ -82,8 +84,8 @@ class CdpClient {
 const tmpDir = await mkdtemp(path.join(os.tmpdir(), "smooth-surfer-chrome-"));
 const profileDir = path.join(tmpDir, "profile");
 const fixturePath = path.join(tmpDir, "youtube-fixture.html");
-const port = await getFreePort();
-const fixturePort = await getFreePort();
+const port = Number(process.env.CHROME_DEBUG_PORT) || await getFreePort();
+const fixturePort = Number(process.env.FIXTURE_PORT) || await getFreePort();
 const fixtureServer = createFixtureServer();
 
 await listen(fixtureServer, fixturePort);
@@ -388,6 +390,8 @@ try {
   assert.equal(twitterContentState.linkedinHidden, false);
   assert.equal(twitterContentState.trendDisplay, "none");
 
+  await verifyTwitterFeed({ client, navigate, evaluate, waitForExpression, baseUrl: `http://twitter.com.test:${fixturePort}` });
+
   await navigate(client, `http://reddit.com.test:${fixturePort}/reddit-content.html`);
   await waitForExpression(
     client,
@@ -451,8 +455,8 @@ await verifyExtensionPopupOpens();
 
 async function verifyExtensionPopupOpens() {
   const extProfileDir = await mkdtemp(path.join(os.tmpdir(), "smooth-surfer-ext-"));
-  const debugPort = await getFreePort();
-  const barePort = await getFreePort();
+  const debugPort = Number(process.env.CHROME_DEBUG_PORT) || await getFreePort();
+  const barePort = Number(process.env.FIXTURE_PORT) || await getFreePort();
   const bareServer = http.createServer((request, response) => {
     sendHtml(
       response,
@@ -737,6 +741,11 @@ function createFixtureServer() {
   return http.createServer(async (request, response) => {
     try {
       const requestUrl = new URL(request.url, "http://localhost");
+
+      if (requestUrl.pathname === "/twitter-filter-test") {
+        sendHtml(response, twitterFilterFixture());
+        return;
+      }
 
       if (requestUrl.pathname === "/youtube-content.html") {
         sendHtml(response, youtubeContentFixture());

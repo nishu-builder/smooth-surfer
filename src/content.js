@@ -9,6 +9,10 @@
   } = window.SmoothSurferStorage;
   const { getPlatformForUrl, isWithinFocusWindow } = window.SmoothSurferSettings;
   const SCAN_DEBOUNCE_MS = 120;
+  const CLASSIFICATION_TIMEOUT_MS = 12000;
+  const CLASSIFICATION_RETRY_MS = 30000;
+  const CLASSIFICATION_CACHE_LIMIT = 500;
+  const TWEET_FADE_MS = 160;
   const SPEED_MIN = 0.25;
   const SPEED_MAX = 4;
   const SPEED_STEP = 0.25;
@@ -60,6 +64,11 @@
   let speedToastTimer = 0;
   let lastSettingsHotkeyTime = 0;
   const modelClassifications = new Map();
+  const inFlightClassifications = new Map();
+  const pendingClassifications = new WeakMap();
+  const tweetIdentities = new WeakMap();
+  const tweetFadeTimers = new WeakMap();
+  let classificationEpoch = 0;
   const recordedStatKeys = new Set();
   const recordedConsumptionKeys = new Set();
 
@@ -76,27 +85,29 @@
       secrets = loadedSecrets;
       whenBodyReady(() => {
         applyEffects();
+        scanPage();
         startPageObserver();
       });
     });
 
     watchSettings((nextSettings) => {
-      // Keys embed the criteria, so stale entries self-invalidate; only a
-      // criteria change needs a flush. Clearing on every toggle would send
-      // all visible posts back through pending-hidden review.
-      const criteriaChanged =
-        JSON.stringify(nextSettings.filterCriteria) !== JSON.stringify(settings.filterCriteria);
-
-      settings = nextSettings;
-
-      if (criteriaChanged) {
-        modelClassifications.clear();
+      const contentSettings = [
+        "enabled", "filterCriteria", "consumptionFactsEnabled",
+        "focusScheduleEnabled", "focusScheduleStart", "focusScheduleEnd",
+        ...Object.values(CONTENT_FILTER_SETTING_BY_PLATFORM)
+      ];
+      if (contentSettings.some((key) => JSON.stringify(nextSettings[key]) !== JSON.stringify(settings[key]))) {
+        const verdictsChanged = nextSettings.consumptionFactsEnabled !== settings.consumptionFactsEnabled ||
+          JSON.stringify(nextSettings.filterCriteria) !== JSON.stringify(settings.filterCriteria);
+        resetClassifications(verdictsChanged);
       }
+      settings = nextSettings;
 
       applyEffects();
     });
 
     watchSecrets((nextSecrets) => {
+      resetClassifications();
       secrets = nextSecrets;
       applyEffects();
     });
@@ -210,15 +221,17 @@
     }
 
     observer = new MutationObserver((mutations) => {
-      // Process new feed items synchronously, before the next paint: cached
-      // verdicts apply with no flash, and unknown items start hidden instead
-      // of rendering and vanishing once their classification arrives.
+      // React can replace a tweet or mutate its text in an existing cell.
+      // Reconcile those cells before paint, including cached blocked posts.
       fastProcessAddedNodes(mutations);
       scheduleScan();
     });
     observer.observe(document.body, {
       childList: true,
-      subtree: true
+      subtree: true,
+      characterData: platform === "twitter",
+      attributes: platform === "twitter",
+      attributeFilter: platform === "twitter" ? ["href", "data-testid", "alt"] : undefined
     });
 
     window.setInterval(scheduleScan, 2000);
@@ -226,11 +239,15 @@
   }
 
   function scheduleScan() {
-    window.clearTimeout(scanTimer);
-    scanTimer = window.setTimeout(scanPage, SCAN_DEBOUNCE_MS);
+    // A trailing debounce never runs during continuous scrolling/mutations.
+    if (!scanTimer) {
+      scanTimer = window.setTimeout(scanPage, SCAN_DEBOUNCE_MS);
+    }
   }
 
   function scanPage() {
+    window.clearTimeout(scanTimer);
+    scanTimer = 0;
     if (effectsEnabled() !== lastEffectsActive) {
       applyRootClasses();
     }
@@ -362,6 +379,11 @@
 
   function processTweetArticle(article, canFilterContent) {
     const container = getTweetContainer(article);
+    const identity = getTweetIdentity(article);
+    if (tweetIdentities.get(container) !== identity) {
+      restoreElement(container);
+      tweetIdentities.set(container, identity);
+    }
     const reasons = [];
 
     if (settings.twitterHideAds && isPromotedTweet(article)) {
@@ -369,7 +391,7 @@
     }
 
     if (reasons.length > 0) {
-      hideTweet(container, reasons);
+      hideTweet(container, reasons, true);
       return;
     }
 
@@ -391,22 +413,26 @@
       return;
     }
 
+    const articles = new Set();
+    const collect = (node, descendants = false) => {
+      const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+      if (!element || !element.isConnected) return;
+      const article = element.closest('article[data-testid="tweet"]');
+      if (article) articles.add(article);
+      if (descendants || element.matches('[data-testid="cellInnerDiv"]')) {
+        element.querySelectorAll('article[data-testid="tweet"]').forEach((tweet) => articles.add(tweet));
+      }
+      const cell = element.closest('[data-testid="cellInnerDiv"]');
+      if (cell && !cell.querySelector('article[data-testid="tweet"]') &&
+          cell.dataset.smoothSurferHiddenKind === "tweet") {
+        restoreElement(cell);
+      }
+    };
     mutations.forEach((mutation) => {
-      mutation.addedNodes.forEach((node) => {
-        if (node.nodeType !== Node.ELEMENT_NODE) {
-          return;
-        }
-
-        if (node.matches('article[data-testid="tweet"]')) {
-          processTweetArticle(node, canFilterContent);
-          return;
-        }
-
-        node.querySelectorAll('article[data-testid="tweet"]').forEach((article) => {
-          processTweetArticle(article, canFilterContent);
-        });
-      });
+      collect(mutation.target);
+      mutation.addedNodes.forEach((node) => collect(node, true));
     });
+    articles.forEach((article) => processTweetArticle(article, canFilterContent));
   }
 
   function scanRedditPage() {
@@ -867,9 +893,30 @@
     }, 900);
   }
 
-  function requestModelClassification(container, text, kind) {
-    const normalizedText = normalizeInlineText(text);
+  function resetClassifications(clearCache = true) {
+    classificationEpoch += 1;
+    inFlightClassifications.clear();
+    if (clearCache) {
+      modelClassifications.clear();
+    } else {
+      // An on/off toggle invalidates callbacks, not already known verdicts.
+      // Retry transient failures immediately when filtering is re-enabled.
+      for (const [key, result] of modelClassifications) {
+        if (result.retryAt) modelClassifications.delete(key);
+      }
+    }
+  }
 
+  function cacheClassification(key, result) {
+    modelClassifications.delete(key);
+    modelClassifications.set(key, result);
+    if (modelClassifications.size > CLASSIFICATION_CACHE_LIMIT) {
+      modelClassifications.delete(modelClassifications.keys().next().value);
+    }
+  }
+
+  function requestModelClassification(container, text, kind) {
+    const normalizedText = normalizeInlineText(text).slice(0, 2000);
     if (!normalizedText) {
       restoreContentElement(container, kind);
       return;
@@ -877,72 +924,86 @@
 
     const key = getClassificationKey(normalizedText);
     const cached = modelClassifications.get(key);
-
-    if (cached) {
-      recordConsumptionStat(key, cached);
-      applyModelClassification(container, cached, kind);
+    if (cached && (!cached.retryAt || cached.retryAt > Date.now())) {
+      pendingClassifications.delete(container);
+      delete container.dataset.smoothSurferPendingKey;
+      applyModelClassification(container, cached, kind, true);
+      recordConsumptionStat(key, cached, container);
       return;
     }
 
-    if (container.dataset.smoothSurferPendingKey === key) {
-      return;
-    }
+    const existing = pendingClassifications.get(container);
+    if (existing && existing.key === key && existing.epoch === classificationEpoch) return;
 
+    const request = {
+      key,
+      epoch: classificationEpoch,
+      identity: kind === "tweet" ? getTweetIdentity(getTweetArticle(container)) : null
+    };
+    pendingClassifications.set(container, request);
     container.dataset.smoothSurferPendingKey = key;
-
-    if (!hasChromeRuntime()) {
-      const fallback = {
-        blocked: false,
-        reasons: []
-      };
-      modelClassifications.set(key, fallback);
-      applyModelClassification(container, fallback, kind);
-      return;
-    }
-
-    // Hold the item hidden until the verdict arrives. Revealing late beats
-    // rendering content and yanking it out of the feed once Haiku answers.
     markPendingContent(container, kind);
 
-    chrome.runtime.sendMessage(
-      {
-        type: "classifyContent",
-        source: platform,
-        text: normalizedText
-      },
-      (response) => {
-        delete container.dataset.smoothSurferPendingKey;
-
-        if (chrome.runtime.lastError) {
-          restoreContentElement(container, kind);
-          return;
+    let promise = inFlightClassifications.get(key);
+    if (!promise) {
+      promise = new Promise((resolve) => {
+        let finished = false;
+        const finish = (response) => {
+          if (finished) return;
+          finished = true;
+          window.clearTimeout(timeout);
+          const result = response && typeof response.blocked === "boolean" ? response : {
+            blocked: false, reasons: [], classifier: "error"
+          };
+          if (result.classifier === "error" || result.classifier === "disabled") {
+            result.retryAt = Date.now() + CLASSIFICATION_RETRY_MS;
+          }
+          if (request.epoch === classificationEpoch) cacheClassification(key, result);
+          resolve(result);
+        };
+        const timeout = window.setTimeout(() => finish(null), CLASSIFICATION_TIMEOUT_MS);
+        try {
+          if (!hasChromeRuntime()) {
+            finish(null);
+          } else {
+            chrome.runtime.sendMessage(
+              { type: "classifyContent", source: platform, text: normalizedText },
+              (response) => finish(chrome.runtime.lastError ? null : response)
+            );
+          }
+        } catch (error) {
+          // Extension reloads can invalidate the runtime while a tab stays open.
+          finish(null);
         }
+      });
+      inFlightClassifications.set(key, promise);
+      promise.then(() => {
+        if (inFlightClassifications.get(key) === promise) inFlightClassifications.delete(key);
+      });
+    }
 
-        const result = response || { blocked: false, reasons: [] };
-
-        // Error fallbacks are transient; caching them would permanently mark
-        // the post clean. Leave them uncached so a later scan retries.
-        if (result.classifier !== "error") {
-          modelClassifications.set(key, result);
-        }
-
-        recordConsumptionStat(key, result);
-        applyModelClassification(container, result, kind);
-      }
-    );
+    promise.then((result) => {
+      if (!container.isConnected || pendingClassifications.get(container) !== request ||
+          request.epoch !== classificationEpoch || !canFilterPlatformContent(platform)) return;
+      if (kind === "tweet" && request.identity !== getTweetIdentity(getTweetArticle(container))) return;
+      pendingClassifications.delete(container);
+      delete container.dataset.smoothSurferPendingKey;
+      applyModelClassification(container, result, kind);
+      recordConsumptionStat(key, result, container);
+    });
   }
 
-  function applyModelClassification(container, classification, kind) {
+  function applyModelClassification(container, classification, kind, immediate = false) {
     if (classification.blocked) {
-      hideContentElement(container, classification.reasons, kind);
+      hideContentElement(container, classification.reasons || [], kind, immediate);
     } else {
       restoreContentElement(container, kind);
     }
   }
 
-  function recordConsumptionStat(key, result) {
-    // Only posts the user actually gets to see count as consumed: blocked
-    // posts never reach the eyes, and disabled/error verdicts carry no tags.
+  function recordConsumptionStat(key, result, container) {
+    // Count approved posts only when they intersect the viewport. Pending,
+    // blocked, disabled and failed classifications do not count as consumed.
     if (
       !settings.consumptionFactsEnabled ||
       result.blocked ||
@@ -953,6 +1014,8 @@
       return;
     }
 
+    const rect = container.getBoundingClientRect();
+    if (rect.bottom <= 0 || rect.top >= window.innerHeight || rect.height === 0) return;
     recordedConsumptionKeys.add(key);
     chrome.runtime.sendMessage({
       type: "recordConsumption",
@@ -996,22 +1059,36 @@
     }
 
     return Array.from(article.querySelectorAll("span, div")).some((element) => {
+      // A tweet or quoted post saying "Ad" is not an advertising label.
+      if (element.closest('[data-testid="tweetText"], [data-testid="card.wrapper"], [role="link"]')) return false;
       const text = normalizeInlineText(element.textContent);
-      return text === "Promoted" || text === "Ad";
+      return element.children.length === 0 && (text === "Promoted" || text === "Ad");
     });
   }
 
+  function getTweetArticle(container) {
+    return container.matches('article[data-testid="tweet"]') ? container :
+      container.querySelector('article[data-testid="tweet"]');
+  }
+
+  function getTweetIdentity(article) {
+    if (!article) return "";
+    const permalink = article.querySelector('a[href*="/status/"] time')?.closest("a");
+    return `${permalink?.getAttribute("href") || ""}|${getTweetText(article)}`;
+  }
+
   function getTweetText(article) {
-    const tweetTextNodes = Array.from(article.querySelectorAll('[data-testid="tweetText"]'));
-
-    // textContent, not innerText: innerText changes once the element is
-    // display:none, which would give hidden tweets a new classification key
-    // and make them oscillate between hidden and restored.
-    if (tweetTextNodes.length > 0) {
-      return tweetTextNodes.map((node) => node.textContent || "").join(" ");
-    }
-
-    return article.textContent || "";
+    if (!article) return "";
+    // Only stable content participates in classification: live counts, relative
+    // timestamps and action labels otherwise cause repeated requests on media posts.
+    const parts = Array.from(article.querySelectorAll(
+      '[data-testid="tweetText"], [data-testid="card.wrapper"]'
+    )).map((node) => node.textContent || "");
+    article.querySelectorAll('[data-testid="tweetPhoto"] img[alt]').forEach((image) => {
+      const alt = image.getAttribute("alt");
+      if (alt && alt !== "Image") parts.push(alt);
+    });
+    return normalizeInlineText(parts.join(" "));
   }
 
   function getTweetContainer(article) {
@@ -1105,12 +1182,19 @@
     });
   }
 
-  function hideTweet(container, reasons) {
-    hideElement(container, reasons, "tweet");
+  function hideTweet(container, reasons, immediate = false) {
+    hideElement(container, reasons, "tweet", immediate);
   }
 
   function markPendingContent(container, kind) {
-    markPendingElement(container, kind);
+    if (kind === "tweet") {
+      // Keep X's measured cell height intact while waiting. Collapsing every
+      // unknown post makes its virtual timeline repeatedly shrink and expand.
+      container.dataset.smoothSurferPending = "true";
+      container.dataset.smoothSurferHiddenKind = kind;
+    } else {
+      markPendingElement(container, kind);
+    }
 
     if (kind === "hacker-news-story") {
       const metaRow = getHackerNewsMetaRow(container);
@@ -1136,8 +1220,8 @@
     }
   }
 
-  function hideContentElement(container, reasons, kind) {
-    hideElement(container, reasons, kind);
+  function hideContentElement(container, reasons, kind, immediate = false) {
+    hideElement(container, reasons, kind, immediate);
 
     if (kind === "hacker-news-story") {
       const metaRow = getHackerNewsMetaRow(container);
@@ -1166,9 +1250,8 @@
     return nextRow && nextRow.querySelector(".subtext") ? nextRow : null;
   }
 
-  function hideElement(element, reasons, kind) {
-    // Pending items are display:none but not yet "hidden" for stats: a
-    // blocked verdict on one still counts as a fresh hide.
+  function hideElement(element, reasons, kind, immediate = false) {
+    // A pending review only becomes a hide once a blocked verdict arrives.
     if (
       element.dataset.smoothSurferHidden !== "true" ||
       element.dataset.smoothSurferPending === "true"
@@ -1176,14 +1259,48 @@
       recordHideStat(element, reasons, kind);
     }
 
+    pendingClassifications.delete(element);
+    delete element.dataset.smoothSurferPendingKey;
     delete element.dataset.smoothSurferPending;
-    element.classList.add("smooth-surfer-hidden");
+    if (kind === "tweet") {
+      hideTweetWithoutScrollJump(element, immediate);
+    } else {
+      element.classList.add("smooth-surfer-hidden");
+    }
     element.dataset.smoothSurferHidden = "true";
     element.dataset.smoothSurferReasons = reasons.join("; ");
 
     if (kind) {
       element.dataset.smoothSurferHiddenKind = kind;
     }
+  }
+
+  function hideTweetWithoutScrollJump(element, immediate) {
+    if (element.classList.contains("smooth-surfer-hidden") || tweetFadeTimers.has(element)) return;
+    const rect = element.getBoundingClientRect();
+    const deferred = element.classList.contains("smooth-surfer-tweet-deferred");
+    // Keep measured space above the reading position. Collapse only when the
+    // user returns far enough for this row to be below that position again.
+    if (rect.bottom <= 0 || (deferred && rect.top < 100 && window.scrollY > 0)) {
+      element.classList.add("smooth-surfer-tweet-deferred");
+      return;
+    }
+    element.classList.remove("smooth-surfer-tweet-deferred");
+    if (immediate || deferred || rect.top >= window.innerHeight ||
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      element.classList.add("smooth-surfer-hidden");
+      return;
+    }
+    const identity = getTweetIdentity(getTweetArticle(element));
+    const epoch = classificationEpoch;
+    element.classList.add("smooth-surfer-tweet-fading");
+    tweetFadeTimers.set(element, window.setTimeout(() => {
+      tweetFadeTimers.delete(element);
+      element.classList.remove("smooth-surfer-tweet-fading");
+      if (!element.isConnected || epoch !== classificationEpoch ||
+          identity !== getTweetIdentity(getTweetArticle(element))) return;
+      hideTweetWithoutScrollJump(element, true);
+    }, TWEET_FADE_MS));
   }
 
   function recordHideStat(element, reasons, kind) {
@@ -1206,11 +1323,10 @@
   }
 
   function restoreElement(element) {
-    if (element.dataset.smoothSurferHidden !== "true") {
-      return;
-    }
-
-    element.classList.remove("smooth-surfer-hidden");
+    pendingClassifications.delete(element);
+    window.clearTimeout(tweetFadeTimers.get(element));
+    tweetFadeTimers.delete(element);
+    element.classList.remove("smooth-surfer-hidden", "smooth-surfer-tweet-fading", "smooth-surfer-tweet-deferred");
     delete element.dataset.smoothSurferHidden;
     delete element.dataset.smoothSurferHiddenKind;
     delete element.dataset.smoothSurferPending;

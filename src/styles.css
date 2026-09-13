@@ -139,3 +139,22 @@ html.smooth-surfer-hacker-news-hide-scores .score {
   min-height: 32px;
   padding: 0 10px;
 }
+
+/* Keep timeline geometry stable until a decision is ready. Only confirmed
+   removals fade; pending reviews never shrink or dim the user's feed. */
+.smooth-surfer-tweet-fading {
+  opacity: 0 !important;
+  transition: opacity 160ms ease-out !important;
+  pointer-events: none !important;
+}
+
+.smooth-surfer-tweet-deferred {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .smooth-surfer-tweet-fading {
+    transition: none !important;
+  }
+}

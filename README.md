@@ -9,6 +9,13 @@ Smooth Surfer is a small Chrome extension for browsing with less feed noise. It 
 
 Content filtering is disabled unless you save an Anthropic key. When a key is present, Smooth Surfer uses Claude Haiku 4.5 to filter X/Twitter, Reddit, Substack, and Hacker News against your filter criteria, batching visible posts into shared classification calls.
 
+On X/Twitter, posts stay in place while classification runs. Confirmed matches
+fade out, and removals above your reading position keep their space until you
+scroll back, avoiding sudden jumps. Cached decisions apply immediately when a
+post reappears. Filtering currently reads post text, link previews, and supplied
+image descriptions; it does not inspect image pixels. If classification fails,
+posts remain visible and retries are spaced out.
+
 The popup also includes:
 
 - A Consumption Facts label: a nutrition-facts-style breakdown of the emotional ingredients (outrage, joy, humor, fear, curiosity/beauty, memes, polls) in the posts you actually saw today. It rides on the same Haiku classification calls as filtering, so it also needs an Anthropic key.
