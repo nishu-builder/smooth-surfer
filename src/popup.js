@@ -10,6 +10,9 @@
     normalizeSettings
   } = window.SmoothSurferSettings;
   const {
+    loadReview,
+    watchReview,
+    watchSettings,
     loadConsumption,
     loadSecrets,
     loadSettings,
@@ -102,6 +105,17 @@
   watchConsumption((nextConsumption) => {
     consumption = nextConsumption;
     renderFacts();
+  });
+  const renderReviewCount = (review) => {
+    const count = review.items.filter((item) => !review.restored.includes(item.id)).length;
+    const link = document.querySelector("[data-review-link]");
+    if (link) link.textContent = `Recently filtered (${count})`;
+  };
+  loadReview().then(renderReviewCount);
+  watchReview(renderReviewCount);
+  watchSettings((next) => {
+    settings = next;
+    render();
   });
   detectActivePlatform().then((platform) => {
     activePlatform = platform;

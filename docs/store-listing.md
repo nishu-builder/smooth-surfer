@@ -8,14 +8,13 @@ extension changes.
 **Name:** Smooth Surfer
 
 **Summary (132 chars max):**
-Surf with only the waves you want. Hide ads, recommendations, Shorts and
-comments, with optional AI filtering on X, Reddit & more.
+Hide ads, recommendations, Shorts, and comments. Filter unwanted posts on X, Reddit, Substack, and Hacker News.
 
 **Description:**
 
-Smooth Surfer is a small, no-backend extension for browsing with less feed
-noise. Everything runs locally in your browser and every rule is a toggle in
-the toolbar popup.
+Smooth Surfer filters unwanted posts and reduces distractions. Manage settings
+in the popup and review filtered posts in a separate tab. Optional AI filtering
+uses Claude with your API key.
 
 Per-site cleanup:
 
@@ -23,22 +22,28 @@ Per-site cleanup:
   hide games, live chat, end screens, engagement stats, and comments;
   disable autoplay.
 - X / Twitter: hide ads and trends, and prefer the Following timeline (you
-  can still switch to For You).
+  can still switch to For You). Optional switches instantly hide reposts, quote
+  posts, or video posts, without an API key.
 - Reddit: hide promoted posts, "communities you might like" modules, and
   comment threads.
 - Substack: hide recommendation modules.
 - Hacker News: hide story scores.
 - Everywhere: hide sticky/floating video players, soften distracting
-  elements, get a gentle "surf break" prompt after deep scrolling, and
+  elements, pause after deep scrolling, and
   control video speed from the keyboard (Alt+] faster, Alt+[ slower, Alt+\
   reset; modifier configurable). Open the popup with a Cmd/Ctrl+Shift+S
   double-tap.
 
-Stay in control:
+Settings:
 
+- Recently filtered: review up to 2,000 posts from seven days in a separate tab,
+  see why they matched, restore a post, or edit its rule. History stays local
+  and has a 6 MB cap. Image previews load only when requested.
+- Filter sets: save named sets, use presets, share JSON files, and choose
+  which rules to import. API keys and image analysis are excluded.
 - Focus schedule: run effects only during the hours you choose, including
   overnight windows.
-- Stats: see how much noise was hidden per site today and this week.
+- Stats: see how many items were hidden per site today and this week.
 - Backup: export and import your settings as JSON (your API key is never
   included).
 
@@ -49,9 +54,11 @@ hashtag spam, FOMO hype), using Claude Haiku. The same classification powers
 Consumption Facts, a nutrition-label-style daily summary of the emotional
 ingredients (outrage, joy, humor, fear, curiosity, memes, polls) in the posts
 you actually saw. Without a key, no feed text ever leaves your browser and
-both features stay off.
+both features stay off. Analyze images is separately opt-in: it includes up to
+two supported public post images per classification, adding cost and latency.
+On X, Less like this opens an editable rule with optional Claude suggestions.
 
-No accounts, no analytics, no data collection. Open source:
+No Smooth Surfer account or analytics. Open source:
 https://github.com/nishu-builder/smooth-surfer
 
 **Category:** Productivity → Workflow & Planning (or Fun)
@@ -69,18 +76,17 @@ sites.
 
 - `storage`: Saves the user's toggle settings (synced via
   `chrome.storage.sync`) and their optional Anthropic API key (local only via
-  `chrome.storage.local`).
+  `chrome.storage.local`), plus recent filtered-post previews, image URLs, restore choices, and named filter sets locally.
 - `api.anthropic.com` host permission: Used only when the user saves their own
-  Anthropic API key, to classify visible feed text against the user's filter
-  criteria and compute the Consumption Facts label.
+  Anthropic API key, to classify visible and upcoming feed text against the user's filter
+  criteria, optionally analyze supported post images when separately enabled, compute the Consumption Facts label, and suggest editable filter rules when requested.
 - Content script on `<all_urls>`: Powers every on-page effect the user can
   toggle — the per-site cleanups on YouTube, X/Twitter, Reddit, Substack, and
   Hacker News (ads, recommendations, Shorts, comments, scores) and the
   cross-site effects (hiding sticky/floating video players, graying
   distracting media, the deep-scroll pause, video speed keys, and the settings
   shortcut). Page content is read locally; nothing is transmitted except when
-  the user enables AI filtering, which sends visible feed text to their own
-  Anthropic key.
+  the user enables AI filtering or requests filter suggestions, which send post text and optionally supported image URLs to Anthropic using their own key. Requested image previews load from their original providers.
 
 **Remote code:** No, I am not using remote code. (The extension calls the
 Anthropic REST API for text classification but does not fetch or execute
@@ -88,8 +94,8 @@ code.)
 
 **Data usage disclosures:**
 
-- Collects "Website content" (visible feed text), used only for the app's
-  core functionality (AI content filtering and the Consumption Facts label),
+- Collects "Website content" (visible and upcoming feed text), used only for the app's
+  core functionality (AI content filtering, the Consumption Facts label, and requested filter suggestions),
   only when the user has saved their own API key. Sent to Anthropic's API; not
   sold, not used for unrelated purposes, not transferred for ads or
   creditworthiness.

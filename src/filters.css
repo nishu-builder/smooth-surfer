@@ -1,0 +1,14 @@
+.sets-layout { display: grid; grid-template-columns: 1fr 1.25fr; gap: 16px; }
+.sets-layout > section { min-width: 0; border: 1px solid var(--ss-line); padding: 12px; }
+.help, #set-status { color: var(--ss-muted); font-size: 12px; margin: 8px 0; }
+.save-set { display: flex; align-items: end; gap: 6px; } .save-set label { flex: 1; min-width: 0; }
+.sets-layout h2 { font-size: 16px; margin: 14px 0 8px; } .sets-layout h2:first-child { margin-top: 0; }
+.set-row { display: flex; gap: 6px; align-items: center; border-top: 1px solid var(--ss-line); padding: 6px 0; }
+.set-row > button:first-child { flex: 1; text-align: left; border-color: transparent; overflow-wrap: anywhere; }
+#set-preview { align-self: start; }
+#choices label { display: flex; flex-direction: row; align-items: start; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--ss-line); font: 13px/1.4 var(--ss-sans); overflow-wrap: anywhere; }
+#choices input { width: 16px; height: 16px; margin: 1px 0 0; flex-shrink: 0; accent-color: var(--ss-action); }
+#import-set { margin-top: 12px; }
+@media (max-width: 650px) { .sets-layout { grid-template-columns: 1fr; gap: 8px; } .save-set { flex-wrap: wrap; } }
+
+#preview-name { overflow-wrap: anywhere; }

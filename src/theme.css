@@ -1,0 +1,17 @@
+/* Fogg visual identity reference: docs/STYLE_GUIDE.md.
+   Namespaced variables only; no typography or layout changes to host pages. */
+:root {
+  --ss-paper: #ffffff;
+  --ss-gray: #f2f2f2;
+  --ss-action: #111111;
+  --ss-focus: #111111;
+  --ss-ink: #171717;
+  --ss-muted: #616161;
+  --ss-line: #c9c9c9;
+  --ss-control-line: #808080;
+  --ss-hover: #f2f2f2;
+  --ss-action-hover: #333333;
+  --ss-radius: 2px;
+  --ss-mono: "Gridnik", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --ss-sans: "Helvetica Neue", Arial, sans-serif;
+}

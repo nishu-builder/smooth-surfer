@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Filter sets · Smooth Surfer</title>
+  <link rel="stylesheet" href="src/theme.css"><link rel="stylesheet" href="src/review.css"><link rel="stylesheet" href="src/filters.css">
+</head>
+<body>
+<main>
+  <header>
+    <a class="brand" href="review.html">Smooth Surfer</a>
+    <div class="heading"><h1>Filter sets</h1><a class="page-link" href="review.html">Recently filtered</a></div>
+  </header>
+  <p class="help">Save named sets. Export a set to share it, or import selected rules.</p>
+  <div class="sets-layout">
+    <section aria-label="Saved filter sets">
+      <form id="save-set" class="save-set"><label>Set name<input id="set-name" placeholder="e.g. Work" maxlength="80" required></label><button type="submit">Save current filters</button></form>
+      <p class="help">Saving an existing name updates that set. Up to 20 sets stay on this device.</p>
+      <h2>Saved</h2><div id="saved-sets"></div>
+      <h2>Presets</h2><div id="presets"></div>
+      <button type="button" id="import-set">Import file</button><input id="import-file" type="file" accept="application/json,.json" hidden>
+    </section>
+    <section id="set-preview" aria-label="Preview filter set">
+      <h2 id="preview-name">Select a set</h2>
+      <p id="preview-help" class="help">Preview a set or import a file to choose its rules.</p>
+      <div id="choices"></div>
+      <div class="actions"><button id="apply-set" class="primary" type="button" disabled>Add selected rules</button><button id="export-set" type="button" disabled>Export set</button></div>
+    </section>
+  </div>
+  <p id="set-status" role="status" aria-live="polite"></p>
+  <footer>Sets include content rules and enabled X format filters. API keys, image analysis, and other settings are excluded. Importing adds your selections without replacing existing rules.</footer>
+</main>
+<script src="src/settings.js"></script><script src="src/storage.js"></script><script src="src/filters.js"></script>
+</body>
+</html>

@@ -7,14 +7,43 @@
 
 Smooth Surfer is a small Chrome extension for browsing with less feed noise. It hides or softens selected YouTube, X/Twitter, Reddit, Substack, Hacker News, and generic feed distractions from the toolbar popup.
 
-Content filtering is disabled unless you save an Anthropic key. When a key is present, Smooth Surfer uses Claude Haiku 4.5 to filter X/Twitter, Reddit, Substack, and Hacker News against your filter criteria, batching visible posts into shared classification calls.
+AI content filtering is disabled unless you save an Anthropic key. When a key is present, Smooth Surfer uses Claude Haiku 4.5 to filter X/Twitter, Reddit, Substack, and Hacker News against your filter criteria, batching visible and upcoming posts into shared classification calls.
 
 On X/Twitter, posts stay in place while classification runs. Confirmed matches
 fade out, and removals above your reading position keep their space until you
 scroll back, avoiding sudden jumps. Cached decisions apply immediately when a
-post reappears. Filtering currently reads post text, link previews, and supplied
-image descriptions; it does not inspect image pixels. If classification fails,
+post reappears. By default, filtering reads post text, link previews, and supplied
+image descriptions. **Analyze images** optionally includes up to two public post
+images from X, Reddit, or Substack in each review. It is off by default and adds
+API cost and latency. If classification fails,
 posts remain visible and retries are spaced out.
+
+Open **Recently filtered** at the top of the popup to review posts in a full tab.
+Search previews, see the reason and matching rule, restore a post, or edit a
+rule. The history shows up to 2,000 posts from the last 7 days and stays on your
+device, with a 6 MB storage cap for large previews. Restoring keeps matching posts
+visible across tabs and reloads. Up to 4,000 restore choices are retained.
+Images load from the original provider only when you choose **View images**.
+
+On X, the **Less like this** button beside a post's actions opens a rule editor.
+Write your own rule or choose **Suggest filters** to ask Claude for suggestions.
+You can edit a suggestion before adding it; suggestions never change your rules
+automatically. New rules apply wherever content filtering is enabled.
+
+X prioritizes the visible feed and the next two screens, with at most two
+classification batches running at once. Surf break now allows 16 screens of
+scrolling between breaks.
+
+X also has instant switches for reposts, quote posts, and video posts. These
+work without an API key. Filtered formats appear in Recently filtered, where
+you can restore one post or allow that format again. Repost detection uses X's
+English repost label or a supported repost marker.
+
+Open **Filter sets** from the popup or review page to save named sets, preview
+Quiet browsing and Work presets, or share a set as JSON. Import previews every
+rule and format switch; only checked selections are added, preserving existing
+rules. Up to 20 sets stay on this device. Sets exclude API keys, image analysis,
+and unrelated settings.
 
 The popup also includes:
 
@@ -79,3 +108,7 @@ npm run verify        # lint + format check + npm run check
 
 Prettier covers JavaScript and JSON; HTML, CSS and Markdown stay
 hand-formatted.
+
+## Product design
+
+Follow the [product style guide](docs/STYLE_GUIDE.md) for interface copy and interactions.

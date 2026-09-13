@@ -335,6 +335,19 @@ try {
     client,
     `window.scrollTo(0, window.innerHeight * 9); window.dispatchEvent(new Event("scroll"))`
   );
+  await evaluate(client, `new Promise((resolve) => setTimeout(resolve, 300))`);
+  assert.equal(
+    await evaluate(
+      client,
+      `document.documentElement.classList.contains("smooth-surfer-scroll-paused")`
+    ),
+    false,
+    "scrolling past the old eight-screen threshold no longer interrupts the feed"
+  );
+  await evaluate(
+    client,
+    `window.scrollTo(0, window.innerHeight * 17); window.dispatchEvent(new Event("scroll"))`
+  );
   await waitForExpression(
     client,
     `document.documentElement.classList.contains("smooth-surfer-scroll-paused")`
@@ -359,10 +372,32 @@ try {
   assert.ok(scrollPauseState.beforeClickY > 0);
   assert.equal(scrollPauseState.afterClickY, scrollPauseState.beforeClickY);
 
+  await evaluate(
+    client,
+    `window.scrollBy(0, window.innerHeight * 9); window.dispatchEvent(new Event("scroll"));
+     new Promise((resolve) => setTimeout(resolve, 300))`
+  );
+  assert.equal(
+    await evaluate(
+      client,
+      `document.documentElement.classList.contains("smooth-surfer-scroll-paused")`
+    ),
+    false,
+    "Keep going grants the longer scrolling interval too"
+  );
+  await evaluate(
+    client,
+    `window.scrollBy(0, window.innerHeight * 8); window.dispatchEvent(new Event("scroll"))`
+  );
+  await waitForExpression(
+    client,
+    `document.documentElement.classList.contains("smooth-surfer-scroll-paused")`
+  );
+
   await navigate(client, `http://github.com.test:${fixturePort}/work-content.html`);
   await evaluate(
     client,
-    `window.scrollTo(0, window.innerHeight * 9); window.dispatchEvent(new Event("scroll"))`
+    `window.scrollTo(0, window.innerHeight * 17); window.dispatchEvent(new Event("scroll"))`
   );
   await evaluate(client, `new Promise((resolve) => setTimeout(resolve, 400))`);
   const workSiteState = await evaluate(
@@ -783,7 +818,259 @@ async function verifyExtensionPopupOpens() {
     }
 
     assert.ok(popup, "Ctrl+Shift+S double-tap opened the extension popup");
+    const popupClient = await CdpClient.connect(popup.webSocketDebuggerUrl);
+    await waitForExpression(
+      popupClient,
+      `document.querySelector('[data-review-link]')?.textContent === 'Recently filtered (0)'`
+    );
+    const popupLayout = await evaluate(
+      popupClient,
+      `({
+      width: document.body.getBoundingClientRect().width,
+      height: document.body.getBoundingClientRect().height,
+      visibility: getComputedStyle(document.body).visibility,
+      inputs: document.querySelectorAll('[data-setting]').length,
+      title: document.querySelector('h1')?.textContent,
+      bodyOverflow: getComputedStyle(document.body).overflowY
+    })`
+    );
+    assert.equal(popupLayout.title, "Smooth Surfer");
+    assert.equal(popupLayout.bodyOverflow, "visible", "only the popup viewport scrolls");
+    assert.equal(popupLayout.width, 320);
+    assert.ok(popupLayout.height >= 300, "the popup has a usable rendered height");
+    assert.equal(popupLayout.visibility, "visible");
+    assert.ok(popupLayout.inputs > 10, "the popup renders its settings controls");
+    await mkdir(cacheDir, { recursive: true });
+    const popupScreenshot = await popupClient.send("Page.captureScreenshot", { format: "png" });
+    await writeFile(
+      path.join(cacheDir, "extension-popup.png"),
+      Buffer.from(popupScreenshot.data, "base64")
+    );
+    popupClient.close();
+    const extensionOrigin = worker.url.replace("/src/background.js", "");
+    const workerClient = await CdpClient.connect(worker.webSocketDebuggerUrl);
+    await evaluate(
+      workerClient,
+      `(async () => {
+      await SmoothSurferStorage.saveSettings(SmoothSurferSettings.normalizeSettings({filterCriteria: ['Engagement bait', 'Unsubstantiated predictions']}));
+      const posts = [
+        {source:'twitter',author:'River Chen · @river',text:'Repost this thread and follow for a chance to win a new setup. Winners announced tomorrow.',reasons:['Asks for reposts in exchange for a prize'],criteria:['Engagement bait'],url:'https://x.com/river/status/123'},
+        {source:'reddit',author:'',text:'This changes everything. One chart proves the next big market move is guaranteed.',reasons:['Presents an uncertain prediction as a guarantee'],criteria:['Unsubstantiated predictions'],url:'https://www.reddit.com/r/example/comments/123/example/'},
+        {source:'twitter',author:'Casey Park · @casey',text:'Only a few people will understand this. Like and share if you are one of them.',reasons:['Solicits engagement through an exclusivity claim'],criteria:['Engagement bait'],url:'https://x.com/casey/status/456'}
+      ];
+      await SmoothSurferStorage.saveReview({items:posts.map((post,index)=>({...post,id:SmoothSurferSettings.getReviewPostKey(post.source,post.text),at:Date.now()-index*3600000})),restored:[]});
+    })()`
+    );
+    await navigate(client, extensionOrigin + "/popup.html");
+    await waitForExpression(
+      client,
+      `document.querySelector('[data-review-link]')?.textContent === 'Recently filtered (3)'`
+    );
+    assert.equal(
+      await evaluate(client, `document.querySelector('[data-review-link]').target`),
+      "_blank",
+      "popup opens review in a full tab"
+    );
+    await navigate(client, extensionOrigin + "/review.html");
+    await waitForExpression(client, `document.querySelectorAll('.post').length === 3`);
+    await client.send("Emulation.setDeviceMetricsOverride", {
+      width: 1100,
+      height: 1000,
+      deviceScaleFactor: 1,
+      mobile: false
+    });
+    await mkdir(cacheDir, { recursive: true });
+    const desktop = await client.send("Page.captureScreenshot", { format: "png" });
+    await writeFile(path.join(cacheDir, "review-desktop.png"), Buffer.from(desktop.data, "base64"));
+    await client.send("Emulation.setDeviceMetricsOverride", {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 1,
+      mobile: true
+    });
+    const mobile = await client.send("Page.captureScreenshot", { format: "png" });
+    await writeFile(path.join(cacheDir, "review-mobile.png"), Buffer.from(mobile.data, "base64"));
+    assert.equal(
+      await evaluate(client, `document.documentElement.scrollWidth <= innerWidth`),
+      true,
+      "review fits narrow screens"
+    );
+    await evaluate(client, `document.querySelector('.post .primary').click()`);
+    await waitForExpression(client, `document.querySelector('.badge')?.textContent === 'Restored'`);
+    await navigate(client, extensionOrigin + "/review.html");
+    await waitForExpression(client, `document.querySelector('.badge')?.textContent === 'Restored'`);
+    await evaluate(
+      client,
+      `document.getElementById('search').value='guarantee';document.getElementById('search').dispatchEvent(new Event('input'))`
+    );
+    assert.equal(await evaluate(client, `document.querySelectorAll('.post').length`), 1);
+    await evaluate(
+      client,
+      `[...document.querySelectorAll('.post button')].find(button=>button.textContent==='Edit rule').click()`
+    );
+    await waitForExpression(client, `document.getElementById('rule-dialog').open`);
+    assert.equal(
+      await evaluate(client, `document.getElementById('rule-text').value`),
+      "Unsubstantiated predictions"
+    );
+    await evaluate(
+      client,
+      `document.getElementById('rule-text').value='Predictions presented as guarantees';document.getElementById('rule-form').requestSubmit()`
+    );
+    await waitForExpression(client, `!document.getElementById('rule-dialog').open`);
+    assert.equal(
+      await evaluate(
+        workerClient,
+        `(async()=> (await SmoothSurferStorage.loadSettings()).filterCriteria.includes('Predictions presented as guarantees'))()`
+      ),
+      true
+    );
+    await evaluate(client, `document.getElementById('clear').click()`);
+    await waitForExpression(client, `document.querySelectorAll('.post').length === 0`);
+    assert.equal(
+      await evaluate(
+        workerClient,
+        `(async()=> (await SmoothSurferStorage.loadReview()).restored.length)()`
+      ),
+      1
+    );
+    // Filter sets are previewed before applying; unchecked rules never import.
+    await navigate(client, extensionOrigin + "/filters.html");
+    await waitForExpression(client, `document.querySelectorAll('#presets button').length === 2`);
+    await evaluate(
+      client,
+      `document.querySelector('#presets button').click(); document.querySelector('[data-rule="1"]').checked=false; document.querySelector('#apply-set').click()`
+    );
+    await waitForExpression(
+      client,
+      `document.getElementById('set-status').textContent === 'Selected rules added.'`
+    );
+    const applied = await evaluate(
+      workerClient,
+      `(async()=>await SmoothSurferStorage.loadSettings())()`
+    );
+    assert.ok(applied.filterCriteria.includes("Predictions presented as guarantees"));
+    assert.ok(
+      applied.filterCriteria.includes(
+        "Posts that ask for likes, reposts, or follows to enter a giveaway."
+      )
+    );
+    assert.equal(
+      applied.filterCriteria.includes(
+        "Posts that use outrage or personal attacks primarily to solicit engagement."
+      ),
+      false
+    );
+    assert.equal(applied.twitterHideReposts, true);
+    assert.equal(applied.imageAnalysisEnabled, false);
+    await evaluate(
+      client,
+      `document.getElementById('set-name').value='Personal'; document.getElementById('save-set').requestSubmit()`
+    );
+    await waitForExpression(
+      client,
+      `document.querySelector('#saved-sets button')?.textContent === 'Personal'`
+    );
+    const savedPack = await evaluate(
+      workerClient,
+      `(async()=> (await SmoothSurferStorage.loadFilterSets())[0])()`
+    );
+    assert.deepEqual(savedPack.criteria, applied.filterCriteria);
+    assert.equal(savedPack.anthropicApiKey, undefined);
+    // Use Chrome's real file input to exercise import and its preview boundary.
+    const importedPath = path.join(cacheDir, "fixture-filter-set.json");
+    await writeFile(
+      importedPath,
+      JSON.stringify({
+        schema: "smooth-surfer-filter-set",
+        version: 1,
+        name: "Imported",
+        criteria: ["Imported rule A", "Imported rule B"],
+        formats: { twitterHideVideos: true },
+        anthropicApiKey: "must-not-import",
+        imageAnalysisEnabled: true
+      })
+    );
+    await client.send("DOM.enable");
+    const documentNode = await client.send("DOM.getDocument");
+    const inputNode = await client.send("DOM.querySelector", {
+      nodeId: documentNode.root.nodeId,
+      selector: "#import-file"
+    });
+    await client.send("DOM.setFileInputFiles", { nodeId: inputNode.nodeId, files: [importedPath] });
+    await waitForExpression(
+      client,
+      `document.getElementById('preview-name').textContent === 'Imported'`
+    );
+    assert.deepEqual(
+      await evaluate(
+        workerClient,
+        `(async()=> (await SmoothSurferStorage.loadSettings()).filterCriteria)()`
+      ),
+      applied.filterCriteria,
+      "opening an import does not apply it"
+    );
+    await evaluate(
+      client,
+      `document.querySelector('[data-rule="1"]').checked=false;document.querySelector('[data-format]').checked=false;document.querySelector('#apply-set').click()`
+    );
+    await waitForExpression(
+      client,
+      `document.getElementById('set-status').textContent === 'Selected rules added.'`
+    );
+    const imported = await evaluate(
+      workerClient,
+      `(async()=>await SmoothSurferStorage.loadSettings())()`
+    );
+    assert.ok(imported.filterCriteria.includes("Imported rule A"));
+    assert.equal(imported.filterCriteria.includes("Imported rule B"), false);
+    assert.equal(imported.twitterHideVideos, false);
+    assert.equal(imported.imageAnalysisEnabled, false);
+    await client.send("Emulation.setDeviceMetricsOverride", {
+      width: 1100,
+      height: 850,
+      deviceScaleFactor: 1,
+      mobile: false
+    });
+    const filtersDesktop = await client.send("Page.captureScreenshot", { format: "png" });
+    await writeFile(
+      path.join(cacheDir, "filters-desktop.png"),
+      Buffer.from(filtersDesktop.data, "base64")
+    );
+    await client.send("Emulation.setDeviceMetricsOverride", {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 1,
+      mobile: true
+    });
+    assert.equal(
+      await evaluate(client, `document.documentElement.scrollWidth <= innerWidth`),
+      true,
+      "filter sets fit narrow screens"
+    );
+    const filtersMobile = await client.send("Page.captureScreenshot", { format: "png" });
+    await writeFile(
+      path.join(cacheDir, "filters-mobile.png"),
+      Buffer.from(filtersMobile.data, "base64")
+    );
+    await writeFile(importedPath, '{"invalid":true}');
+    await client.send("DOM.setFileInputFiles", { nodeId: inputNode.nodeId, files: [importedPath] });
+    await waitForExpression(
+      client,
+      `document.getElementById('set-status').textContent.includes('valid Smooth Surfer filter set')`
+    );
+    assert.deepEqual(
+      await evaluate(workerClient, `(async()=>await SmoothSurferStorage.loadSettings())()`),
+      imported
+    );
+    console.log(
+      "Filter sets passed (save, preview, selective import, validation, responsive layout)."
+    );
+    workerClient.close();
     client.close();
+    console.log(
+      "Review page passed (real extension storage, restore persistence, search, rule edits, clear history, responsive layout)."
+    );
   } finally {
     extensionChrome.kill("SIGTERM");
     await Promise.race([
@@ -1064,7 +1351,8 @@ function videoContentFixture() {
   <html>
     <head>
       <meta charset="utf-8">
-      <link rel="stylesheet" href="/src/styles.css">
+      <link rel="stylesheet" href="/src/theme.css">
+    <link rel="stylesheet" href="/src/styles.css">
     </head>
     <body>
       <video id="speed-video" style="width: 320px; height: 240px"></video>
@@ -1095,9 +1383,10 @@ function youtubeContentFixture() {
   <html>
     <head>
       <meta charset="utf-8">
-      <link rel="stylesheet" href="/src/styles.css">
+      <link rel="stylesheet" href="/src/theme.css">
+    <link rel="stylesheet" href="/src/styles.css">
       <style>
-        body { min-height: 7200px; margin: 0; }
+        body { min-height: 40000px; margin: 0; }
         #sticky-player { position: fixed; right: 20px; bottom: 20px; width: 220px; height: 140px; }
         #sticky-player video { width: 100%; height: 100%; }
       </style>
@@ -1131,7 +1420,8 @@ function twitterContentFixture(labels) {
   <html>
     <head>
       <meta charset="utf-8">
-      <link rel="stylesheet" href="/src/styles.css">
+      <link rel="stylesheet" href="/src/theme.css">
+    <link rel="stylesheet" href="/src/styles.css">
     </head>
     <body>
       <main>
@@ -1225,6 +1515,7 @@ function classificationStubScript() {
                 return;
               }
 
+              if (message.type !== "classifyContent") { callback({ok:true}); return; }
               window.__smoothSurferRequests.push({ message, callback, answered: false });
             }
           }
@@ -1237,7 +1528,8 @@ function twitterFilteredFixture() {
   <html>
     <head>
       <meta charset="utf-8">
-      <link rel="stylesheet" href="/src/styles.css">
+      <link rel="stylesheet" href="/src/theme.css">
+    <link rel="stylesheet" href="/src/styles.css">
       ${classificationStubScript()}
     </head>
     <body>
@@ -1284,7 +1576,8 @@ function redditContentFixture() {
   <html>
     <head>
       <meta charset="utf-8">
-      <link rel="stylesheet" href="/src/styles.css">
+      <link rel="stylesheet" href="/src/theme.css">
+    <link rel="stylesheet" href="/src/styles.css">
     </head>
     <body>
       <main>
@@ -1317,7 +1610,8 @@ function redditFilteredFixture() {
   <html>
     <head>
       <meta charset="utf-8">
-      <link rel="stylesheet" href="/src/styles.css">
+      <link rel="stylesheet" href="/src/theme.css">
+    <link rel="stylesheet" href="/src/styles.css">
       ${classificationStubScript()}
     </head>
     <body>
@@ -1342,7 +1636,8 @@ function hackerNewsFilteredFixture() {
   <html>
     <head>
       <meta charset="utf-8">
-      <link rel="stylesheet" href="/src/styles.css">
+      <link rel="stylesheet" href="/src/theme.css">
+    <link rel="stylesheet" href="/src/styles.css">
       ${classificationStubScript()}
     </head>
     <body>
@@ -1377,7 +1672,8 @@ function substackContentFixture() {
   <html>
     <head>
       <meta charset="utf-8">
-      <link rel="stylesheet" href="/src/styles.css">
+      <link rel="stylesheet" href="/src/theme.css">
+    <link rel="stylesheet" href="/src/styles.css">
     </head>
     <body>
       <main>
@@ -1402,7 +1698,8 @@ function hackerNewsContentFixture() {
   <html>
     <head>
       <meta charset="utf-8">
-      <link rel="stylesheet" href="/src/styles.css">
+      <link rel="stylesheet" href="/src/theme.css">
+    <link rel="stylesheet" href="/src/styles.css">
     </head>
     <body>
       <table class="itemlist">
@@ -1430,9 +1727,10 @@ function workContentFixture() {
   <html>
     <head>
       <meta charset="utf-8">
-      <link rel="stylesheet" href="/src/styles.css">
+      <link rel="stylesheet" href="/src/theme.css">
+    <link rel="stylesheet" href="/src/styles.css">
       <style>
-        body { min-height: 7200px; margin: 0; }
+        body { min-height: 40000px; margin: 0; }
         article { margin: 20px; }
         #sticky-player { position: fixed; right: 20px; bottom: 20px; width: 220px; height: 140px; }
         #sticky-player video { width: 100%; height: 100%; }

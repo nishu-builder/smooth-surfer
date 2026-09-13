@@ -2,6 +2,11 @@
   "use strict";
 
   const {
+    FILTER_SETS_KEY,
+    normalizeFilterSets,
+    REVIEW_KEY,
+    DEFAULT_REVIEW,
+    normalizeReview,
     CONSUMPTION_KEY,
     DEFAULT_CONSUMPTION,
     DEFAULT_SECRETS,
@@ -15,6 +20,28 @@
     normalizeSettings,
     normalizeStats
   } = root.SmoothSurferSettings;
+
+  function loadFilterSets() {
+    return read("local", FILTER_SETS_KEY, [], normalizeFilterSets);
+  }
+  function saveFilterSets(value) {
+    return write("local", FILTER_SETS_KEY, normalizeFilterSets(value));
+  }
+  function watchFilterSets(callback) {
+    watchStorage("local", FILTER_SETS_KEY, normalizeFilterSets, callback);
+  }
+
+  function loadReview() {
+    return read("local", REVIEW_KEY, DEFAULT_REVIEW, normalizeReview);
+  }
+
+  function saveReview(review) {
+    return write("local", REVIEW_KEY, normalizeReview(review));
+  }
+
+  function watchReview(callback) {
+    watchStorage("local", REVIEW_KEY, normalizeReview, callback);
+  }
 
   function loadSettings() {
     return read("sync", STORAGE_KEY, DEFAULT_SETTINGS, normalizeSettings);
@@ -142,6 +169,12 @@
   }
 
   root.SmoothSurferStorage = {
+    loadFilterSets,
+    saveFilterSets,
+    watchFilterSets,
+    loadReview,
+    saveReview,
+    watchReview,
     loadConsumption,
     loadSecrets,
     loadSettings,

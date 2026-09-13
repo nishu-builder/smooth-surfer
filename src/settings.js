@@ -61,6 +61,10 @@
     youtubeHideEngagementStats: true,
     youtubeHideComments: false,
     twitterHideAds: true,
+    twitterHideReposts: false,
+    twitterHideQuotes: false,
+    twitterHideVideos: false,
+    imageAnalysisEnabled: false,
     twitterFilterContent: true,
     twitterHideTrends: true,
     twitterEnforceFollowing: true,
@@ -133,6 +137,7 @@
     next.youtubeHideEngagementStats = Boolean(next.youtubeHideEngagementStats);
     next.youtubeHideComments = Boolean(next.youtubeHideComments);
     next.twitterHideAds = Boolean(next.twitterHideAds);
+    for (const key of [...FORMAT_KEYS, "imageAnalysisEnabled"]) next[key] = Boolean(next[key]);
     next.twitterFilterContent = Boolean(next.twitterFilterContent);
     next.twitterHideTrends = Boolean(next.twitterHideTrends);
     next.twitterEnforceFollowing = Boolean(next.twitterEnforceFollowing);
@@ -384,7 +389,206 @@
       .replace(/^www\./, "");
   }
 
+  const FORMAT_KEYS = ["twitterHideReposts", "twitterHideQuotes", "twitterHideVideos"];
+  const FORMAT_LABELS = {
+    twitterHideReposts: "Reposts",
+    twitterHideQuotes: "Quote posts",
+    twitterHideVideos: "Video posts"
+  };
+  const FILTER_SETS_KEY = "smoothSurferFilterSets";
+  const REVIEW_LIMIT = 2000;
+  const REVIEW_BYTE_LIMIT = 6 * 1024 * 1024;
+
+  function normalizeImageUrls(value) {
+    return [
+      ...new Set(
+        (Array.isArray(value) ? value : []).flatMap((entry) => {
+          if (typeof entry !== "string" || entry.length > 2000) return [];
+          try {
+            const url = new URL(entry);
+            if (url.protocol !== "https:" || url.username || url.password || url.port) return [];
+            const allowed =
+              (url.hostname === "pbs.twimg.com" && url.pathname.startsWith("/media/")) ||
+              [
+                "i.redd.it",
+                "preview.redd.it",
+                "external-preview.redd.it",
+                "substackcdn.com"
+              ].includes(url.hostname);
+            if (!allowed) return [];
+            url.hash = "";
+            if (url.hostname === "pbs.twimg.com") url.searchParams.set("name", "small");
+            return [url.href];
+          } catch {
+            return [];
+          }
+        })
+      )
+    ].slice(0, 2);
+  }
+
+  function normalizeFilterSet(value) {
+    if (
+      !value ||
+      value.schema !== "smooth-surfer-filter-set" ||
+      value.version !== 1 ||
+      typeof value.name !== "string" ||
+      !value.name.trim() ||
+      !Array.isArray(value.criteria) ||
+      value.criteria.length > 50 ||
+      value.criteria.some((rule) => typeof rule !== "string" || rule.length > 500)
+    ) {
+      throw new Error("Choose a valid Smooth Surfer filter set (version 1, up to 50 rules).");
+    }
+    const formats = {};
+    FORMAT_KEYS.forEach((key) => {
+      if (value.formats?.[key] === true) formats[key] = true;
+    });
+    return {
+      schema: "smooth-surfer-filter-set",
+      version: 1,
+      name: value.name.trim().slice(0, 80),
+      criteria: normalizeCriteria(value.criteria),
+      formats
+    };
+  }
+
+  function normalizeFilterSets(value) {
+    const names = new Set();
+    return (Array.isArray(value) ? value : [])
+      .flatMap((entry) => {
+        try {
+          const pack = normalizeFilterSet(entry);
+          const name = pack.name.toLowerCase();
+          if (names.has(name)) return [];
+          names.add(name);
+          return [pack];
+        } catch {
+          return [];
+        }
+      })
+      .slice(0, 20);
+  }
+
+  const BUILTIN_FILTER_SETS = [
+    {
+      schema: "smooth-surfer-filter-set",
+      version: 1,
+      name: "Quiet browsing",
+      criteria: [
+        "Posts that ask for likes, reposts, or follows to enter a giveaway.",
+        "Posts that use outrage or personal attacks primarily to solicit engagement."
+      ],
+      formats: { twitterHideReposts: true }
+    },
+    {
+      schema: "smooth-surfer-filter-set",
+      version: 1,
+      name: "Work",
+      criteria: [
+        "Celebrity gossip and entertainment rumors unrelated to professional work.",
+        "Promotional posts that create urgency about speculative financial gains."
+      ],
+      formats: { twitterHideVideos: true }
+    }
+  ];
+
+  const REVIEW_KEY = "smoothSurferReview";
+  const DEFAULT_REVIEW = { items: [], restored: [] };
+
+  function getReviewPostKey(source, text, images = []) {
+    const normalized = `${source}|${String(text || "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 2000)}${images.length ? "|" + normalizeImageUrls(images).join("|") : ""}`;
+    // Keep restore choices without retaining the post text after history expires.
+    let first = 2166136261;
+    let second = 5381;
+    for (let i = 0; i < normalized.length; i += 1) {
+      first = Math.imul(first ^ normalized.charCodeAt(i), 16777619);
+      second = Math.imul(second, 33) ^ normalized.charCodeAt(i);
+    }
+    return `${source}:${(first >>> 0).toString(16)}${(second >>> 0).toString(16).padStart(8, "0")}`;
+  }
+
+  function normalizeReview(value) {
+    const data = value || {};
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const seen = new Set();
+    const items = (Array.isArray(data.items) ? data.items : [])
+      .filter((item) => {
+        if (
+          !item ||
+          typeof item.id !== "string" ||
+          (!item.text && !normalizeImageUrls(item.images).length) ||
+          !Number.isFinite(item.at) ||
+          item.at < cutoff ||
+          seen.has(item.id)
+        )
+          return false;
+        seen.add(item.id);
+        return true;
+      })
+      .slice(0, REVIEW_LIMIT)
+      .map((item) => ({
+        id: item.id.slice(0, 2050),
+        text: String(item.text || "").slice(0, 2000),
+        images: normalizeImageUrls(item.images),
+        formats: FORMAT_KEYS.filter((key) => item.formats?.includes(key)),
+        source: String(item.source || "other").slice(0, 40),
+        url: safePostUrl(item.url),
+        author: String(item.author || "").slice(0, 160),
+        reasons: normalizeCriteria(item.reasons || [])
+          .slice(0, 3)
+          .map((reason) => reason.slice(0, 300)),
+        criteria: normalizeCriteria(item.criteria || [])
+          .slice(0, 20)
+          .map((rule) => rule.slice(0, 500)),
+        at: item.at
+      }));
+    const restored = [
+      ...new Set(
+        (Array.isArray(data.restored) ? data.restored : [])
+          .filter((id) => typeof id === "string")
+          .map((id) => id.slice(0, 2050))
+      )
+    ].slice(-4000);
+    const encoder = new TextEncoder();
+    let bytes = encoder.encode(JSON.stringify({ items: [], restored })).length;
+    const boundedItems = [];
+    for (const item of items) {
+      bytes += encoder.encode(JSON.stringify(item)).length + 1;
+      if (bytes > REVIEW_BYTE_LIMIT) break;
+      boundedItems.push(item);
+    }
+    return { items: boundedItems, restored };
+  }
+
+  function safePostUrl(value) {
+    try {
+      const url = new URL(String(value || ""));
+      return /^https?:$/.test(url.protocol) && !url.username && !url.password
+        ? url.href.slice(0, 2000)
+        : "";
+    } catch {
+      return "";
+    }
+  }
+
   const api = {
+    FORMAT_KEYS,
+    FORMAT_LABELS,
+    FILTER_SETS_KEY,
+    BUILTIN_FILTER_SETS,
+    REVIEW_LIMIT,
+    normalizeFilterSet,
+    normalizeFilterSets,
+    normalizeImageUrls,
+    REVIEW_KEY,
+    DEFAULT_REVIEW,
+    getReviewPostKey,
+    normalizeReview,
+    safePostUrl,
     CONSUMPTION_KEY,
     CONSUMPTION_TAGS,
     DEFAULT_CONSUMPTION,

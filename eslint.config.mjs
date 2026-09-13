@@ -2,6 +2,9 @@ import js from "@eslint/js";
 import prettier from "eslint-config-prettier";
 
 const browserGlobals = {
+  AbortSignal: "readonly",
+  TextEncoder: "readonly",
+  structuredClone: "readonly",
   Blob: "readonly",
   chrome: "readonly",
   clearInterval: "readonly",

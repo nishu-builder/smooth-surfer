@@ -141,3 +141,94 @@ assert.equal(settings.getPlatformForUrl("https://nishad.substack.com/p/post"), "
 assert.equal(settings.getPlatformForUrl("https://news.ycombinator.com/item?id=1"), "hacker-news");
 assert.equal(settings.getPlatformForUrl("http://twitter.com.test:123/home"), "twitter");
 assert.equal(settings.getPlatformForHost("old.reddit.com.test"), "reddit");
+
+// Review retention is bounded; persisted restore choices contain no post text.
+{
+  const { normalizeReview, getReviewPostKey, safePostUrl } = require("../src/settings.js");
+  const now = Date.now();
+  const item = (id, at = now) => ({
+    id,
+    at,
+    source: "twitter",
+    text: "A post",
+    url: "javascript:alert(1)"
+  });
+  const review = normalizeReview({
+    items: [
+      item("old", now - 8 * 86400000),
+      item("a"),
+      item("a"),
+      ...Array.from({ length: 2200 }, (_, i) => item(String(i)))
+    ],
+    restored: ["a", "a", "b"]
+  });
+  assert.equal(review.items.length, 2000);
+  assert.equal(review.items[0].id, "a");
+  assert.equal(review.items[0].url, "");
+  assert.deepEqual(review.restored, ["a", "b"]);
+  assert.equal(
+    getReviewPostKey("twitter", "hello  world"),
+    getReviewPostKey("twitter", " hello world ")
+  );
+  assert.notEqual(
+    getReviewPostKey("reddit", "hello world"),
+    getReviewPostKey("twitter", "hello world")
+  );
+  assert.equal(getReviewPostKey("twitter", "hello world").includes("hello"), false);
+  assert.equal(safePostUrl("https://user:password@example.com"), "");
+  assert.equal(safePostUrl("https://x.com/a/status/123"), "https://x.com/a/status/123");
+}
+
+// Large previews stay within local storage, while ordinary history retains 2,000 posts.
+const bulky = settings.normalizeReview({
+  items: Array.from({ length: 2000 }, (_, i) => ({
+    id: String(i),
+    at: Date.now(),
+    text: "a".repeat(2000),
+    criteria: Array(20)
+      .fill(0)
+      .map((_, j) => String(j) + "b".repeat(499))
+  }))
+});
+assert.ok(bulky.items.length > 200);
+assert.ok(bulky.items.length < 2000);
+assert.ok(Buffer.byteLength(JSON.stringify(bulky)) <= 6 * 1024 * 1024);
+assert.equal(defaults.imageAnalysisEnabled, false);
+settings.FORMAT_KEYS.forEach((key) => assert.equal(defaults[key], false));
+const media = "https://pbs.twimg.com/media/example.jpg?name=large";
+assert.deepEqual(
+  settings.normalizeImageUrls([
+    media,
+    media,
+    "https://pbs.twimg.com/profile_images/avatar.png",
+    "http://i.redd.it/a.png",
+    "https://localhost/a.png",
+    "https://user@i.redd.it/a.png"
+  ]),
+  ["https://pbs.twimg.com/media/example.jpg?name=small"]
+);
+assert.notEqual(
+  settings.getReviewPostKey("twitter", "", [media]),
+  settings.getReviewPostKey("twitter", "", ["https://i.redd.it/other.png"])
+);
+assert.equal(
+  settings.normalizeReview({ items: [{ id: "image", text: "", images: [media], at: Date.now() }] })
+    .items.length,
+  1
+);
+const pack = settings.normalizeFilterSet({
+  ...settings.BUILTIN_FILTER_SETS[0],
+  anthropicApiKey: "must-not-export",
+  imageAnalysisEnabled: true,
+  formats: { twitterHideReposts: true, enabled: false, imageAnalysisEnabled: true }
+});
+assert.deepEqual(Object.keys(pack).sort(), ["criteria", "formats", "name", "schema", "version"]);
+assert.deepEqual(pack.formats, { twitterHideReposts: true });
+assert.throws(() => settings.normalizeFilterSet({ ...pack, version: 2 }));
+assert.throws(() => settings.normalizeFilterSet({ ...pack, criteria: [{}] }));
+assert.throws(() => settings.normalizeFilterSet({ ...pack, criteria: Array(51).fill("rule") }));
+assert.equal(
+  settings.normalizeFilterSets([pack, { ...pack, name: pack.name.toUpperCase() }]).length,
+  1
+);
+console.log("settings tests passed");

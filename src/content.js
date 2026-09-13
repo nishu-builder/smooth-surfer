@@ -1,9 +1,12 @@
 (function installSmoothSurfer() {
   "use strict";
 
-  const { loadSecrets, loadSettings, watchSecrets, watchSettings } = window.SmoothSurferStorage;
-  const { getPlatformForUrl, isWithinFocusWindow } = window.SmoothSurferSettings;
+  const { loadReview, watchReview, loadSecrets, loadSettings, watchSecrets, watchSettings } =
+    window.SmoothSurferStorage;
+  const { getPlatformForUrl, isWithinFocusWindow, normalizeImageUrls, FORMAT_KEYS, FORMAT_LABELS } =
+    window.SmoothSurferSettings;
   const SCAN_DEBOUNCE_MS = 120;
+  const SCROLL_BREAK_SCREENFULS = 16;
   const CLASSIFICATION_TIMEOUT_MS = 12000;
   const CLASSIFICATION_RETRY_MS = 30000;
   const CLASSIFICATION_CACHE_LIMIT = 500;
@@ -55,6 +58,8 @@
 
   let settings = window.SmoothSurferSettings.normalizeSettings();
   let secrets = window.SmoothSurferSettings.normalizeSecrets();
+  let restoredPosts = new Set();
+  const recordedReviewKeys = new Set();
   let observer = null;
   let scanTimer = 0;
   let scrollPause = null;
@@ -83,20 +88,35 @@
   start();
 
   function start() {
-    Promise.all([loadSettings(), loadSecrets()]).then(([loadedSettings, loadedSecrets]) => {
-      settings = loadedSettings;
-      secrets = loadedSecrets;
-      whenBodyReady(() => {
-        applyEffects();
+    Promise.all([loadSettings(), loadSecrets(), loadReview ? loadReview() : null]).then(
+      ([loadedSettings, loadedSecrets, review]) => {
+        restoredPosts = new Set(review?.restored || []);
+        settings = loadedSettings;
+        secrets = loadedSecrets;
+        whenBodyReady(() => {
+          applyEffects();
+          scanPage();
+          startPageObserver();
+        });
+      }
+    );
+
+    if (watchReview)
+      watchReview((review) => {
+        const next = new Set(review.restored);
+        if (next.size === restoredPosts.size && [...next].every((key) => restoredPosts.has(key)))
+          return;
+        restoredPosts = next;
+        resetClassifications(false);
         scanPage();
-        startPageObserver();
       });
-    });
 
     watchSettings((nextSettings) => {
       const contentSettings = [
         "enabled",
         "filterCriteria",
+        "imageAnalysisEnabled",
+        ...FORMAT_KEYS,
         "consumptionFactsEnabled",
         "focusScheduleEnabled",
         "focusScheduleStart",
@@ -109,6 +129,7 @@
         )
       ) {
         const verdictsChanged =
+          nextSettings.imageAnalysisEnabled !== settings.imageAnalysisEnabled ||
           nextSettings.consumptionFactsEnabled !== settings.consumptionFactsEnabled ||
           JSON.stringify(nextSettings.filterCriteria) !== JSON.stringify(settings.filterCriteria);
         resetClassifications(verdictsChanged);
@@ -243,7 +264,8 @@
       subtree: true,
       characterData: platform === "twitter",
       attributes: platform === "twitter",
-      attributeFilter: platform === "twitter" ? ["href", "data-testid", "alt"] : undefined
+      attributeFilter:
+        platform === "twitter" ? ["href", "data-testid", "alt", "src", "srcset"] : undefined
     });
 
     window.setInterval(scheduleScan, 2000);
@@ -381,14 +403,19 @@
 
     const canFilterContent = canFilterPlatformContent("twitter");
 
-    if (!effectsEnabled() || (!settings.twitterHideAds && !canFilterContent)) {
+    if (
+      !effectsEnabled() ||
+      (!settings.twitterHideAds && !canFilterContent && !hasFormatFilters())
+    ) {
       restoreHiddenTweets();
       return;
     }
 
-    document.querySelectorAll('article[data-testid="tweet"]').forEach((article) => {
-      processTweetArticle(article, canFilterContent);
-    });
+    Array.from(document.querySelectorAll('article[data-testid="tweet"]'))
+      .sort((a, b) => classificationPriority(a) - classificationPriority(b))
+      .forEach((article) => {
+        processTweetArticle(article, canFilterContent);
+      });
   }
 
   function processTweetArticle(article, canFilterContent) {
@@ -419,6 +446,25 @@
       return;
     }
 
+    if (window.SmoothSurferFeedback)
+      window.SmoothSurferFeedback.install(article, () => getTweetText(article));
+    const images = getPostImages(article);
+    const text = getTweetText(article);
+    if (restoredPosts.has(reviewKey(text, images))) {
+      restoreElement(container);
+      return;
+    }
+    const formats = getTweetFormats(article).filter((key) => settings[key]);
+    if (formats.length) {
+      const classification = {
+        blocked: true,
+        reasons: formats.map((key) => FORMAT_LABELS[key]),
+        formats
+      };
+      recordReviewPost(container, text, classification, images);
+      hideTweet(container, classification.reasons, true);
+      return;
+    }
     if (canFilterContent) {
       requestModelClassification(container, getTweetText(article), "tweet");
     } else {
@@ -433,7 +479,7 @@
 
     const canFilterContent = canFilterPlatformContent("twitter");
 
-    if (!settings.twitterHideAds && !canFilterContent) {
+    if (!settings.twitterHideAds && !canFilterContent && !hasFormatFilters()) {
       return;
     }
 
@@ -461,7 +507,9 @@
       collect(mutation.target);
       mutation.addedNodes.forEach((node) => collect(node, true));
     });
-    articles.forEach((article) => processTweetArticle(article, canFilterContent));
+    [...articles]
+      .sort((a, b) => classificationPriority(a) - classificationPriority(b))
+      .forEach((article) => processTweetArticle(article, canFilterContent));
   }
 
   function scanRedditPage() {
@@ -686,7 +734,7 @@
 
   function checkDeepScroll() {
     if (!scrollLimit) {
-      scrollLimit = window.innerHeight * 8;
+      scrollLimit = window.innerHeight * SCROLL_BREAK_SCREENFULS;
     }
 
     if (window.scrollY > scrollLimit) {
@@ -707,11 +755,11 @@
     scrollPause.className = "smooth-surfer-scroll-pause";
     scrollPause.innerHTML = `
       <strong>Surf break</strong>
-      <span>You have been scrolling for a while.</span>
+      <span>Scrolling paused.</span>
       <button type="button">Keep going</button>
     `;
     scrollPause.querySelector("button").addEventListener("click", () => {
-      scrollLimit = window.scrollY + window.innerHeight * 8;
+      scrollLimit = window.scrollY + window.innerHeight * SCROLL_BREAK_SCREENFULS;
       removeScrollPause();
     });
     document.documentElement.append(scrollPause);
@@ -941,21 +989,34 @@
 
   function requestModelClassification(container, text, kind) {
     const normalizedText = normalizeInlineText(text).slice(0, 2000);
-    if (!normalizedText) {
+    const reviewImages = getPostImages(container);
+    const images = settings.imageAnalysisEnabled ? reviewImages : [];
+    if (!normalizedText && !images.length) {
       restoreContentElement(container, kind);
       return;
     }
 
-    const key = getClassificationKey(normalizedText);
+    if (restoredPosts.has(reviewKey(normalizedText, reviewImages))) {
+      pendingClassifications.delete(container);
+      delete container.dataset.smoothSurferPendingKey;
+      restoreContentElement(container, kind);
+      return;
+    }
+    const key = getClassificationKey(normalizedText, images);
     const cached = modelClassifications.get(key);
     if (cached && (!cached.retryAt || cached.retryAt > Date.now())) {
       pendingClassifications.delete(container);
       delete container.dataset.smoothSurferPendingKey;
-      applyModelClassification(container, cached, kind, true);
+      applyModelClassification(container, cached, kind, normalizedText, reviewImages, true);
       recordConsumptionStat(key, cached, container);
       return;
     }
 
+    // Classify the visible feed and the next two screens before distant posts.
+    if (kind === "tweet") {
+      const rect = container.getBoundingClientRect();
+      if (rect.top > window.innerHeight * 3 || rect.bottom < -window.innerHeight) return;
+    }
     const existing = pendingClassifications.get(container);
     if (existing && existing.key === key && existing.epoch === classificationEpoch) return;
 
@@ -998,7 +1059,13 @@
             finish(null);
           } else {
             chrome.runtime.sendMessage(
-              { type: "classifyContent", source: platform, text: normalizedText },
+              {
+                type: "classifyContent",
+                source: platform,
+                text: normalizedText,
+                images,
+                priority: classificationPriority(container)
+              },
               (response) => finish(chrome.runtime.lastError ? null : response)
             );
           }
@@ -1032,17 +1099,71 @@
       }
       pendingClassifications.delete(container);
       delete container.dataset.smoothSurferPendingKey;
-      applyModelClassification(container, result, kind);
+      applyModelClassification(container, result, kind, normalizedText, reviewImages);
       recordConsumptionStat(key, result, container);
     });
   }
 
-  function applyModelClassification(container, classification, kind, immediate = false) {
-    if (classification.blocked) {
+  function applyModelClassification(
+    container,
+    classification,
+    kind,
+    text,
+    images,
+    immediate = false
+  ) {
+    if (classification.blocked && !restoredPosts.has(reviewKey(text, images))) {
+      recordReviewPost(container, text, classification, images);
       hideContentElement(container, classification.reasons || [], kind, immediate);
     } else {
       container.dataset.smoothSurferCleared = "true";
       restoreContentElement(container, kind);
+    }
+  }
+
+  function reviewKey(text, images = []) {
+    return window.SmoothSurferSettings.getReviewPostKey(platform, text, images);
+  }
+
+  function classificationPriority(container) {
+    const rect = container.getBoundingClientRect();
+    if (rect.bottom < 0) return 100000 + Math.abs(rect.bottom);
+    if (rect.top < window.innerHeight) return 0;
+    return rect.top - window.innerHeight;
+  }
+
+  function recordReviewPost(container, text, classification, images = []) {
+    const id = reviewKey(text, images);
+    if (recordedReviewKeys.has(id) || !hasChromeRuntime()) return;
+    const article = platform === "twitter" ? getTweetArticle(container) : container;
+    if (!article) return;
+    let link = article.querySelector("time")?.closest("a");
+    if (!link && platform === "reddit") link = article.querySelector('a[href*="/comments/"]');
+    if (!link && platform === "hacker-news") link = article.querySelector('a[href^="item?id="]');
+    if (!link && platform === "substack") link = article.querySelector('a[href*="/p/"]');
+    const author = article.querySelector('[data-testid="User-Name"]')?.textContent || "";
+    recordedReviewKeys.add(id);
+    try {
+      chrome.runtime.sendMessage(
+        {
+          type: "recordFilteredPost",
+          post: {
+            source: platform,
+            text,
+            author,
+            images,
+            formats: classification.formats || [],
+            url: link?.href || "",
+            reasons: classification.reasons || [],
+            criteria: classification.matchedCriteria || []
+          }
+        },
+        (response) => {
+          if (chrome.runtime.lastError || !response?.ok) recordedReviewKeys.delete(id);
+        }
+      );
+    } catch {
+      recordedReviewKeys.delete(id);
     }
   }
 
@@ -1070,11 +1191,13 @@
     });
   }
 
-  function getClassificationKey(text) {
+  function getClassificationKey(text, images = []) {
     return JSON.stringify({
       classifier: "claude-haiku",
       consumption: Boolean(settings.consumptionFactsEnabled),
       criteria: settings.filterCriteria,
+      imageAnalysis: settings.imageAnalysisEnabled,
+      images,
       source: platform,
       text
     });
@@ -1119,7 +1242,7 @@
   function getTweetIdentity(article) {
     if (!article) return "";
     const permalink = article.querySelector('a[href*="/status/"] time')?.closest("a");
-    return `${permalink?.getAttribute("href") || ""}|${getTweetText(article)}`;
+    return `${permalink?.getAttribute("href") || ""}|${getTweetText(article)}|${getPostImages(article).join("|")}|${getTweetFormats(article).join("|")}`;
   }
 
   function getTweetText(article) {
@@ -1133,7 +1256,43 @@
       const alt = image.getAttribute("alt");
       if (alt && alt !== "Image") parts.push(alt);
     });
-    return normalizeInlineText(parts.join(" "));
+    const text = normalizeInlineText(parts.join(" "));
+    if (!text && !getPostImages(article).length && getTweetFormats(article).length) {
+      const link = article.querySelector('a[href*="/status/"] time')?.closest("a");
+      if (link) return `Media post: ${link.href}`;
+    }
+    return text;
+  }
+
+  function hasFormatFilters() {
+    return FORMAT_KEYS.some((key) => settings[key]);
+  }
+
+  function getTweetFormats(article) {
+    if (!article) return [];
+    const formats = [];
+    const context = article.querySelector('[data-testid="socialContext"]');
+    if (
+      context &&
+      (/\b(reposted|retweeted)\b/i.test(context.textContent) ||
+        context.querySelector('[data-testid="retweet"]'))
+    )
+      formats.push("twitterHideReposts");
+    if (
+      article.querySelector(
+        '[data-testid="quoteTweet"], [data-testid="quote-tweet"], [role="link"] [data-testid="tweetText"]'
+      )
+    )
+      formats.push("twitterHideQuotes");
+    if (article.querySelector('video, [data-testid="videoPlayer"], [data-testid="videoComponent"]'))
+      formats.push("twitterHideVideos");
+    return formats;
+  }
+
+  function getPostImages(container) {
+    return normalizeImageUrls(
+      [...container.querySelectorAll("img")].map((image) => image.currentSrc || image.src)
+    );
   }
 
   function getTweetContainer(article) {

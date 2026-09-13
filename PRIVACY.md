@@ -4,6 +4,14 @@ Smooth Surfer does not run a backend service.
 
 Settings are stored with `chrome.storage.sync`. Anthropic API keys are stored with `chrome.storage.local`.
 
-When `Filter out content` is enabled and an Anthropic API key is saved, Smooth Surfer may send visible feed text to Anthropic for classification. Without that key, content filtering stays disabled and no feed text is sent to Anthropic by this feature.
+When `Filter out content` is enabled and an Anthropic API key is saved, Smooth Surfer may send visible and upcoming feed text to Anthropic for classification. Without that key, AI content filtering stays disabled and no feed text is sent to Anthropic by this feature.
+
+The Recently filtered page stores text previews, supported image URLs, post links, author labels, filtering reasons, matching rules, and format labels locally using `chrome.storage.local`. It shows up to 2,000 posts from the last 7 days; older entries are pruned when history is updated. A 6 MB budget may retain fewer exceptionally large entries. Restore choices are stored as up to 4,000 post fingerprints so the original text and image URLs are not needed after its preview expires. History and restore choices are not synced or sent to a Smooth Surfer server. You can clear previews from the review page.
+
+Choosing Suggest filters in Less like this sends that post's text to Anthropic using your saved API key to suggest editable rules. Suggestions run only when requested and are not applied until you choose Add filter. Writing a rule yourself does not request suggestions.
+
+Analyze images is off by default. When enabled alongside AI content filtering and an API key, up to two supported public image URLs per post are sent to Anthropic, which retrieves the images to classify them alongside the text. Supported hosts are pbs.twimg.com/media, i.redd.it, preview.redd.it, external-preview.redd.it, and substackcdn.com. Smooth Surfer does not upload image bytes or retain them. Choosing View images in the review page loads those images directly from their original providers; no referrer is sent. Images are not loaded automatically on the review page.
+
+Format filters for reposts, quote posts, and video posts run locally without an API key. Named filter sets are stored locally, up to 20 sets. Exported sets contain only a name, content rules, and enabled X format filters. API keys, image-analysis consent, and unrelated settings are excluded. Importing previews a set; only your selected rules and formats are added when you apply it.
 
 Smooth Surfer does not sell data or collect analytics.

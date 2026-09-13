@@ -3,6 +3,17 @@
 Notable changes per released version. Versions match `manifest.json`, and a
 release is a `v*` tag; see [docs/RELEASING.md](docs/RELEASING.md).
 
+## 0.2.5
+
+- Simplify interface copy and use a compact black-and-white theme with Fogg-inspired typography and geometry.
+- Add a full Recently filtered page with reasons, search, restore, rule editing, and optional image previews. Retain up to 2,000 posts for seven days, within a 6 MB storage cap, and up to 4,000 restore choices.
+- Add instant X format filters for reposts, quote posts, and video posts without an API key.
+- Add opt-in image analysis for up to two supported post images alongside text.
+- Add named filter sets, Quiet browsing and Work presets, export, and selective import in a dedicated page.
+- Add Less like this on X, with optional editable Claude suggestions before adding a rule.
+- Prioritize visible and upcoming X posts and limit simultaneous classification batches.
+- Surf break allows sixteen screenfuls of scrolling between breaks, up from eight.
+
 ## 0.2.4
 
 ### Fixed

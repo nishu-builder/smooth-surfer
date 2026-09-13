@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Recently filtered · Smooth Surfer</title>
+  <link rel="stylesheet" href="src/theme.css">
+  <link rel="stylesheet" href="src/review.css">
+</head>
+<body>
+  <main>
+    <header>
+      <a class="brand" href="review.html"><img src="icons/icon48.png" alt="">Smooth Surfer</a>
+      <div class="heading"><h1>Recently filtered</h1><a class="page-link" href="filters.html">Filter sets</a><button id="manage-rules" type="button">Edit rules</button></div>
+    </header>
+    <section class="toolbar" aria-label="Find filtered posts">
+      <label class="search">Search posts<input id="search" type="search" placeholder="Search text, reasons, or rules"></label>
+      <label>Site<select id="source"><option value="">All sites</option><option value="twitter">X / Twitter</option><option value="reddit">Reddit</option><option value="hacker-news">Hacker News</option><option value="substack">Substack</option></select></label>
+      <label>Show<select id="state"><option value="">All posts</option><option value="filtered">Filtered</option><option value="restored">Restored</option></select></label>
+    </section>
+    <div class="list-heading"><p id="count">Loading posts…</p><button id="clear" class="quiet" type="button">Clear history</button></div>
+    <p id="status" role="status" aria-live="polite"></p>
+    <section id="posts" aria-label="Recent posts"></section>
+    <button id="more" type="button" hidden>Load more</button>
+    <footer>Stored on this device: up to 2,000 posts from the last 7 days. Restored posts stay visible across tabs and reloads. Storage limits may remove older previews sooner. Clearing history keeps restore choices.</footer>
+  </main>
+  <dialog id="rule-dialog" aria-labelledby="rule-title">
+    <form id="rule-form">
+      <div class="dialog-heading"><h2 id="rule-title">Edit rule</h2><button type="button" id="close-dialog" class="quiet">Close</button></div>
+      <p>Changes apply wherever content filtering is enabled.</p>
+      <label>Choose a rule<select id="rule-select"></select></label>
+      <label>Filter posts that match<textarea id="rule-text" rows="4" maxlength="500" required></textarea></label>
+      <p id="rule-status" role="status"></p>
+      <div class="actions"><button type="submit" class="primary">Save rule</button><button type="button" id="delete-rule">Remove rule</button></div>
+    </form>
+  </dialog>
+  <script src="src/settings.js"></script><script src="src/storage.js"></script><script src="src/review.js"></script>
+</body>
+</html>

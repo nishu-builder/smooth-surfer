@@ -18,12 +18,44 @@ global.chrome = {
   }
 };
 
+let reviewState = { items: [], restored: [] };
+let settingsState = null;
+let filterSetsState = [];
+let activeQueueCalls = 0;
+let peakQueueCalls = 0;
 const fetchCalls = [];
 global.fetch = async (url, options) => {
   const body = JSON.parse(options.body);
   fetchCalls.push(body);
 
   const prompt = body.messages[0].content[0].text;
+
+  if (prompt.includes("QUEUEPOST")) {
+    activeQueueCalls += 1;
+    peakQueueCalls = Math.max(peakQueueCalls, activeQueueCalls);
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    activeQueueCalls -= 1;
+  }
+  if (body.system.startsWith("Suggest three"))
+    return {
+      ok: true,
+      json: async () => ({
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              suggestions: [
+                "Giveaway engagement bait",
+                "Giveaway engagement bait",
+                "Posts asking for reposts",
+                "Promotional contests",
+                "Extra suggestion"
+              ]
+            })
+          }
+        ]
+      })
+    };
 
   if (prompt.includes("TRUNCATE")) {
     return {
@@ -43,7 +75,13 @@ global.fetch = async (url, options) => {
     const blocked = itemText.includes("BLOCKME");
     const tags = itemText.includes("OUTRAGE") ? ["outrage-political", "bogus-tag"] : [];
 
-    results.push({ i, blocked, reasons: blocked ? ["engagement bait"] : [], tags });
+    results.push({
+      i,
+      blocked,
+      matches: blocked ? [1, 999, "2"] : [],
+      reasons: blocked ? ["engagement bait"] : [],
+      tags
+    });
   }
 
   return {
@@ -61,7 +99,20 @@ global.importScripts = (...files) => {
       require(path.join(src, "settings.js"));
     } else if (file === "storage.js") {
       self.SmoothSurferStorage = {
-        loadSettings: async () => self.SmoothSurferSettings.normalizeSettings(),
+        loadSettings: async () =>
+          structuredClone(settingsState || self.SmoothSurferSettings.normalizeSettings()),
+        saveSettings: async (next) => {
+          settingsState = structuredClone(next);
+        },
+        loadFilterSets: async () => structuredClone(filterSetsState),
+        saveFilterSets: async (next) => {
+          filterSetsState = self.SmoothSurferSettings.normalizeFilterSets(next);
+        },
+        loadReview: async () => structuredClone(reviewState),
+        saveReview: async (next) => {
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          reviewState = self.SmoothSurferSettings.normalizeReview(next);
+        },
         loadSecrets: async () => ({ anthropicApiKey: "sk-ant-test" }),
         loadStats: async () => ({ days: {} }),
         saveStats: async (stats) => {
@@ -78,9 +129,13 @@ global.importScripts = (...files) => {
 
 require(path.join(src, "background.js"));
 
-function classify(text, source) {
+function classify(text, source, priority = 0) {
   return new Promise((resolve) => {
-    const isAsync = messageListener({ type: "classifyContent", text, source }, {}, resolve);
+    const isAsync = messageListener(
+      { type: "classifyContent", text, source, priority },
+      {},
+      resolve
+    );
 
     assert.equal(isAsync, true);
   });
@@ -183,6 +238,166 @@ function classify(text, source) {
   assert.equal(consumptionDay.reddit.posts, 3, "duplicate key counted once");
   assert.deepEqual(consumptionDay.reddit.tags, { humor: 1 });
 
+  const message = (payload) => new Promise((resolve) => messageListener(payload, {}, resolve));
+  const post = (text) => ({
+    source: "twitter",
+    text,
+    reasons: ["engagement bait"],
+    criteria: ["Engagement bait"],
+    url: "https://x.com/a/status/123"
+  });
+  await Promise.all([
+    message({ type: "recordFilteredPost", post: post("one") }),
+    message({ type: "recordFilteredPost", post: post("two") }),
+    message({ type: "recordFilteredPost", post: post("one") })
+  ]);
+  assert.equal(reviewState.items.length, 2, "concurrent tabs neither lose nor duplicate history");
+  const id = self.SmoothSurferSettings.getReviewPostKey("twitter", "one");
+  assert.equal((await message({ type: "restoreFilteredPost", id })).ok, true);
+  assert.deepEqual(reviewState.restored, [id]);
+  await message({ type: "recordFilteredPost", post: post("one") });
+  assert.equal(reviewState.items.length, 2);
+  await message({ type: "refilterPost", id });
+  assert.deepEqual(reviewState.restored, []);
+  await message({ type: "restoreFilteredPost", id });
+  await message({ type: "clearReviewHistory" });
+  assert.equal(reviewState.items.length, 0);
+  assert.deepEqual(reviewState.restored, [id], "clearing previews preserves restoration");
+  assert.equal((await message({ type: "restoreFilteredPost", id: "missing" })).ok, false);
+  await Promise.all([
+    message({ type: "addFilterCriterion", criterion: "First new rule" }),
+    message({ type: "addFilterCriterion", criterion: "Second new rule" })
+  ]);
+  assert.ok(settingsState.filterCriteria.includes("First new rule"));
+  assert.ok(settingsState.filterCriteria.includes("Second new rule"));
+  await message({ type: "editFilterCriterion", previous: "First new rule", next: "Edited rule" });
+  assert.ok(settingsState.filterCriteria.includes("Edited rule"));
+  assert.equal(
+    (await message({ type: "editFilterCriterion", previous: "First new rule", next: "Stale edit" }))
+      .ok,
+    false
+  );
+  await message({ type: "editFilterCriterion", previous: "Edited rule", next: "" });
+  assert.equal(settingsState.filterCriteria.includes("Edited rule"), false);
+  const beforeSuggestions = [...settingsState.filterCriteria];
+  const suggestions = await message({ type: "suggestFilterCriteria", text: "Repost for a prize" });
+  assert.equal(suggestions.ok, true);
+  assert.equal(suggestions.suggestions.length, 3);
+  assert.deepEqual(
+    settingsState.filterCriteria,
+    beforeSuggestions,
+    "suggestions never change rules by themselves"
+  );
+  assert.equal(b.matchedCriteria.length, 1, "only valid matching criterion numbers are retained");
+  const queueStart = fetchCalls.length;
+  await Promise.all(
+    Array.from({ length: 55 }, (_, index) => {
+      const priority = 54 - index;
+      return classify(`QUEUEPOST${priority}`, "twitter", priority);
+    })
+  );
+  assert.equal(peakQueueCalls, 2, "classification uses at most two simultaneous batches");
+  assert.equal(fetchCalls.length - queueStart, 3, "55 posts split into bounded batches");
+  assert.match(
+    fetchCalls[queueStart].messages[0].content[0].text,
+    /1\. \[X\/Twitter post\] QUEUEPOST0\n/,
+    "nearest post leads the batch even when queued last"
+  );
+  settingsState.filterCriteria = [];
+  const noRules = await classify("BLOCKME but there are no rules", "twitter");
+  assert.equal(
+    noRules.blocked,
+    false,
+    "removing the final rule cannot silently reinstate defaults"
+  );
+  assert.match(fetchCalls.at(-1).messages[0].content[0].text, /No filter criteria/);
+
+  settingsState.filterCriteria = ["Existing rule"];
+  settingsState.imageAnalysisEnabled = false;
+  settingsState.twitterHideQuotes = true;
+  const pack = {
+    ...self.SmoothSurferSettings.BUILTIN_FILTER_SETS[0],
+    imageAnalysisEnabled: true,
+    anthropicApiKey: "ignore"
+  };
+  assert.equal((await message({ type: "applyFilterSet", pack })).ok, true);
+  assert.ok(settingsState.filterCriteria.includes("Existing rule"));
+  assert.ok(settingsState.filterCriteria.includes(pack.criteria[0]));
+  assert.equal(settingsState.twitterHideReposts, true);
+  assert.equal(settingsState.twitterHideQuotes, true);
+  assert.equal(settingsState.imageAnalysisEnabled, false);
+  assert.equal(settingsState.anthropicApiKey, undefined);
+  assert.equal(
+    (await message({ type: "applyFilterSet", pack: { ...pack, version: 2 } })).ok,
+    false
+  );
+  assert.equal(
+    (await message({ type: "setFormatFilter", key: "enabled", enabled: false })).ok,
+    false
+  );
+  await message({ type: "setFormatFilter", key: "twitterHideReposts", enabled: false });
+  assert.equal(settingsState.twitterHideReposts, false);
+  await Promise.all([
+    message({ type: "saveFilterSet", name: "Personal" }),
+    message({ type: "saveFilterSet", name: "Work" })
+  ]);
+  assert.equal(filterSetsState.length, 2);
+  assert.deepEqual(
+    filterSetsState.find((p) => p.name === "Personal").criteria,
+    settingsState.filterCriteria
+  );
+  await message({ type: "deleteFilterSet", name: "Work" });
+  assert.equal(filterSetsState.length, 1);
+  assert.ok(settingsState.filterCriteria.includes("Existing rule"));
+
+  const image = "https://pbs.twimg.com/media/example.png";
+  const classifyImage = (text, images = [image]) =>
+    message({ type: "classifyContent", source: "twitter", text, images });
+  await classifyImage("Image opt out");
+  assert.equal(
+    fetchCalls.at(-1).messages[0].content.some((block) => block.type === "image"),
+    false
+  );
+  settingsState.imageAnalysisEnabled = true;
+  await classifyImage("");
+  const content = fetchCalls.at(-1).messages[0].content;
+  assert.deepEqual(
+    content.find((block) => block.type === "image"),
+    { type: "image", source: { type: "url", url: image + "?name=small" } }
+  );
+  const imageCount = fetchCalls.length;
+  await classifyImage("");
+  assert.equal(fetchCalls.length, imageCount, "same image verdict is cached");
+  await classifyImage("", ["https://i.redd.it/different.png"]);
+  assert.equal(fetchCalls.length, imageCount + 1, "different image gets its own verdict");
+  await classifyImage("Unsupported image", ["https://untrusted.example/private.png"]);
+  assert.equal(
+    fetchCalls.at(-1).messages[0].content.some((block) => block.type === "image"),
+    false
+  );
+  const staleStart = fetchCalls.length;
+  const staleImage = classifyImage("Queued image opt-out");
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  settingsState.imageAnalysisEnabled = false;
+  assert.equal((await staleImage).classifier, "error");
+  assert.equal(
+    fetchCalls.length,
+    staleStart,
+    "revoking image analysis cancels queued image requests"
+  );
+  await message({
+    type: "recordFilteredPost",
+    post: { source: "twitter", text: "", images: [image], formats: ["twitterHideQuotes"] }
+  });
+  const imageReview = reviewState.items.find((item) => item.images.length);
+  assert.ok(imageReview);
+  assert.deepEqual(imageReview.formats, ["twitterHideQuotes"]);
+  await message({ type: "restoreFilteredPost", id: imageReview.id });
+  assert.ok(
+    reviewState.restored.includes(
+      self.SmoothSurferSettings.getReviewPostKey("twitter", "", [image])
+    )
+  );
   console.log("background tests passed");
   process.exit(0);
 })().catch((error) => {

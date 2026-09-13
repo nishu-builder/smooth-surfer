@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Smooth Surfer</title>
+    <link rel="stylesheet" href="src/theme.css">
     <link rel="stylesheet" href="src/popup.css">
   </head>
   <body>
@@ -17,6 +18,8 @@
           <span>Enabled</span>
           <input type="checkbox" data-setting="enabled">
         </label>
+        <a class="review-link" href="review.html" target="_blank" rel="noopener" data-review-link>Recently filtered</a>
+        <a class="review-link" href="filters.html" target="_blank" rel="noopener">Filter sets</a>
       </header>
 
       <section data-site-section="youtube">
@@ -72,6 +75,15 @@
         <label class="switch-row" data-description="Requires an Anthropic key. Without one, content filtering stays off.">
           <span>Filter out content</span>
           <input type="checkbox" data-setting="twitterFilterContent">
+        </label>
+        <label class="switch-row" data-description="Filters this format instantly. No API key needed.">
+          <span>Hide reposts</span><input type="checkbox" data-setting="twitterHideReposts">
+        </label>
+        <label class="switch-row" data-description="Filters this format instantly. No API key needed.">
+          <span>Hide quote posts</span><input type="checkbox" data-setting="twitterHideQuotes">
+        </label>
+        <label class="switch-row" data-description="Filters this format instantly. No API key needed.">
+          <span>Hide video posts</span><input type="checkbox" data-setting="twitterHideVideos">
         </label>
         <label class="switch-row" data-description="Hides trending-topic modules on X/Twitter.">
           <span>Hide trends</span>
@@ -129,6 +141,9 @@
 
       <section>
         <h2>Content filter</h2>
+        <label class="switch-row" data-description="Optional. Sends up to two supported image URLs per post to Claude alongside text. Adds API cost and latency. Requires an Anthropic key.">
+          <span>Analyze images</span><input type="checkbox" data-setting="imageAnalysisEnabled">
+        </label>
         <label class="field-row" data-api-key-row>
           <span>Anthropic key</span>
           <input type="password" data-secret="anthropicApiKey" placeholder="sk-ant-...">
@@ -147,7 +162,7 @@
           <span>Hide sticky videos</span>
           <input type="checkbox" data-setting="hideStickyVideoPlayers">
         </label>
-        <label class="switch-row" data-description="Pauses after about eight screenfuls outside work sites until you choose Keep going.">
+        <label class="switch-row" data-description="Pauses after about sixteen screenfuls outside work sites until you choose Keep going.">
           <span>Pause deep scrolling</span>
           <input type="checkbox" data-setting="pauseDeepScrolling">
         </label>

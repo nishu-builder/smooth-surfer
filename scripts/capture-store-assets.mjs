@@ -2,7 +2,7 @@
 // Captures the Chrome Web Store screenshots (1280x800) into docs/store-assets/.
 // The shots walk through the toolbar popup itself: the full menu is rendered
 // with the extension loaded, then sliced at section boundaries into a handful
-// of readable panels centered on a brand-colored canvas.
+// of readable panels centered on a neutral canvas.
 //
 // Usage: node scripts/capture-store-assets.mjs
 //
@@ -23,7 +23,7 @@ import { fileURLToPath } from "node:url";
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = path.join(root, "docs", "store-assets");
 const cacheDir = path.join(root, ".cache");
-const canvas = { width: 1280, height: 800, background: "0x176b5d" };
+const canvas = { width: 1280, height: 800, background: "0xf2f2f2" };
 // Popup body is 320px wide; at deviceScaleFactor 2 the column is 640px.
 const popupColumnWidth = 640;
 // Curated section groups, one store screenshot each. Labels match a section's
