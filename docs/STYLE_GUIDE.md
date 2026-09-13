@@ -24,7 +24,7 @@ These are Smooth Surfer’s monochrome interface tokens, adapted from the refere
 - Use the geometric/monospaced stack for headings, actions, and metadata. Use a neutral sans serif for longer post previews and help text.
 - Keep white surfaces, thin dividers, crisp corners, and consistent alignment. Avoid pill-shaped panels and heavy shadows.
 - Default to compact spacing: 4–8px between related controls, 10–12px inside post cards, and 8px between cards. Headers should not push content down.
-- Keep post previews at 14px with 1.4 line height. Reduce padding before shrinking reading text. Controls should remain at least 28px high.
+- Keep post previews at 14–15px with 1.4–1.45 line height. Reduce padding before shrinking reading text. Controls should remain at least 28px high.
 - Use black for primary actions and white for surfaces. Supporting fills, borders, and hover states stay neutral gray.
 - Keep decoration out of reading and decision areas. Do not copy Fogg’s logo or artwork into the extension.
 - Preserve visible focus indicators, legible contrast, narrow-screen wrapping, and existing feed geometry.
@@ -32,7 +32,9 @@ These are Smooth Surfer’s monochrome interface tokens, adapted from the refere
 
 ## Copy
 
-- Keep copy terse and factual. Use sentence case and concrete actions: “Restore post,” “Edit rule,” “Filter added.”
+- Keep copy terse and factual. Use sentence case and concrete actions: “Good ruling,” “Bad ruling,” “Recalibrate rules,” “Filter added.”
 - Remove slogans, motivational language, and introductions that repeat the controls.
 - Keep details that affect a choice: data sharing, rule scope, persistence, and error recovery.
 - Use the same terms across the popup, review page, feed controls, and listing.
+
+Review cards put triggering rules and judgments first, followed by the saved post. Avatars, media, and quoted-post frames can follow familiar X shapes; keep the surrounding controls monochrome and compact.

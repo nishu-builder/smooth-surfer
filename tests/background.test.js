@@ -57,6 +57,11 @@ global.fetch = async (url, options) => {
       })
     };
 
+  if (prompt.includes("INCOMPLETE"))
+    return {
+      ok: true,
+      json: async () => ({ content: [{ type: "text", text: JSON.stringify({ results: [] }) }] })
+    };
   if (prompt.includes("TRUNCATE")) {
     return {
       ok: true,
@@ -97,6 +102,8 @@ global.importScripts = (...files) => {
   for (const file of files) {
     if (file === "settings.js") {
       require(path.join(src, "settings.js"));
+    } else if (file === "calibration.js") {
+      require(path.join(src, "calibration.js"));
     } else if (file === "storage.js") {
       self.SmoothSurferStorage = {
         loadSettings: async () =>
@@ -190,6 +197,9 @@ function classify(text, source, priority = 0) {
   assert.equal(retried.classifier, "error");
   assert.equal(fetchCalls.length, 3, "truncated result not cached, retried");
 
+  const incomplete = await classify("INCOMPLETE reply", "twitter");
+  assert.equal(incomplete.classifier, "error", "missing decisions cannot become cached approvals");
+
   // recordHide aggregates into daily stats and persists.
   messageListener({ type: "recordHide", source: "twitter", reasons: ["ad"] }, {}, () => {});
   messageListener({ type: "recordHide", source: "twitter", reasons: ["ad"] }, {}, () => {});
@@ -252,6 +262,14 @@ function classify(text, source, priority = 0) {
     message({ type: "recordFilteredPost", post: post("one") })
   ]);
   assert.equal(reviewState.items.length, 2, "concurrent tabs neither lose nor duplicate history");
+  await message({
+    type: "recordFilteredPost",
+    post: { ...post("one"), criteria: ["A newly triggering rule"] }
+  });
+  assert.equal(reviewState.items.length, 2, "new rulings refresh a post without duplicating it");
+  assert.deepEqual(reviewState.items.find((item) => item.text === "one").criteria, [
+    "A newly triggering rule"
+  ]);
   const id = self.SmoothSurferSettings.getReviewPostKey("twitter", "one");
   assert.equal((await message({ type: "restoreFilteredPost", id })).ok, true);
   assert.deepEqual(reviewState.restored, [id]);
@@ -350,6 +368,30 @@ function classify(text, source, priority = 0) {
   assert.equal(filterSetsState.length, 1);
   assert.ok(settingsState.filterCriteria.includes("Existing rule"));
 
+  await Promise.all([
+    message({ type: "updateSettings", patch: { youtubeHideComments: true } }),
+    message({ type: "addFilterCriterion", criterion: "Concurrent rule" })
+  ]);
+  assert.equal(settingsState.youtubeHideComments, true);
+  assert.ok(settingsState.filterCriteria.includes("Concurrent rule"));
+  assert.equal(
+    (
+      await message({
+        type: "updateSettings",
+        patch: { filterCriteria: ["Overwrite"] },
+        expectedCriteria: []
+      })
+    ).ok,
+    false
+  );
+  assert.ok(
+    settingsState.filterCriteria.includes("Concurrent rule"),
+    "a stale popup cannot overwrite calibrated rules"
+  );
+  assert.equal(
+    (await message({ type: "updateSettings", patch: { anthropicApiKey: "wrong-store" } })).ok,
+    false
+  );
   const image = "https://pbs.twimg.com/media/example.png";
   const classifyImage = (text, images = [image]) =>
     message({ type: "classifyContent", source: "twitter", text, images });

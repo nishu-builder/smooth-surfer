@@ -36,9 +36,11 @@ Per-site cleanup:
 
 Settings:
 
-- Recently filtered: review up to 2,000 posts from seven days in a separate tab,
-  see why they matched, restore a post, or edit its rule. History stays local
-  and has a 6 MB cap. Image previews load only when requested.
+- Review rulings: see triggering rules above each post. Mark good or bad
+  rulings and optionally explain why. Recalibrate rules proposes changes and
+  applies them only after they pass saved examples; revisions support undo.
+  Review history stays local (up to 2,000 posts / seven days / 6 MB). Feedback
+  stays separately (up to 2,000 judgments / 2 MB). Media loads lazily.
 - Filter sets: save named sets, use presets, share JSON files, and choose
   which rules to import. API keys and image analysis are excluded.
 - Focus schedule: run effects only during the hours you choose, including
@@ -76,17 +78,17 @@ sites.
 
 - `storage`: Saves the user's toggle settings (synced via
   `chrome.storage.sync`) and their optional Anthropic API key (local only via
-  `chrome.storage.local`), plus recent filtered-post previews, image URLs, restore choices, and named filter sets locally.
+  `chrome.storage.local`), plus recent filtered-post previews, image URLs, restore choices, rule judgments, explanations, revision history, and named filter sets locally.
 - `api.anthropic.com` host permission: Used only when the user saves their own
   Anthropic API key, to classify visible and upcoming feed text against the user's filter
-  criteria, optionally analyze supported post images when separately enabled, compute the Consumption Facts label, and suggest editable filter rules when requested.
+  criteria, optionally analyze supported post images when separately enabled, compute the Consumption Facts label, suggest editable filter rules, and recalibrate rules from labeled examples when requested.
 - Content script on `<all_urls>`: Powers every on-page effect the user can
   toggle — the per-site cleanups on YouTube, X/Twitter, Reddit, Substack, and
   Hacker News (ads, recommendations, Shorts, comments, scores) and the
   cross-site effects (hiding sticky/floating video players, graying
   distracting media, the deep-scroll pause, video speed keys, and the settings
   shortcut). Page content is read locally; nothing is transmitted except when
-  the user enables AI filtering or requests filter suggestions, which send post text and optionally supported image URLs to Anthropic using their own key. Requested image previews load from their original providers.
+  the user enables AI filtering or requests filter suggestions, which send post text and optionally supported image URLs to Anthropic using their own key. Review images and avatars load from their original providers.
 
 **Remote code:** No, I am not using remote code. (The extension calls the
 Anthropic REST API for text classification but does not fetch or execute

@@ -821,7 +821,7 @@ async function verifyExtensionPopupOpens() {
     const popupClient = await CdpClient.connect(popup.webSocketDebuggerUrl);
     await waitForExpression(
       popupClient,
-      `document.querySelector('[data-review-link]')?.textContent === 'Recently filtered (0)'`
+      `document.querySelector('[data-review-link]')?.textContent === 'Review rulings (0)'`
     );
     const popupLayout = await evaluate(
       popupClient,
@@ -854,7 +854,7 @@ async function verifyExtensionPopupOpens() {
       `(async () => {
       await SmoothSurferStorage.saveSettings(SmoothSurferSettings.normalizeSettings({filterCriteria: ['Engagement bait', 'Unsubstantiated predictions']}));
       const posts = [
-        {source:'twitter',author:'River Chen · @river',text:'Repost this thread and follow for a chance to win a new setup. Winners announced tomorrow.',reasons:['Asks for reposts in exchange for a prize'],criteria:['Engagement bait'],url:'https://x.com/river/status/123'},
+        {source:'twitter',author:'River Chen · @river',display:{name:'River Chen',handle:'@river',text:'Repost this thread and follow for a chance to win a new setup.\\n\\nWinners announced tomorrow.',postedAt:new Date().toISOString(),quoted:{name:'Gear desk',handle:'@gear',text:'A new setup for this month.'}},text:'Repost this thread and follow for a chance to win a new setup. Winners announced tomorrow.',reasons:['Asks for reposts in exchange for a prize'],criteria:['Engagement bait'],url:'https://x.com/river/status/123'},
         {source:'reddit',author:'',text:'This changes everything. One chart proves the next big market move is guaranteed.',reasons:['Presents an uncertain prediction as a guarantee'],criteria:['Unsubstantiated predictions'],url:'https://www.reddit.com/r/example/comments/123/example/'},
         {source:'twitter',author:'Casey Park · @casey',text:'Only a few people will understand this. Like and share if you are one of them.',reasons:['Solicits engagement through an exclusivity claim'],criteria:['Engagement bait'],url:'https://x.com/casey/status/456'}
       ];
@@ -864,12 +864,35 @@ async function verifyExtensionPopupOpens() {
     await navigate(client, extensionOrigin + "/popup.html");
     await waitForExpression(
       client,
-      `document.querySelector('[data-review-link]')?.textContent === 'Recently filtered (3)'`
+      `document.querySelector('[data-review-link]')?.textContent === 'Review rulings (3)'`
     );
     assert.equal(
       await evaluate(client, `document.querySelector('[data-review-link]').target`),
       "_blank",
       "popup opens review in a full tab"
+    );
+    await evaluate(
+      client,
+      `document.querySelector('[data-setting="youtubeHideComments"]').click()`
+    );
+    await waitForExpression(
+      client,
+      `document.querySelector('[data-status]').textContent === 'Saved'`
+    );
+    assert.equal(
+      await evaluate(
+        workerClient,
+        `(async()=> (await SmoothSurferStorage.loadSettings()).youtubeHideComments)()`
+      ),
+      true
+    );
+    assert.deepEqual(
+      await evaluate(
+        workerClient,
+        `(async()=> (await SmoothSurferStorage.loadSettings()).filterCriteria)()`
+      ),
+      ["Engagement bait", "Unsubstantiated predictions"],
+      "popup setting patches preserve rules"
     );
     await navigate(client, extensionOrigin + "/review.html");
     await waitForExpression(client, `document.querySelectorAll('.post').length === 3`);
@@ -895,44 +918,112 @@ async function verifyExtensionPopupOpens() {
       true,
       "review fits narrow screens"
     );
-    await evaluate(client, `document.querySelector('.post .primary').click()`);
-    await waitForExpression(client, `document.querySelector('.badge')?.textContent === 'Restored'`);
-    await navigate(client, extensionOrigin + "/review.html");
-    await waitForExpression(client, `document.querySelector('.badge')?.textContent === 'Restored'`);
-    await evaluate(
-      client,
-      `document.getElementById('search').value='guarantee';document.getElementById('search').dispatchEvent(new Event('input'))`
-    );
-    assert.equal(await evaluate(client, `document.querySelectorAll('.post').length`), 1);
-    await evaluate(
-      client,
-      `[...document.querySelectorAll('.post button')].find(button=>button.textContent==='Edit rule').click()`
-    );
-    await waitForExpression(client, `document.getElementById('rule-dialog').open`);
-    assert.equal(
-      await evaluate(client, `document.getElementById('rule-text').value`),
-      "Unsubstantiated predictions"
-    );
-    await evaluate(
-      client,
-      `document.getElementById('rule-text').value='Predictions presented as guarantees';document.getElementById('rule-form').requestSubmit()`
-    );
-    await waitForExpression(client, `!document.getElementById('rule-dialog').open`);
     assert.equal(
       await evaluate(
-        workerClient,
-        `(async()=> (await SmoothSurferStorage.loadSettings()).filterCriteria.includes('Predictions presented as guarantees'))()`
+        client,
+        `[...document.querySelectorAll('.post button')].some(b=>['Restore post','Edit rule'].includes(b.textContent))`
       ),
-      true
+      false
     );
-    await evaluate(client, `document.getElementById('clear').click()`);
-    await waitForExpression(client, `document.querySelectorAll('.post').length === 0`);
+    assert.equal(
+      await evaluate(client, `document.querySelector('.post').firstElementChild.className`),
+      "rulings",
+      "triggering rules appear above the post"
+    );
+    await evaluate(client, `document.querySelector('.post [data-judgment="good"]').click()`);
+    await waitForExpression(
+      client,
+      `document.querySelector('.post [data-judgment="good"]').getAttribute('aria-pressed') === 'true'`
+    );
+    await evaluate(
+      client,
+      `document.querySelectorAll('.post')[2].querySelector('textarea').value='Allow ordinary requests to share; filter giveaway incentives.'; document.querySelectorAll('.post')[2].querySelector('[data-judgment="bad"]').click()`
+    );
+    await waitForExpression(
+      client,
+      `document.querySelectorAll('.post')[2].querySelector('[data-judgment="bad"]').getAttribute('aria-pressed') === 'true'`
+    );
+    await navigate(client, extensionOrigin + "/review.html");
+    await waitForExpression(
+      client,
+      `document.querySelectorAll('.post').length === 3 && document.querySelector('.post [data-judgment="good"]').getAttribute('aria-pressed') === 'true'`
+    );
     assert.equal(
       await evaluate(
         workerClient,
         `(async()=> (await SmoothSurferStorage.loadReview()).restored.length)()`
       ),
-      1
+      0,
+      "judgments do not silently restore posts"
+    );
+    assert.equal(
+      await evaluate(
+        workerClient,
+        `(async()=> (await SmoothSurferStorage.loadCalibration()).feedback.find(f=>f.judgment==='bad').explanation)()`
+      ),
+      "Allow ordinary requests to share; filter giveaway incentives."
+    );
+    // Stub only the external API in this isolated extension worker. Exercise
+    // real message routing, rule updates, local feedback, replay, and undo.
+    await evaluate(
+      workerClient,
+      `(async()=>{
+      await SmoothSurferStorage.saveSecrets({anthropicApiKey:'fixture-not-a-real-key'});
+      globalThis.calibrationCalls=[];
+      globalThis.fetch=async(url,options)=>{
+        const body=JSON.parse(options.body);calibrationCalls.push(body);
+        const proposal=body.system.startsWith('Revise one');
+        const prompt=body.messages[0].content[0].text;
+        const rows=proposal ? [] : prompt.split('Items:')[1].trim().split(/\\n\\n/);
+        const value=proposal ? {rule:'Giveaway engagement bait'} : {results:rows.map((row,index)=>({i:index+1,blocked:true,matches:row.includes('chance to win') ? [1,2] : [1],reasons:[]}))};
+        return {ok:true,json:async()=>({stop_reason:'end_turn',content:[{type:'text',text:JSON.stringify(value)}]})};
+      };
+    })()`
+    );
+    await evaluate(client, `document.getElementById('recalibrate').click()`);
+    await waitForExpression(
+      client,
+      `document.getElementById('status').textContent === '1 rule updated.'`
+    );
+    const recalibrated = await evaluate(
+      workerClient,
+      `(async()=> (await SmoothSurferStorage.loadSettings()).filterCriteria)()`
+    );
+    assert.deepEqual(recalibrated, ["Giveaway engagement bait", "Unsubstantiated predictions"]);
+    assert.equal(
+      await evaluate(workerClient, `calibrationCalls.length`),
+      2,
+      "one proposal plus one independent replay call"
+    );
+    await evaluate(
+      client,
+      `document.getElementById('revision-history').open=true;document.querySelector('#revisions button').click()`
+    );
+    await waitForExpression(
+      client,
+      `document.getElementById('status').textContent === 'Previous rule restored.'`
+    );
+    assert.equal(
+      await evaluate(
+        workerClient,
+        `(async()=> (await SmoothSurferStorage.loadSettings()).filterCriteria[0])()`
+      ),
+      "Engagement bait"
+    );
+    await evaluate(
+      client,
+      `document.getElementById('search').value='guarantee';document.getElementById('search').dispatchEvent(new Event('input'))`
+    );
+    assert.equal(await evaluate(client, `document.querySelectorAll('.post').length`), 1);
+    await evaluate(client, `document.getElementById('clear').click()`);
+    await waitForExpression(client, `document.querySelectorAll('.post').length === 0`);
+    assert.equal(
+      await evaluate(
+        workerClient,
+        `(async()=> (await SmoothSurferStorage.loadCalibration()).feedback.length)()`
+      ),
+      2,
+      "clearing review keeps learning examples"
     );
     // Filter sets are previewed before applying; unchecked rules never import.
     await navigate(client, extensionOrigin + "/filters.html");
@@ -949,7 +1040,7 @@ async function verifyExtensionPopupOpens() {
       workerClient,
       `(async()=>await SmoothSurferStorage.loadSettings())()`
     );
-    assert.ok(applied.filterCriteria.includes("Predictions presented as guarantees"));
+    assert.ok(applied.filterCriteria.includes("Unsubstantiated predictions"));
     assert.ok(
       applied.filterCriteria.includes(
         "Posts that ask for likes, reposts, or follows to enter a giveaway."
@@ -1069,7 +1160,7 @@ async function verifyExtensionPopupOpens() {
     workerClient.close();
     client.close();
     console.log(
-      "Review page passed (real extension storage, restore persistence, search, rule edits, clear history, responsive layout)."
+      "Review page passed (per-rule feedback, explanations, recalibration, undo, search, retention, responsive layout)."
     );
   } finally {
     extensionChrome.kill("SIGTERM");

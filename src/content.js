@@ -1134,7 +1134,12 @@
 
   function recordReviewPost(container, text, classification, images = []) {
     const id = reviewKey(text, images);
-    if (recordedReviewKeys.has(id) || !hasChromeRuntime()) return;
+    const recordKey = JSON.stringify([
+      id,
+      classification.matchedCriteria || [],
+      classification.formats || []
+    ]);
+    if (recordedReviewKeys.has(recordKey) || !hasChromeRuntime()) return;
     const article = platform === "twitter" ? getTweetArticle(container) : container;
     if (!article) return;
     let link = article.querySelector("time")?.closest("a");
@@ -1142,7 +1147,7 @@
     if (!link && platform === "hacker-news") link = article.querySelector('a[href^="item?id="]');
     if (!link && platform === "substack") link = article.querySelector('a[href*="/p/"]');
     const author = article.querySelector('[data-testid="User-Name"]')?.textContent || "";
-    recordedReviewKeys.add(id);
+    recordedReviewKeys.add(recordKey);
     try {
       chrome.runtime.sendMessage(
         {
@@ -1152,6 +1157,7 @@
             text,
             author,
             images,
+            display: platform === "twitter" ? getTweetDisplay(article) : { text },
             formats: classification.formats || [],
             url: link?.href || "",
             reasons: classification.reasons || [],
@@ -1159,11 +1165,11 @@
           }
         },
         (response) => {
-          if (chrome.runtime.lastError || !response?.ok) recordedReviewKeys.delete(id);
+          if (chrome.runtime.lastError || !response?.ok) recordedReviewKeys.delete(recordKey);
         }
       );
     } catch {
-      recordedReviewKeys.delete(id);
+      recordedReviewKeys.delete(recordKey);
     }
   }
 
@@ -1237,6 +1243,40 @@
     return container.matches('article[data-testid="tweet"]')
       ? container
       : container.querySelector('article[data-testid="tweet"]');
+  }
+
+  function getTweetDisplay(article) {
+    const quote =
+      article.querySelector('[data-testid="quoteTweet"], [data-testid="quote-tweet"]') ||
+      article.querySelector('[role="link"] [data-testid="tweetText"]')?.closest('[role="link"]');
+    const author = (node) => {
+      const names = node.querySelector('[data-testid="User-Name"]');
+      const lines = (names?.innerText || "")
+        .split("\n")
+        .map((text) => text.trim())
+        .filter(Boolean);
+      return {
+        name:
+          names?.querySelector("a")?.innerText?.trim() ||
+          (lines.find((text) => !text.startsWith("@") && text !== "·") || "").split("@")[0].trim(),
+        handle: names?.textContent?.match(/@[A-Za-z0-9_]{1,15}/)?.[0] || ""
+      };
+    };
+    const primaryText = [...article.querySelectorAll('[data-testid="tweetText"]')].find(
+      (node) => !quote?.contains(node)
+    );
+    return {
+      ...author(article),
+      text: primaryText?.innerText || "",
+      avatar: article.querySelector('[data-testid^="UserAvatar"] img')?.src || "",
+      postedAt: article.querySelector("time")?.dateTime || "",
+      quoted: quote
+        ? {
+            ...author(quote),
+            text: quote.querySelector('[data-testid="tweetText"]')?.innerText || quote.innerText
+          }
+        : null
+    };
   }
 
   function getTweetIdentity(article) {

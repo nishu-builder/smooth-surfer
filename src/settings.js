@@ -493,6 +493,107 @@
     }
   ];
 
+  const CALIBRATION_KEY = "smoothSurferCalibration";
+  function normalizeCalibration(value) {
+    const data = value || {};
+    const seen = new Set();
+    let bytes = 0;
+    const feedback = [];
+    for (const item of Array.isArray(data.feedback) ? data.feedback : []) {
+      if (
+        !item ||
+        typeof item.rule !== "string" ||
+        !item.rule.trim() ||
+        typeof item.postKey !== "string" ||
+        !["good", "bad"].includes(item.judgment)
+      )
+        continue;
+      const entry = {
+        rule: item.rule.slice(0, 500),
+        postKey: item.postKey.slice(0, 128),
+        judgment: item.judgment,
+        explanation: String(item.explanation || "").slice(0, 800),
+        text: String(item.text || "").slice(0, 2000),
+        images: normalizeImageUrls(item.images),
+        source: String(item.source || "twitter").slice(0, 40),
+        at: Number.isFinite(item.at) ? item.at : Date.now()
+      };
+      const key = JSON.stringify([entry.rule, entry.postKey]);
+      if (seen.has(key) || (!entry.text && !entry.images.length)) continue;
+      seen.add(key);
+      bytes += new TextEncoder().encode(JSON.stringify(entry)).length;
+      if (bytes > 2 * 1024 * 1024 || feedback.length >= 2000) break;
+      feedback.push(entry);
+    }
+    const revisions = (Array.isArray(data.revisions) ? data.revisions : [])
+      .filter(
+        (r) =>
+          r &&
+          typeof r.before === "string" &&
+          typeof r.after === "string" &&
+          r.before &&
+          r.after &&
+          Number.isFinite(r.at)
+      )
+      .slice(0, 30)
+      .map((r) => ({
+        id: String(r.id || r.at).slice(0, 80),
+        before: r.before.slice(0, 500),
+        after: r.after.slice(0, 500),
+        at: r.at,
+        examples: Math.max(0, Number(r.examples) || 0),
+        fixed: Math.max(0, Number(r.fixed) || 0),
+        undone: Boolean(r.undone)
+      }));
+    const attempts = (Array.isArray(data.attempts) ? data.attempts : [])
+      .filter((item) => item && typeof item.rule === "string" && Number.isFinite(item.at))
+      .slice(0, 100)
+      .map((item) => ({ rule: item.rule.slice(0, 500), at: item.at }));
+    return { feedback, revisions, attempts };
+  }
+  function resolveCalibratedRule(rule, revisions) {
+    let current = rule;
+    for (const revision of [...revisions].reverse()) {
+      if (!revision.undone && revision.before === current) current = revision.after;
+    }
+    return current;
+  }
+  function normalizePostDisplay(value) {
+    const data = value || {};
+    const profile = (entry) => {
+      try {
+        const url = new URL(entry);
+        return url.protocol === "https:" &&
+          url.hostname === "pbs.twimg.com" &&
+          url.pathname.startsWith("/profile_images/") &&
+          !url.username &&
+          !url.password
+          ? url.href.slice(0, 1500)
+          : "";
+      } catch {
+        return "";
+      }
+    };
+    return {
+      text: String(data.text || "").slice(0, 4000),
+      name: String(data.name || "").slice(0, 100),
+      handle: String(data.handle || "").slice(0, 80),
+      avatar: profile(data.avatar),
+      postedAt:
+        typeof data.postedAt === "string" && Number.isFinite(Date.parse(data.postedAt))
+          ? new Date(data.postedAt).toISOString()
+          : "",
+      quoted:
+        data.quoted && typeof data.quoted === "object"
+          ? {
+              text: String(data.quoted.text || "").slice(0, 2000),
+              name: String(data.quoted.name || "").slice(0, 100),
+              handle: String(data.quoted.handle || "").slice(0, 80)
+            }
+          : null
+    };
+  }
+
   const REVIEW_KEY = "smoothSurferReview";
   const DEFAULT_REVIEW = { items: [], restored: [] };
 
@@ -534,6 +635,7 @@
         id: item.id.slice(0, 2050),
         text: String(item.text || "").slice(0, 2000),
         images: normalizeImageUrls(item.images),
+        display: normalizePostDisplay(item.display),
         formats: FORMAT_KEYS.filter((key) => item.formats?.includes(key)),
         source: String(item.source || "other").slice(0, 40),
         url: safePostUrl(item.url),
@@ -576,6 +678,10 @@
   }
 
   const api = {
+    CALIBRATION_KEY,
+    normalizeCalibration,
+    resolveCalibratedRule,
+    normalizePostDisplay,
     FORMAT_KEYS,
     FORMAT_LABELS,
     FILTER_SETS_KEY,
