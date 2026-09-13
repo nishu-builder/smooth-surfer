@@ -989,6 +989,23 @@ async function verifyExtensionPopupOpens() {
       deviceScaleFactor: 1,
       mobile: false
     });
+    assert.equal(
+      await evaluate(
+        client,
+        `(()=>{const card=document.querySelector('.post');const post=card.firstElementChild.getBoundingClientRect();const rules=card.querySelector('.rulings').getBoundingClientRect();return rules.left >= post.right && Math.abs(rules.top-post.top)<2;})()`
+      ),
+      true,
+      "wide review places rulings beside the post"
+    );
+    assert.equal(
+      await evaluate(client, `document.querySelectorAll('.ruling[aria-current="true"]').length`),
+      1,
+      "one ruling is selected"
+    );
+    assert.match(
+      await evaluate(client, `document.getElementById('keyboard-target').textContent`),
+      /^Post 1 · Ruling 1 of 1:/
+    );
     const nativeDesktop = await client.send("Page.captureScreenshot", { format: "png" });
     await writeFile(
       path.join(cacheDir, "review-native-desktop.png"),
@@ -1004,6 +1021,14 @@ async function verifyExtensionPopupOpens() {
       await evaluate(client, `document.documentElement.scrollWidth <= innerWidth`),
       true,
       "native embed fits narrow screens"
+    );
+    assert.equal(
+      await evaluate(
+        client,
+        `(()=>{const card=document.querySelector('.post');return card.querySelector('.rulings').getBoundingClientRect().top >= card.firstElementChild.getBoundingClientRect().bottom;})()`
+      ),
+      true,
+      "narrow review stacks rulings below the post"
     );
     const nativeMobile = await client.send("Page.captureScreenshot", { format: "png" });
     await writeFile(
@@ -1068,6 +1093,29 @@ async function verifyExtensionPopupOpens() {
       ),
       "true",
       "down selects the next ruling"
+    );
+    assert.match(
+      await evaluate(client, `document.getElementById('keyboard-target').textContent`),
+      /^Post 2 · Ruling 1 of 1:/,
+      "selection bar tracks arrow-key navigation"
+    );
+    // The popup opened earlier can retain OS focus in headless Chrome.
+    await client.send("Emulation.setFocusEmulationEnabled", { enabled: true });
+    await evaluate(
+      client,
+      `document.querySelectorAll('.post')[2].querySelector('[data-judgment="good"]').focus()`
+    );
+    assert.equal(
+      await evaluate(
+        client,
+        `document.querySelectorAll('.post')[2].querySelector('.ruling').getAttribute('aria-current')`
+      ),
+      "true",
+      "tab focus selects the ruling that keyboard actions affect"
+    );
+    assert.match(
+      await evaluate(client, `document.getElementById('keyboard-target').textContent`),
+      /^Post 3 · Ruling 1 of 1:/
     );
     // Stub only the external API in this isolated extension worker. Exercise
     // real message routing, rule updates, local feedback, replay, and undo.

@@ -37,6 +37,6 @@ These are Smooth Surfer’s monochrome interface tokens, adapted from the refere
 - Keep details that affect a choice: data sharing, rule scope, persistence, and error recovery.
 - Use the same terms across the popup, review page, feed controls, and listing.
 
-Review cards put the native or saved post first, followed by rule judgments. Use a narrow reading column, clear dividers between posts, and a visible marker for the selected ruling. Avatars, media, and quoted-post frames can follow familiar X shapes; keep the surrounding controls monochrome and compact.
+Review cards put the native or saved post first, followed by rule judgments. Use a narrow reading column and clear dividers between posts. At 960px and wider, place the post on the left and its rulings on the right. Mark the selected ruling with a black border and Selected label; a sticky keyboard bar names the exact post and ruling affected by arrow keys. Avatars, media, and quoted-post frames can follow familiar X shapes; keep the surrounding controls monochrome and compact.
 
 Popup setting rows use a consistent 28px target with 16px checkboxes. Keep page links on one compact navigation row. Active sites use a small text badge; retain the same thin border and alignment as other sections.

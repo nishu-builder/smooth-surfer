@@ -98,6 +98,10 @@
       event.target.closest(".ruling") || event.target.closest(".post")?.querySelector(".ruling");
     if (row) selectRuling(row.dataset.key);
   });
+  $("posts").addEventListener("focusin", (event) => {
+    const row = event.target.closest(".ruling");
+    if (row) selectRuling(row.dataset.key);
+  });
   document.addEventListener("keydown", (event) => {
     if (
       event.defaultPrevented ||
@@ -128,9 +132,17 @@
   });
   function selectRuling(key, focus = false) {
     activeKey = key;
+    const selected = rows().find((row) => row.dataset.key === key);
+    $("posts")
+      .querySelectorAll(".post")
+      .forEach((card) => {
+        card.dataset.current = String(card === selected?.closest(".post"));
+      });
     rows().forEach((row) => {
       const current = row.dataset.key === key;
       row.dataset.current = String(current);
+      if (current) row.setAttribute("aria-current", "true");
+      else row.removeAttribute("aria-current");
       row.tabIndex = current ? 0 : -1;
       if (current && focus) {
         row.focus({ preventScroll: true });
@@ -139,6 +151,13 @@
           row.scrollIntoView({ block: "center", behavior: "instant" });
       }
     });
+    if (selected) {
+      const card = selected.closest(".post");
+      const postIndex = [...$("posts").children].indexOf(card) + 1;
+      const rulings = [...card.querySelectorAll(".ruling")];
+      $("keyboard-target").textContent =
+        `Post ${postIndex} · Ruling ${rulings.indexOf(selected) + 1} of ${rulings.length}: ${selected.querySelector(".trigger-rule").textContent}`;
+    } else $("keyboard-target").textContent = "No ruling selected";
   }
   function nextRuling(key) {
     let list = rows();
@@ -363,7 +382,9 @@
     const name = isFormat
       ? `Hide ${FORMAT_LABELS[rule.slice(7)]?.toLowerCase() || "this format"}`
       : rule;
-    row.append(el("p", "trigger-rule", name));
+    const marker = el("p", "selection-marker", "Selected · ← Bad · → Good");
+    marker.setAttribute("aria-hidden", "true");
+    row.append(marker, el("p", "trigger-rule", name));
     const current = resolveCalibratedRule(rule, calibration.revisions);
     if (current !== rule) row.append(el("p", "ruling-note", `Recalibrated: ${current}`));
     if (isFormat)
