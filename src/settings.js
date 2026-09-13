@@ -554,7 +554,26 @@
       .filter((item) => item && typeof item.rule === "string" && Number.isFinite(item.at))
       .slice(0, 100)
       .map((item) => ({ rule: item.rule.slice(0, 500), at: item.at }));
-    return { feedback, revisions, attempts };
+    // Undo receipts share the same write as their judgment, so worker restarts
+    // cannot lose them or expose an undo for a vote that did not save.
+    const undo = [];
+    let undoBytes = 0;
+    for (const item of Array.isArray(data.undo) ? data.undo : []) {
+      if (!item || typeof item.token !== "string") continue;
+      const recorded = normalizeCalibration({ feedback: [item.recorded] }).feedback[0];
+      if (!recorded) continue;
+      const entry = {
+        token: item.token.slice(0, 128),
+        recorded,
+        previous: normalizeCalibration({ feedback: item.previous }).feedback.filter(
+          (vote) => vote.postKey === recorded.postKey
+        )
+      };
+      undoBytes += new TextEncoder().encode(JSON.stringify(entry)).length;
+      if (undoBytes > 512 * 1024 || undo.length >= 50) break;
+      undo.push(entry);
+    }
+    return { feedback, revisions, attempts, undo };
   }
   function resolveCalibratedRule(rule, revisions) {
     let current = rule;

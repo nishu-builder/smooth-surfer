@@ -26,7 +26,9 @@
   const cards = new Map();
   const undoStack = [];
   let activeKey = "",
-    saving = false;
+    saving = false,
+    inbox = "unreviewed",
+    undoRequested = false;
   const keyFor = (item, rule) => JSON.stringify([item.id, rule]);
   const rows = () => [...$("posts").querySelectorAll(".ruling")];
   const embedTimers = new Map();
@@ -96,35 +98,45 @@
   $("posts").addEventListener("click", (event) => {
     const row =
       event.target.closest(".ruling") || event.target.closest(".post")?.querySelector(".ruling");
-    if (row) selectRuling(row.dataset.key);
+    if (row?.isConnected) selectRuling(row.dataset.key);
   });
   $("posts").addEventListener("focusin", (event) => {
     const row = event.target.closest(".ruling");
-    if (row) selectRuling(row.dataset.key);
+    if (row?.isConnected) selectRuling(row.dataset.key);
+  });
+  document.querySelectorAll("[data-inbox]").forEach((button) => {
+    button.addEventListener("click", () => {
+      inbox = button.dataset.inbox;
+      limit = 25;
+      render();
+    });
   });
   document.addEventListener("keydown", (event) => {
     if (
       event.defaultPrevented ||
       event.repeat ||
       event.isComposing ||
-      event.altKey ||
-      event.ctrlKey ||
-      event.metaKey ||
-      event.shiftKey ||
       event.target.closest("input, textarea, select, [contenteditable], summary")
     )
       return;
-    if (!["ArrowLeft", "ArrowRight", "ArrowDown", "ArrowUp"].includes(event.key)) return;
-    const row = rows().find((node) => node.dataset.key === activeKey) || rows()[0];
-    if (!row && event.key !== "ArrowUp") return;
-    event.preventDefault();
-    if (saving) return;
-    if (event.key === "ArrowUp") {
+    if (
+      (event.metaKey || event.ctrlKey) &&
+      !event.altKey &&
+      !event.shiftKey &&
+      event.key.toLowerCase() === "z"
+    ) {
+      event.preventDefault();
       void undoJudgment();
       return;
     }
-    if (event.key === "ArrowDown") {
-      nextRuling(row.dataset.key);
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (!["ArrowLeft", "ArrowRight", "ArrowDown", "ArrowUp"].includes(event.key)) return;
+    const row = rows().find((node) => node.dataset.key === activeKey) || rows()[0];
+    if (!row) return;
+    event.preventDefault();
+    if (saving) return;
+    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+      moveRuling(row.dataset.key, event.key === "ArrowUp" ? -1 : 1);
       return;
     }
     selectRuling(row.dataset.key);
@@ -159,19 +171,26 @@
         `Post ${postIndex} · Ruling ${rulings.indexOf(selected) + 1} of ${rulings.length}: ${selected.querySelector(".trigger-rule").textContent}`;
     } else $("keyboard-target").textContent = "No ruling selected";
   }
-  function nextRuling(key) {
+  function moveRuling(key, direction) {
     let list = rows();
     const index = list.findIndex((row) => row.dataset.key === key);
-    if (index === list.length - 1 && !$("more").hidden) {
+    if (direction > 0 && index === list.length - 1 && !$("more").hidden) {
       limit += 25;
       render();
       list = rows();
     }
-    const next = list[Math.min(index + 1, list.length - 1)];
+    const next = list[Math.max(0, Math.min(index + direction, list.length - 1))];
     if (next) selectRuling(next.dataset.key, true);
   }
   async function undoJudgment() {
-    if (saving || !undoStack.length) return;
+    if (saving) {
+      undoRequested = true;
+      return;
+    }
+    if (!undoStack.length) {
+      status("Nothing to undo yet. Mark a ruling Good or Bad first.");
+      return;
+    }
     saving = true;
     $("undo-feedback").disabled = true;
     const last = undoStack.at(-1);
@@ -179,15 +198,24 @@
       await send({ type: "undoRuleFeedback", undoToken: last.token });
       undoStack.pop();
       calibration = await loadCalibration();
+      inbox = last.inbox;
       activeKey = last.key;
       render();
       selectRuling(last.key, true);
       status("Judgment undone.");
     } catch (error) {
+      undoRequested = false;
       status(error.message);
     } finally {
-      saving = false;
-      $("undo-feedback").disabled = !undoStack.length;
+      finishSaving();
+    }
+  }
+  function finishSaving() {
+    saving = false;
+    $("undo-feedback").disabled = !undoStack.length;
+    if (undoRequested) {
+      undoRequested = false;
+      void undoJudgment();
     }
   }
   function clearCards() {
@@ -221,7 +249,7 @@
     calibration = next;
     refresh();
   });
-  ["search", "source", "state"].forEach((id) =>
+  ["search", "source"].forEach((id) =>
     $(id).addEventListener("input", () => {
       limit = 25;
       render();
@@ -313,25 +341,36 @@
         resolveCalibratedRule(vote.rule, calibration.revisions) === current
     );
   }
+  function visibleRulesFor(item) {
+    return rulesFor(item).filter(
+      (rule) => (voteFor(item, rule)?.judgment || "unreviewed") === inbox
+    );
+  }
   function render() {
     const query = $("search").value.trim().toLowerCase();
     const allItems = reviewItemsWithFeedback(review, calibration);
-    const items = allItems.filter((item) => {
-      const votes = rulesFor(item).map((rule) => voteFor(item, rule));
-      const state = $("state").value;
-      return (
+    const scopedItems = allItems.filter(
+      (item) =>
         (!$("source").value || item.source === $("source").value) &&
-        (!state ||
-          (state === "unreviewed"
-            ? !votes.length || votes.some((vote) => !vote)
-            : votes.some((vote) => vote?.judgment === state))) &&
         (!query ||
           [item.text, item.author, item.display?.text, ...item.reasons, ...item.criteria]
             .join(" ")
             .toLowerCase()
             .includes(query))
-      );
+    );
+    const counts = { unreviewed: 0, good: 0, bad: 0 };
+    for (const item of scopedItems) {
+      const rules = rulesFor(item);
+      if (!rules.length) counts.unreviewed++;
+      for (const rule of rules) counts[voteFor(item, rule)?.judgment || "unreviewed"]++;
+    }
+    document.querySelectorAll("[data-inbox]").forEach((button) => {
+      button.setAttribute("aria-pressed", String(button.dataset.inbox === inbox));
+      button.querySelector(".inbox-count").textContent = counts[button.dataset.inbox];
     });
+    const items = scopedItems.filter(
+      (item) => visibleRulesFor(item).length || (inbox === "unreviewed" && !rulesFor(item).length)
+    );
     $("count").textContent = `${items.length} ${items.length === 1 ? "post" : "posts"}`;
     $("clear").disabled = !review.items.length;
     const shown = items.slice(0, limit);
@@ -366,7 +405,15 @@
     selectRuling(activeKey);
     if (!items.length)
       $("posts").append(
-        el("div", "empty", allItems.length ? "No matching rulings." : "Filtered posts appear here.")
+        el(
+          "div",
+          "empty",
+          allItems.length
+            ? inbox === "unreviewed" && !query && !$("source").value
+              ? "Nothing left to categorize."
+              : "No rulings in this inbox."
+            : "Filtered posts appear here."
+        )
       );
     $("more").hidden = items.length <= limit;
     renderRevisions();
@@ -412,7 +459,8 @@
       $("undo-feedback").disabled = true;
       const list = rows(),
         index = list.findIndex((row) => row.dataset.key === key);
-      const nextKey = list[index + 1]?.dataset.key;
+      const nextKey = list[index + 1]?.dataset.key || list[index - 1]?.dataset.key;
+      const originInbox = inbox;
       const buttons = [...row.querySelectorAll("button")];
       buttons.forEach((b) => (b.disabled = true));
       try {
@@ -423,8 +471,8 @@
           judgment,
           explanation: input.value
         });
-        undoStack.push({ token: result.undoToken, key });
-        if (undoStack.length > 100) undoStack.shift();
+        undoStack.push({ token: result.undoToken, key, inbox: originInbox });
+        if (undoStack.length > 50) undoStack.shift();
         calibration = await loadCalibration();
         drafts.delete(key);
         activeKey = advance && nextKey ? nextKey : key;
@@ -434,11 +482,11 @@
           `${judgment === "good" ? "Good" : "Bad"} ruling saved. Example kept for recalibration.`
         );
       } catch (error) {
+        undoRequested = false;
         status(error.message);
         buttons.forEach((b) => (b.disabled = false));
       } finally {
-        saving = false;
-        $("undo-feedback").disabled = !undoStack.length;
+        finishSaving();
       }
     };
     for (const judgment of ["good", "bad"]) {
@@ -458,7 +506,7 @@
   function renderRulings(item) {
     const rulings = el("div", "rulings", "");
     rulings.append(el("h2", "ruling-heading", "Rulings"));
-    const rules = rulesFor(item);
+    const rules = visibleRulesFor(item);
     rulings.append(...rules.map((rule) => renderRuling(item, rule)));
     if (!rules.length)
       rulings.append(

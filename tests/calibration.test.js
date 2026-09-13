@@ -85,6 +85,11 @@ function fixture() {
   };
 }
 (async () => {
+  const restart = fixture();
+  const restartVote = await restart.vote(0, "good");
+  await create(restart.deps).undoFeedback(restartVote.undoToken);
+  assert.equal(restart.state.feedback.length, 0, "undo survives a worker restart");
+  await assert.rejects(create(restart.deps).undoFeedback(restartVote.undoToken), /no longer/);
   const retention = fixture();
   const firstVote = await retention.vote(0, "good", "Keep the true positive.");
   const secondVote = await retention.vote(0, "bad", "Changed my mind.");

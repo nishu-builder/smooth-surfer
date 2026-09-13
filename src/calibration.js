@@ -5,8 +5,7 @@
   function create(deps) {
     let writes = Promise.resolve();
     let running = false;
-    const feedbackUndo = new Map();
-    let undoSequence = 0;
+
     const mutate = (change, persist = true) => {
       const operation = writes.then(async () => {
         const state = normalizeCalibration(await deps.loadCalibration());
@@ -27,7 +26,7 @@
         (explanation !== undefined && typeof explanation !== "string")
       )
         throw new Error("Choose Good ruling or Bad ruling.");
-      const result = await mutate(async (state) => {
+      return mutate(async (state) => {
         const review = await deps.loadReview();
         const post = reviewItemsWithFeedback(review, state).find((item) => item.id === postId);
         if (!post) throw new Error("This post is no longer in review history.");
@@ -55,18 +54,16 @@
         });
         // Use exactly the persisted representation for compare-and-swap undo.
         state.feedback = normalizeCalibration(state).feedback;
-        return { previous, recorded: state.feedback[0] };
+        const undoToken = `${Date.now()}:${Math.random().toString(36).slice(2)}`;
+        state.undo.unshift({ token: undoToken, previous, recorded: state.feedback[0] });
+        return { undoToken };
       });
-      const undoToken = `${Date.now()}:${++undoSequence}`;
-      feedbackUndo.set(undoToken, result);
-      if (feedbackUndo.size > 100) feedbackUndo.delete(feedbackUndo.keys().next().value);
-      return { undoToken };
     }
     async function undoFeedback(token) {
-      const change = feedbackUndo.get(token);
-      if (!change)
-        throw new Error("Undo is no longer available. You can change the ruling directly.");
-      await mutate((state) => {
+      return mutate((state) => {
+        const change = state.undo.find((item) => item.token === token);
+        if (!change)
+          throw new Error("Undo is no longer available. You can change the ruling directly.");
         const current = state.feedback.find(
           (item) =>
             item.postKey === change.recorded.postKey &&
@@ -77,9 +74,9 @@
           throw new Error("This feedback changed elsewhere. Its latest judgment was kept.");
         state.feedback = state.feedback.filter((item) => item !== current);
         state.feedback.unshift(...change.previous);
+        state.undo = state.undo.filter((item) => item.token !== token);
+        return {};
       });
-      feedbackUndo.delete(token);
-      return {};
     }
     async function recalibrate() {
       if (running) throw new Error("Recalibration is already running.");

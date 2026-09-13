@@ -22,7 +22,7 @@ Open **Review rulings** at the top of the popup to judge each triggering rule in
 a full tab. Mark **Good ruling** or **Bad ruling**, optionally explaining why.
 The post appears first, with its rulings underneath and dividers between posts.
 X posts use native embeds; saved copies remain available when an embed cannot load.
-Use Left for Bad, Right for Good, Down for Next, and Up to undo the last judgment. Votes save your judgment; they do not restore the
+Use Left for Bad, Right for Good, Up/Down to move between rulings, and Cmd/Ctrl+Z to undo. Votes save your judgment; they do not restore the
 post or change a rule immediately.
 
 **Recalibrate rules** uses your API key to propose revisions and replay saved
@@ -124,3 +124,5 @@ hand-formatted.
 ## Product design
 
 Follow the [product style guide](docs/STYLE_GUIDE.md) for interface copy and interactions.
+
+Review has three inboxes: Uncategorized, Good rulings, and Bad rulings. Categorizing a ruling moves it out of the current queue; other uncategorized rules on the same post remain. Counts refer to rulings. Undo restores the prior category and selects that ruling.
