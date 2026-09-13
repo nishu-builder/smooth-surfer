@@ -76,8 +76,16 @@ dialog p { color: var(--ss-muted); }
 .judgments { display: inline-flex; gap: 5px; }
 .judgments [aria-pressed="true"] { background: var(--ss-ink); color: white; }
 .feedback-note { margin-top: 6px; font-size: 12px; }
-.feedback-note summary { cursor: pointer; color: var(--ss-muted); }
-.feedback-note textarea { display: block; margin: 6px 0; font-size: 13px; }
+.feedback-note textarea { display: block; min-height: 32px; margin: 6px 0; font-size: 13px; caret-color: var(--ss-ink); }
+.feedback-note textarea:focus, .feedback-note textarea.has-text { min-height: 70px; }
+.feedback-note textarea::placeholder { color: var(--ss-muted); font: 11px/1.6 var(--ss-mono); }
+.note-hint { display: none; margin: 4px 0; color: var(--ss-muted); font: 10px/1.4 var(--ss-mono); }
+.feedback-note:focus-within .note-hint { display: block; }
+.ruling[data-feedback="good"] { border-color: #237044; background: #e7f5ec; }
+.ruling[data-feedback="bad"] { border-color: #a53030; background: #fbeaea; }
+.ruling[data-feedback] .selection-marker { visibility: visible; }
+.ruling[data-feedback="good"] .selection-marker { background: #237044; color: white; }
+.ruling[data-feedback="bad"] .selection-marker { background: #a53030; color: white; }
 .ruling-note, .ruling-reason { font-size: 11px; color: var(--ss-muted); margin: 5px 0; overflow-wrap: anywhere; }
 .tweet-preview { padding: 12px 0; }
 .tweet-author { display: flex; align-items: center; gap: 8px; }

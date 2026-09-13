@@ -1040,7 +1040,67 @@ async function verifyExtensionPopupOpens() {
     );
     await pressReviewKey("ArrowUp");
     await pressReviewKey("ArrowUp");
+    assert.equal(
+      await evaluate(client, `document.querySelectorAll('.feedback-note summary').length`),
+      0,
+      "explanations are directly visible without a disclosure"
+    );
+    await client.send("Input.dispatchKeyEvent", {
+      type: "keyDown",
+      key: "A",
+      text: "A",
+      modifiers: 8
+    });
+    await client.send("Input.dispatchKeyEvent", { type: "keyUp", key: "A", modifiers: 8 });
+    await client.send("Input.insertText", { text: " giveaway asks for engagement." });
+    assert.equal(
+      await evaluate(client, `document.activeElement.value`),
+      "A giveaway asks for engagement.",
+      "typing starts the selected explanation without losing or doubling the first character"
+    );
+    assert.equal(
+      await evaluate(
+        client,
+        `document.activeElement === document.querySelector('.ruling[aria-current="true"] textarea')`
+      ),
+      true,
+      "typing focuses the selected ruling's explanation"
+    );
+    await client.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape" });
+    await client.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape" });
+    assert.equal(
+      await evaluate(client, `document.activeElement.matches('.ruling[aria-current="true"]')`),
+      true,
+      "Escape returns to ruling navigation"
+    );
+    await pressReviewKey("ArrowDown");
+    await pressReviewKey("ArrowUp");
+    assert.equal(
+      await evaluate(
+        client,
+        `document.querySelector('.ruling[aria-current="true"] textarea').value`
+      ),
+      "A giveaway asks for engagement.",
+      "navigation preserves the explanation draft"
+    );
     await pressReviewKey("ArrowRight");
+    await waitForExpression(
+      client,
+      `Boolean(document.querySelector('.ruling[data-feedback="good"]'))`
+    );
+    assert.equal(
+      await evaluate(client, `document.querySelectorAll('.post').length`),
+      3,
+      "the saved ruling remains visible for its confirmation before leaving"
+    );
+    assert.equal(
+      await evaluate(
+        client,
+        `getComputedStyle(document.querySelector('.ruling[data-feedback="good"]')).backgroundColor`
+      ),
+      "rgb(231, 245, 236)",
+      "Good confirmation is green"
+    );
     await waitForExpression(
       client,
       `document.querySelectorAll('.post').length===2 && document.querySelector('[data-inbox="good"] .inbox-count').textContent==='1'`
@@ -1067,6 +1127,17 @@ async function verifyExtensionPopupOpens() {
       await evaluate(client, `document.getElementById('keyboard-target').textContent`),
       /^Post 1 · Ruling 1 of 1:/,
       "undo selects the returned ruling"
+    );
+    // Undo can also be clicked during the visible confirmation.
+    await pressReviewKey("ArrowRight");
+    await waitForExpression(
+      client,
+      `Boolean(document.querySelector('.ruling[data-feedback="good"]'))`
+    );
+    await evaluate(client, `document.getElementById('undo-feedback').click()`);
+    await waitForExpression(
+      client,
+      `document.getElementById('status').textContent==='Judgment undone.' && document.querySelectorAll('.post').length===3`
     );
     // Undo pressed in the same turn as a save must be queued, not dropped.
     await evaluate(
@@ -1103,6 +1174,18 @@ async function verifyExtensionPopupOpens() {
     await evaluate(
       client,
       `const post=document.querySelectorAll('.post')[1];post.querySelector('textarea').value='Allow ordinary requests to share; filter giveaway incentives.';post.querySelector('[data-judgment="bad"]').click()`
+    );
+    await waitForExpression(
+      client,
+      `Boolean(document.querySelector('.ruling[data-feedback="bad"]'))`
+    );
+    assert.equal(
+      await evaluate(
+        client,
+        `getComputedStyle(document.querySelector('.ruling[data-feedback="bad"]')).backgroundColor`
+      ),
+      "rgb(251, 234, 234)",
+      "Bad confirmation is red"
     );
     await waitForExpression(
       client,
@@ -1276,8 +1359,12 @@ async function verifyExtensionPopupOpens() {
       await evaluate(client, `document.querySelector('.trigger-rule').textContent`),
       "Unsubstantiated predictions"
     );
+    await client.send("Emulation.setEmulatedMedia", {
+      features: [{ name: "prefers-reduced-motion", value: "reduce" }]
+    });
     await pressReviewKey("ArrowLeft");
     await waitForExpression(client, `document.querySelectorAll('.post').length===0`);
+    await client.send("Emulation.setEmulatedMedia", { features: [] });
     await pressReviewKey("z", { metaKey: true });
     await waitForExpression(client, `document.querySelectorAll('.ruling').length===1`);
     assert.equal(

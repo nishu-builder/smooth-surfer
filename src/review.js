@@ -129,10 +129,24 @@
       void undoJudgment();
       return;
     }
-    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-    if (!["ArrowLeft", "ArrowRight", "ArrowDown", "ArrowUp"].includes(event.key)) return;
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
     const row = rows().find((node) => node.dataset.key === activeKey) || rows()[0];
     if (!row) return;
+    if (event.key.length === 1 && !saving) {
+      // Preserve Space activation for focused buttons and links.
+      if (event.key === " " && event.target.closest("button, a")) return;
+      event.preventDefault();
+      const input = row.querySelector("textarea");
+      input.focus({ preventScroll: true });
+      input.setSelectionRange(input.value.length, input.value.length);
+      if (input.value.length < input.maxLength) {
+        input.setRangeText(event.key, input.value.length, input.value.length, "end");
+        input.dispatchEvent(new window.Event("input", { bubbles: true }));
+      }
+      return;
+    }
+    if (event.shiftKey || !["ArrowLeft", "ArrowRight", "ArrowDown", "ArrowUp"].includes(event.key))
+      return;
     event.preventDefault();
     if (saving) return;
     if (event.key === "ArrowUp" || event.key === "ArrowDown") {
@@ -216,6 +230,31 @@
     if (undoRequested) {
       undoRequested = false;
       void undoJudgment();
+    }
+  }
+  async function confirmJudgment(row, judgment, leaving) {
+    if (!row.isConnected) return;
+    row.dataset.feedback = judgment;
+    row.querySelector(".selection-marker").textContent =
+      judgment === "good" ? "Good ruling saved" : "Bad ruling saved";
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const target =
+      leaving && row.closest(".post").querySelectorAll(".ruling").length === 1
+        ? row.closest(".post")
+        : row;
+    // Hold the confirmation before fading. Reduced motion keeps a short, static flash.
+    const animation = target.animate(
+      [{ opacity: 1 }, { opacity: 1, offset: 0.65 }, { opacity: leaving && !reduced ? 0 : 1 }],
+      { duration: reduced ? 180 : 500, easing: "ease-out", fill: "forwards" }
+    );
+    try {
+      await animation.finished;
+    } catch {
+      // A view change can detach the card while its judgment is already saved.
+    } finally {
+      animation.cancel();
+      delete row.dataset.feedback;
+      row.querySelector(".selection-marker").textContent = "Selected · ← Bad · → Good";
     }
   }
   function clearCards() {
@@ -443,16 +482,25 @@
         )
       );
     const controls = el("div", "judgments", "");
-    const notes = el("details", "feedback-note", "");
-    notes.append(el("summary", "", "Explanation (optional)"));
+    const notes = el("div", "feedback-note", "");
     const input = document.createElement("textarea");
     input.maxLength = 800;
-    input.rows = 2;
-    input.placeholder = "What should this rule include or exclude?";
+    input.rows = 1;
+    input.placeholder = "Explanation (optional)";
     input.setAttribute("aria-label", `Explanation for ${name}`);
     input.value = drafts.get(key) ?? vote?.explanation ?? "";
-    input.addEventListener("input", () => drafts.set(key, input.value));
-    notes.open = Boolean(input.value);
+    input.addEventListener("input", () => {
+      drafts.set(key, input.value);
+      input.classList.toggle("has-text", Boolean(input.value));
+      saveNote.hidden = !vote || input.value === vote.explanation;
+    });
+    input.classList.toggle("has-text", Boolean(input.value));
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !event.isComposing) {
+        event.preventDefault();
+        selectRuling(key, true);
+      }
+    });
     const save = async (node, judgment, advance = true) => {
       if (saving) return;
       saving = true;
@@ -463,6 +511,7 @@
       const originInbox = inbox;
       const buttons = [...row.querySelectorAll("button")];
       buttons.forEach((b) => (b.disabled = true));
+      input.readOnly = true;
       try {
         const result = await send({
           type: "recordRuleFeedback",
@@ -474,6 +523,9 @@
         undoStack.push({ token: result.undoToken, key, inbox: originInbox });
         if (undoStack.length > 50) undoStack.shift();
         calibration = await loadCalibration();
+        $("undo-feedback").disabled = false;
+        status(judgment === "good" ? "Good ruling saved." : "Bad ruling saved.");
+        await confirmJudgment(row, judgment, judgment !== originInbox);
         drafts.delete(key);
         activeKey = advance && nextKey ? nextKey : key;
         render();
@@ -485,6 +537,7 @@
         undoRequested = false;
         status(error.message);
         buttons.forEach((b) => (b.disabled = false));
+        input.readOnly = false;
       } finally {
         finishSaving();
       }
@@ -498,8 +551,9 @@
       controls.append(node);
     }
     const saveNote = button("Save explanation", (node) => save(node, vote?.judgment, false));
-    saveNote.disabled = !vote;
-    notes.append(input, saveNote);
+    saveNote.hidden = !vote || input.value === vote.explanation;
+    const hint = el("p", "note-hint", "Esc to return to rulings");
+    notes.append(input, hint, saveNote);
     row.append(controls, notes);
     return row;
   }
