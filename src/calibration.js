@@ -1,9 +1,12 @@
 (function installCalibration(root) {
   "use strict";
-  const { normalizeCalibration, resolveCalibratedRule } = root.SmoothSurferSettings;
+  const { normalizeCalibration, resolveCalibratedRule, reviewItemsWithFeedback } =
+    root.SmoothSurferSettings;
   function create(deps) {
     let writes = Promise.resolve();
     let running = false;
+    const feedbackUndo = new Map();
+    let undoSequence = 0;
     const mutate = (change, persist = true) => {
       const operation = writes.then(async () => {
         const state = normalizeCalibration(await deps.loadCalibration());
@@ -24,21 +27,17 @@
         (explanation !== undefined && typeof explanation !== "string")
       )
         throw new Error("Choose Good ruling or Bad ruling.");
-      const review = await deps.loadReview();
-      const post = review.items.find((item) => item.id === postId);
-      if (!post) throw new Error("This post is no longer in review history.");
-      if (!post.criteria.includes(rule) && !post.formats.some((key) => `format:${key}` === rule))
-        throw new Error("This rule did not trigger the saved ruling.");
-      return mutate((state) => {
-        // Keep the original decision's rule text. Revision history resolves its lineage.
+      const result = await mutate(async (state) => {
+        const review = await deps.loadReview();
+        const post = reviewItemsWithFeedback(review, state).find((item) => item.id === postId);
+        if (!post) throw new Error("This post is no longer in review history.");
+        if (!post.criteria.includes(rule) && !post.formats.some((key) => `format:${key}` === rule))
+          throw new Error("This rule did not trigger the saved ruling.");
         const current = resolveCalibratedRule(rule, state.revisions);
-        state.feedback = state.feedback.filter(
-          (item) =>
-            !(
-              item.postKey === post.id &&
-              resolveCalibratedRule(item.rule, state.revisions) === current
-            )
-        );
+        const matches = (item) =>
+          item.postKey === post.id && resolveCalibratedRule(item.rule, state.revisions) === current;
+        const previous = state.feedback.filter(matches);
+        state.feedback = state.feedback.filter((item) => !matches(item));
         state.feedback.unshift({
           rule,
           postKey: post.id,
@@ -47,10 +46,40 @@
           text: post.text,
           images: post.images,
           source: post.source,
+          url: post.url,
+          author: post.author,
+          display: post.display,
+          reasons: post.reasons,
+          postAt: post.at,
           at: Date.now()
         });
-        return {};
+        // Use exactly the persisted representation for compare-and-swap undo.
+        state.feedback = normalizeCalibration(state).feedback;
+        return { previous, recorded: state.feedback[0] };
       });
+      const undoToken = `${Date.now()}:${++undoSequence}`;
+      feedbackUndo.set(undoToken, result);
+      if (feedbackUndo.size > 100) feedbackUndo.delete(feedbackUndo.keys().next().value);
+      return { undoToken };
+    }
+    async function undoFeedback(token) {
+      const change = feedbackUndo.get(token);
+      if (!change)
+        throw new Error("Undo is no longer available. You can change the ruling directly.");
+      await mutate((state) => {
+        const current = state.feedback.find(
+          (item) =>
+            item.postKey === change.recorded.postKey &&
+            resolveCalibratedRule(item.rule, state.revisions) ===
+              resolveCalibratedRule(change.recorded.rule, state.revisions)
+        );
+        if (signature(current) !== signature(change.recorded))
+          throw new Error("This feedback changed elsewhere. Its latest judgment was kept.");
+        state.feedback = state.feedback.filter((item) => item !== current);
+        state.feedback.unshift(...change.previous);
+      });
+      feedbackUndo.delete(token);
+      return {};
     }
     async function recalibrate() {
       if (running) throw new Error("Recalibration is already running.");
@@ -280,7 +309,7 @@
         }, false)
       );
     }
-    return { record, recalibrate, undo };
+    return { record, undoFeedback, recalibrate, undo };
   }
   root.SmoothSurferCalibration = { create };
   if (typeof module !== "undefined" && module.exports)

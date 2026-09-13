@@ -85,6 +85,33 @@ function fixture() {
   };
 }
 (async () => {
+  const retention = fixture();
+  const firstVote = await retention.vote(0, "good", "Keep the true positive.");
+  const secondVote = await retention.vote(0, "bad", "Changed my mind.");
+  await retention.api.undoFeedback(secondVote.undoToken);
+  assert.equal(retention.state.feedback[0].judgment, "good");
+  assert.equal(retention.state.feedback[0].explanation, "Keep the true positive.");
+  await retention.api.undoFeedback(firstVote.undoToken);
+  assert.equal(retention.state.feedback.length, 0, "undo restores an unreviewed ruling");
+  const staleVote = await retention.vote(0, "good");
+  await retention.vote(0, "bad");
+  await assert.rejects(retention.api.undoFeedback(staleVote.undoToken), /changed elsewhere/);
+  assert.equal(retention.state.feedback[0].judgment, "bad");
+  await retention.vote(1, "good");
+  retention.posts.splice(0);
+  const archived = S.reviewItemsWithFeedback({ items: [] }, retention.state);
+  assert.equal(archived.length, 2, "both good and bad examples survive history expiry");
+  assert.equal(archived.find((p) => p.id === "p1").text, "Example 1");
+  await retention.vote(1, "bad", "Editable after history expires");
+  assert.equal(retention.state.feedback[0].explanation, "Editable after history expires");
+  const old = S.normalizeCalibration({
+    feedback: retention.state.feedback.map((f) => ({ ...f, at: 1, postAt: 1 }))
+  });
+  assert.equal(
+    S.reviewItemsWithFeedback({ items: [] }, old).length,
+    2,
+    "reviewed examples have no seven-day cutoff"
+  );
   const f = fixture();
   await Promise.all([f.vote(0, "good"), f.vote(1, "bad", "The deadline is factual.")]);
   assert.equal(f.state.feedback.length, 2, "concurrent judgments survive");

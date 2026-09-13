@@ -20,8 +20,9 @@ posts remain visible and retries are spaced out.
 
 Open **Review rulings** at the top of the popup to judge each triggering rule in
 a full tab. Mark **Good ruling** or **Bad ruling**, optionally explaining why.
-The rule appears first, followed by the post with author details, images, and
-quoted text when available. Votes save your judgment; they do not restore the
+The post appears first, with its rulings underneath and dividers between posts.
+X posts use native embeds; saved copies remain available when an embed cannot load.
+Use Left for Bad, Right for Good, Down for Next, and Up to undo the last judgment. Votes save your judgment; they do not restore the
 post or change a rule immediately.
 
 **Recalibrate rules** uses your API key to propose revisions and replay saved
@@ -33,7 +34,8 @@ calibration against your examples, not a guarantee of future accuracy. See
 
 Review keeps up to 2,000 posts from seven days within 6 MB. Feedback is retained
 separately, up to 2,000 judgments within 2 MB, so clearing history does not erase
-what you taught the filter. Media loads lazily from its original host.
+what you taught the filter. Both good and bad examples remain visible after the
+seven-day history expires. X embeds and media load lazily from their original hosts.
 
 On X, the **Less like this** button beside a post's actions opens a rule editor.
 Write your own rule or choose **Suggest filters** to ask Claude for suggestions.

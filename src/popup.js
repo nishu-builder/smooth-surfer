@@ -7,11 +7,14 @@
     getPlatformForUrl,
     normalizeCriteria,
     normalizeSecrets,
-    normalizeSettings
+    normalizeSettings,
+    reviewItemsWithFeedback
   } = window.SmoothSurferSettings;
   const {
     loadReview,
     watchReview,
+    loadCalibration,
+    watchCalibration,
     watchSettings,
     loadConsumption,
     loadSecrets,
@@ -106,13 +109,22 @@
     consumption = nextConsumption;
     renderFacts();
   });
-  const renderReviewCount = (review) => {
-    const count = review.items.filter((item) => !review.restored.includes(item.id)).length;
-    const link = document.querySelector("[data-review-link]");
-    if (link) link.textContent = `Review rulings (${count})`;
+  let reviewCountVersion = 0;
+  const renderReviewCount = async () => {
+    const version = ++reviewCountVersion;
+    try {
+      const [review, calibration] = await Promise.all([loadReview(), loadCalibration()]);
+      if (version !== reviewCountVersion) return;
+      const count = reviewItemsWithFeedback(review, calibration).length;
+      const link = document.querySelector("[data-review-link]");
+      if (link) link.textContent = `Review rulings (${count})`;
+    } catch {
+      /* Keep navigation available if its count cannot load. */
+    }
   };
-  loadReview().then(renderReviewCount);
+  void renderReviewCount();
   watchReview(renderReviewCount);
+  watchCalibration(renderReviewCount);
   watchSettings((next) => {
     settings = next;
     render();

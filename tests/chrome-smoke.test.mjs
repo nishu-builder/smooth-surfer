@@ -854,7 +854,7 @@ async function verifyExtensionPopupOpens() {
       `(async () => {
       await SmoothSurferStorage.saveSettings(SmoothSurferSettings.normalizeSettings({filterCriteria: ['Engagement bait', 'Unsubstantiated predictions']}));
       const posts = [
-        {source:'twitter',author:'River Chen · @river',display:{name:'River Chen',handle:'@river',text:'Repost this thread and follow for a chance to win a new setup.\\n\\nWinners announced tomorrow.',postedAt:new Date().toISOString(),quoted:{name:'Gear desk',handle:'@gear',text:'A new setup for this month.'}},text:'Repost this thread and follow for a chance to win a new setup. Winners announced tomorrow.',reasons:['Asks for reposts in exchange for a prize'],criteria:['Engagement bait'],url:'https://x.com/river/status/123'},
+        {source:'twitter',author:'River Chen · @river',display:{name:'River Chen',handle:'@river',text:'Repost this thread and follow for a chance to win a new setup.\\n\\nWinners announced tomorrow.',postedAt:new Date().toISOString(),quoted:{name:'Gear desk',handle:'@gear',text:'A new setup for this month.'}},text:'Repost this thread and follow for a chance to win a new setup. Winners announced tomorrow.',reasons:['Asks for reposts in exchange for a prize'],criteria:['Engagement bait'],url:'https://x.com/jack/status/20'},
         {source:'reddit',author:'',text:'This changes everything. One chart proves the next big market move is guaranteed.',reasons:['Presents an uncertain prediction as a guarantee'],criteria:['Unsubstantiated predictions'],url:'https://www.reddit.com/r/example/comments/123/example/'},
         {source:'twitter',author:'Casey Park · @casey',text:'Only a few people will understand this. Like and share if you are one of them.',reasons:['Solicits engagement through an exclusivity claim'],criteria:['Engagement bait'],url:'https://x.com/casey/status/456'}
       ];
@@ -927,8 +927,8 @@ async function verifyExtensionPopupOpens() {
     );
     assert.equal(
       await evaluate(client, `document.querySelector('.post').firstElementChild.className`),
-      "rulings",
-      "triggering rules appear above the post"
+      "embedded-post",
+      "the tweet appears before its rulings"
     );
     await evaluate(client, `document.querySelector('.post [data-judgment="good"]').click()`);
     await waitForExpression(
@@ -962,6 +962,112 @@ async function verifyExtensionPopupOpens() {
         `(async()=> (await SmoothSurferStorage.loadCalibration()).feedback.find(f=>f.judgment==='bad').explanation)()`
       ),
       "Allow ordinary requests to share; filter giveaway incentives."
+    );
+    // The isolated renderer must run under MV3 CSP. A network failure should
+    // produce a saved-copy fallback, never an indefinitely empty frame.
+    const embedHealth = await evaluate(
+      client,
+      `(async()=>{
+      const host=document.querySelector('.embedded-post');
+      const deadline=Date.now()+18000;
+      while (!host.dataset.ready && Date.now()<deadline) await new Promise(r=>setTimeout(r,100));
+      return {state:host.dataset.ready||'stuck', message:host.querySelector('.embed-status').textContent};
+    })()`
+    );
+    assert.notEqual(
+      embedHealth.state,
+      "stuck",
+      "hosted renderer reports ready or unavailable under extension CSP"
+    );
+    console.log(
+      "X embed renderer:",
+      embedHealth.state === "true" ? "native post ready" : embedHealth.message
+    );
+    await client.send("Emulation.setDeviceMetricsOverride", {
+      width: 1100,
+      height: 1000,
+      deviceScaleFactor: 1,
+      mobile: false
+    });
+    const nativeDesktop = await client.send("Page.captureScreenshot", { format: "png" });
+    await writeFile(
+      path.join(cacheDir, "review-native-desktop.png"),
+      Buffer.from(nativeDesktop.data, "base64")
+    );
+    await client.send("Emulation.setDeviceMetricsOverride", {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 1,
+      mobile: true
+    });
+    assert.equal(
+      await evaluate(client, `document.documentElement.scrollWidth <= innerWidth`),
+      true,
+      "native embed fits narrow screens"
+    );
+    const nativeMobile = await client.send("Page.captureScreenshot", { format: "png" });
+    await writeFile(
+      path.join(cacheDir, "review-native-mobile.png"),
+      Buffer.from(nativeMobile.data, "base64")
+    );
+    await evaluate(client, `window.reviewFrameBeforeVote=document.querySelector('.tweet-embed')`);
+    // Arrow keys judge the selected rule; undo restores the previous label.
+    await evaluate(
+      client,
+      `document.querySelector('.post .ruling').click(); document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true,cancelable:true}))`
+    );
+    await waitForExpression(
+      client,
+      `document.querySelector('.post [data-judgment="bad"]').getAttribute('aria-pressed') === 'true'`
+    );
+    assert.equal(
+      await evaluate(client, `document.querySelectorAll('.post').length`),
+      3,
+      "judged posts remain in All rulings"
+    );
+    await evaluate(
+      client,
+      `document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',bubbles:true,cancelable:true}))`
+    );
+    await waitForExpression(
+      client,
+      `document.querySelector('.post [data-judgment="good"]').getAttribute('aria-pressed') === 'true'`
+    );
+    assert.equal(
+      await evaluate(
+        client,
+        `window.reviewFrameBeforeVote === document.querySelector('.tweet-embed') && window.reviewFrameBeforeVote.isConnected`
+      ),
+      true,
+      "voting and undo preserve the native iframe"
+    );
+    const beforeTyping = await evaluate(
+      workerClient,
+      `(async()=>JSON.stringify((await SmoothSurferStorage.loadCalibration()).feedback))()`
+    );
+    await evaluate(
+      client,
+      `const note=document.querySelector('.post textarea');note.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true,cancelable:true}))`
+    );
+    assert.equal(
+      await evaluate(
+        workerClient,
+        `(async()=>JSON.stringify((await SmoothSurferStorage.loadCalibration()).feedback))()`
+      ),
+      beforeTyping,
+      "arrow keys in explanations do not vote"
+    );
+    await evaluate(
+      client,
+      `document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true,cancelable:true}))`
+    );
+    assert.equal(
+      await evaluate(
+        client,
+        `document.querySelectorAll('.post')[1].querySelector('.ruling').dataset.current`
+      ),
+      "true",
+      "down selects the next ruling"
     );
     // Stub only the external API in this isolated extension worker. Exercise
     // real message routing, rule updates, local feedback, replay, and undo.
@@ -1024,6 +1130,30 @@ async function verifyExtensionPopupOpens() {
       ),
       2,
       "clearing review keeps learning examples"
+    );
+    await evaluate(
+      client,
+      `document.getElementById('search').value='';document.getElementById('search').dispatchEvent(new Event('input'))`
+    );
+    assert.equal(
+      await evaluate(client, `document.querySelectorAll('.post').length`),
+      2,
+      "good and bad examples remain visible after clearing recent history"
+    );
+    await navigate(client, extensionOrigin + "/review.html");
+    await waitForExpression(client, `document.querySelectorAll('.post').length === 2`);
+    assert.equal(
+      await evaluate(
+        client,
+        `document.querySelectorAll('[data-judgment="good"][aria-pressed="true"]').length`
+      ),
+      1,
+      "good rulings stay after reload"
+    );
+    await navigate(client, extensionOrigin + "/popup.html");
+    await waitForExpression(
+      client,
+      `document.querySelector('[data-review-link]').textContent === 'Review rulings (2)'`
     );
     // Filter sets are previewed before applying; unchecked rules never import.
     await navigate(client, extensionOrigin + "/filters.html");

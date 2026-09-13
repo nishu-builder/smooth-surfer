@@ -68,6 +68,7 @@ importScripts("settings.js", "storage.js", "calibration.js");
     const reviewActions = {
       updateSettings: () => updateSettings(message.patch, message.expectedCriteria),
       recordRuleFeedback: () => calibration.record(message),
+      undoRuleFeedback: () => calibration.undoFeedback(message.undoToken),
       recalibrateRules: () => calibration.recalibrate(),
       undoCalibration: () => calibration.undo(message.id),
       saveFilterSet: () => saveFilterSet(message.name),

@@ -11,20 +11,21 @@
       <a class="brand" href="review.html"><img src="icons/icon48.png" alt="">Smooth Surfer</a>
       <div class="heading"><h1>Review rulings</h1><a class="page-link" href="filters.html">Filter sets</a><button id="recalibrate" class="primary" type="button">Recalibrate rules</button></div>
       <p class="review-help">Judge each rule’s match. Recalibration uses your feedback to improve future filtering.</p>
-      <p class="review-help">Uses your API key. Each rule needs a good and a bad example. Revisions must pass the replay before applying.</p>
+      <p class="review-help">Uses your API key. Each rule needs a good and a bad example. Revisions must pass the replay before applying. Good and bad examples are kept.</p>
     </header>
     <section class="toolbar" aria-label="Find filtered posts">
       <label class="search">Search posts<input id="search" type="search" placeholder="Search text, reasons, or rules"></label>
       <label>Site<select id="source"><option value="">All sites</option><option value="twitter">X / Twitter</option><option value="reddit">Reddit</option><option value="hacker-news">Hacker News</option><option value="substack">Substack</option></select></label>
       <label>Show<select id="state"><option value="">All rulings</option><option value="unreviewed">Needs feedback</option><option value="bad">Disagreed</option><option value="good">Agreed</option></select></label>
     </section>
+    <div class="review-controls"><p id="keyboard-help">← Bad · → Good · ↓ Next · ↑ Undo</p><button id="undo-feedback" type="button" disabled>Undo judgment</button><label>Posts<select id="post-view"><option value="embed">X embeds</option><option value="saved">Saved copies</option></select></label></div>
     <p id="status" role="status" aria-live="polite"></p>
     <div id="calibration-results" aria-live="polite"></div>
     <details id="revision-history"><summary>Rule revisions</summary><div id="revisions"></div></details>
-    <div class="list-heading"><p id="count">Loading posts…</p><button id="clear" class="quiet" type="button">Clear history</button></div>
+    <div class="list-heading"><p id="count">Loading posts…</p><button id="clear" class="quiet" type="button">Clear unreviewed</button></div>
     <section id="posts" aria-label="Recent rulings"></section>
     <button id="more" type="button" hidden>Load more</button>
-    <footer>Up to 2,000 posts from seven days, within 6 MB. Feedback stays on this device until recalibration sends its examples and explanations to Claude. Media loads from its original host. Clearing history keeps feedback and prior restore choices.</footer>
+    <footer>Recent posts: up to 2,000 from seven days, within 6 MB. Reviewed examples: up to 2,000 judgments within 2 MB, without a time cutoff. Feedback stays on this device until recalibration sends its examples and explanations to Claude. X embeds load from X; saved media loads from its original host. Clearing unreviewed posts keeps good and bad examples.</footer>
   </main>
   <script src="src/settings.js"></script><script src="src/storage.js"></script><script src="src/review.js"></script>
 </body>

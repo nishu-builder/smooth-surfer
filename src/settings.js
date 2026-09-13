@@ -516,6 +516,11 @@
         text: String(item.text || "").slice(0, 2000),
         images: normalizeImageUrls(item.images),
         source: String(item.source || "twitter").slice(0, 40),
+        url: safePostUrl(item.url),
+        author: String(item.author || "").slice(0, 160),
+        display: normalizePostDisplay(item.display),
+        reasons: normalizeCriteria(item.reasons || []).slice(0, 3),
+        postAt: Number.isFinite(item.postAt) ? item.postAt : item.at,
         at: Number.isFinite(item.at) ? item.at : Date.now()
       };
       const key = JSON.stringify([entry.rule, entry.postKey]);
@@ -666,6 +671,51 @@
     return { items: boundedItems, restored };
   }
 
+  // Reviewed examples outlive the rolling feed history. Keep both judgments
+  // visible, and merge their original rules without duplicating recent posts.
+  function reviewItemsWithFeedback(review, calibration) {
+    const items = new Map(
+      review.items.map((item) => [
+        item.id,
+        { ...item, criteria: [...item.criteria], formats: [...item.formats] }
+      ])
+    );
+    for (const vote of calibration.feedback) {
+      let item = items.get(vote.postKey);
+      if (!item) {
+        item = {
+          id: vote.postKey,
+          text: vote.text,
+          images: vote.images,
+          source: vote.source,
+          url: vote.url || "",
+          author: vote.author || "",
+          display: vote.display || {},
+          reasons: vote.reasons || [],
+          criteria: [],
+          formats: [],
+          at: vote.postAt || vote.at,
+          savedExample: true
+        };
+        items.set(item.id, item);
+      }
+      if (vote.rule.startsWith("format:")) {
+        const format = vote.rule.slice(7);
+        if (FORMAT_KEYS.includes(format) && !item.formats.includes(format))
+          item.formats.push(format);
+      } else if (
+        !item.criteria.some(
+          (rule) =>
+            resolveCalibratedRule(rule, calibration.revisions) ===
+            resolveCalibratedRule(vote.rule, calibration.revisions)
+        )
+      ) {
+        item.criteria.push(vote.rule);
+      }
+    }
+    return [...items.values()].sort((a, b) => b.at - a.at);
+  }
+
   function safePostUrl(value) {
     try {
       const url = new URL(String(value || ""));
@@ -687,6 +737,7 @@
     FILTER_SETS_KEY,
     BUILTIN_FILTER_SETS,
     REVIEW_LIMIT,
+    reviewItemsWithFeedback,
     normalizeFilterSet,
     normalizeFilterSets,
     normalizeImageUrls,

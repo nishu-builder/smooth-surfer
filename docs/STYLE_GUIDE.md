@@ -21,7 +21,7 @@ These are Smooth Surfer’s monochrome interface tokens, adapted from the refere
 ## Typography and layout
 
 - The reference uses Gridnik by Wim Crouwel. Prefer Gridnik when available; the current CSS uses local system monospace fallbacks. No Gridnik font files are bundled.
-- Use the geometric/monospaced stack for headings, actions, and metadata. Use a neutral sans serif for longer post previews and help text.
+- Use the geometric/monospaced stack at regular weight for headings, navigation, control labels, actions, and metadata. Avoid bold sans-serif setting labels next to monospace headings. Use a neutral sans serif for longer post previews and help text.
 - Keep white surfaces, thin dividers, crisp corners, and consistent alignment. Avoid pill-shaped panels and heavy shadows.
 - Default to compact spacing: 4–8px between related controls, 10–12px inside post cards, and 8px between cards. Headers should not push content down.
 - Keep post previews at 14–15px with 1.4–1.45 line height. Reduce padding before shrinking reading text. Controls should remain at least 28px high.
@@ -37,4 +37,6 @@ These are Smooth Surfer’s monochrome interface tokens, adapted from the refere
 - Keep details that affect a choice: data sharing, rule scope, persistence, and error recovery.
 - Use the same terms across the popup, review page, feed controls, and listing.
 
-Review cards put triggering rules and judgments first, followed by the saved post. Avatars, media, and quoted-post frames can follow familiar X shapes; keep the surrounding controls monochrome and compact.
+Review cards put the native or saved post first, followed by rule judgments. Use a narrow reading column, clear dividers between posts, and a visible marker for the selected ruling. Avatars, media, and quoted-post frames can follow familiar X shapes; keep the surrounding controls monochrome and compact.
+
+Popup setting rows use a consistent 28px target with 16px checkboxes. Keep page links on one compact navigation row. Active sites use a small text badge; retain the same thin border and alignment as other sections.
