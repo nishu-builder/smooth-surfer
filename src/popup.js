@@ -8,8 +8,7 @@
     normalizeCriteria,
     normalizeSecrets,
     normalizeSettings
-  } =
-    window.SmoothSurferSettings;
+  } = window.SmoothSurferSettings;
   const {
     loadConsumption,
     loadSecrets,
@@ -163,13 +162,19 @@
   clearStatsButton.addEventListener("click", () => {
     stats = { days: {} };
     renderStats();
-    writeStats(stats).then(() => setStatus("Stats cleared"), () => setStatus("Not saved"));
+    writeStats(stats).then(
+      () => setStatus("Stats cleared"),
+      () => setStatus("Not saved")
+    );
   });
 
   clearFactsButton.addEventListener("click", () => {
     consumption = { days: {} };
     renderFacts();
-    writeConsumption(consumption).then(() => setStatus("Facts cleared"), () => setStatus("Not saved"));
+    writeConsumption(consumption).then(
+      () => setStatus("Facts cleared"),
+      () => setStatus("Not saved")
+    );
   });
 
   exportButton.addEventListener("click", () => {
@@ -206,7 +211,8 @@
       .text()
       .then((text) => {
         const parsed = JSON.parse(text);
-        const imported = parsed && typeof parsed === "object" && parsed.settings ? parsed.settings : parsed;
+        const imported =
+          parsed && typeof parsed === "object" && parsed.settings ? parsed.settings : parsed;
 
         if (!imported || typeof imported !== "object" || Array.isArray(imported)) {
           throw new Error("Invalid settings file");
@@ -220,13 +226,19 @@
   function saveSettings(partial) {
     settings = normalizeSettings({ ...settings, ...partial });
     render();
-    writeSettings(settings).then(() => setStatus("Saved"), () => setStatus("Not saved"));
+    writeSettings(settings).then(
+      () => setStatus("Saved"),
+      () => setStatus("Not saved")
+    );
   }
 
   function saveSecrets(partial) {
     secrets = normalizeSecrets({ ...secrets, ...partial });
     render();
-    writeSecrets(secrets).then(() => setStatus("Saved"), () => setStatus("Not saved"));
+    writeSecrets(secrets).then(
+      () => setStatus("Saved"),
+      () => setStatus("Not saved")
+    );
   }
 
   function render() {
@@ -313,7 +325,9 @@
       section.dataset.activeSite = String(isActive);
     });
 
-    const activeSection = siteSections.find((section) => section.dataset.siteSection === activePlatform);
+    const activeSection = siteSections.find(
+      (section) => section.dataset.siteSection === activePlatform
+    );
 
     if (activeSection) {
       popup.insertBefore(activeSection, header.nextSibling);
@@ -335,10 +349,7 @@
       const platforms = stats.days[day];
 
       Object.keys(platforms).forEach((platformName) => {
-        const count = Object.values(platforms[platformName]).reduce(
-          (sum, value) => sum + value,
-          0
-        );
+        const count = Object.values(platforms[platformName]).reduce((sum, value) => sum + value, 0);
         const entry = totals.get(platformName) || { today: 0, week: 0 };
 
         entry.week += count;
@@ -405,10 +416,7 @@
     panel.append(factsElement("div", "facts-bar", ""));
 
     const postsRow = factsElement("div", "facts-posts", "");
-    postsRow.append(
-      factsElement("span", "", "Posts"),
-      factsElement("span", "", String(posts))
-    );
+    postsRow.append(factsElement("span", "", "Posts"), factsElement("span", "", String(posts)));
     panel.append(postsRow);
     panel.append(factsElement("div", "facts-bar facts-bar-thin", ""));
     panel.append(factsElement("div", "facts-percent-heading", "% Posts Experiencing*"));
@@ -418,9 +426,7 @@
       const percent = Math.round((count / posts) * 100);
       const rowElement = factsElement(
         "div",
-        "facts-row" +
-          (row.bold ? " facts-row-bold" : "") +
-          (row.indent ? " facts-row-indent" : ""),
+        "facts-row" + (row.bold ? " facts-row-bold" : "") + (row.indent ? " facts-row-indent" : ""),
         ""
       );
 

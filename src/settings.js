@@ -94,10 +94,7 @@
   };
 
   function normalizeCriteria(value) {
-    const items = Array.isArray(value)
-      ? value
-      : String(value || "")
-          .split(/[\n,]/);
+    const items = Array.isArray(value) ? value : String(value || "").split(/[\n,]/);
 
     const seen = new Set();
     const normalized = [];
@@ -155,7 +152,10 @@
     next.videoSpeedModifier = normalizeModifier(next.videoSpeedModifier);
     next.settingsHotkeyEnabled = Boolean(next.settingsHotkeyEnabled);
     next.focusScheduleEnabled = Boolean(next.focusScheduleEnabled);
-    next.focusScheduleStart = normalizeTime(next.focusScheduleStart, DEFAULT_SETTINGS.focusScheduleStart);
+    next.focusScheduleStart = normalizeTime(
+      next.focusScheduleStart,
+      DEFAULT_SETTINGS.focusScheduleStart
+    );
     next.focusScheduleEnd = normalizeTime(next.focusScheduleEnd, DEFAULT_SETTINGS.focusScheduleEnd);
     delete next.twitterClassifierMode;
     delete next.twitterFilterCriteria;
@@ -164,7 +164,9 @@
   }
 
   function normalizeModifier(value) {
-    const modifier = String(value || "").trim().toLowerCase();
+    const modifier = String(value || "")
+      .trim()
+      .toLowerCase();
 
     return VIDEO_SPEED_MODIFIERS.includes(modifier)
       ? modifier
@@ -338,7 +340,7 @@
   function getPlatformForUrl(value) {
     try {
       return getPlatformForHost(new URL(String(value || "")).hostname);
-    } catch (error) {
+    } catch {
       return getPlatformForHost(value);
     }
   }
@@ -350,7 +352,12 @@
       return "youtube";
     }
 
-    if (host === "x.com" || host.endsWith(".x.com") || host === "twitter.com" || host.endsWith(".twitter.com")) {
+    if (
+      host === "x.com" ||
+      host.endsWith(".x.com") ||
+      host === "twitter.com" ||
+      host.endsWith(".twitter.com")
+    ) {
       return "twitter";
     }
 

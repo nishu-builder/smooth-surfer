@@ -153,9 +153,12 @@ function composeMenuShots(menuPng, blocks) {
 
 function compose(inputs, filter, name) {
   execFileSync("ffmpeg", [
-    "-loglevel", "error", "-y",
+    "-loglevel",
+    "error",
+    "-y",
     ...inputs,
-    "-filter_complex", filter,
+    "-filter_complex",
+    filter,
     path.join(outDir, name)
   ]);
   console.log("composed", name);
@@ -210,7 +213,8 @@ async function evaluate(client, expression) {
 
   if (exceptionDetails) {
     throw new Error(
-      (exceptionDetails.exception && exceptionDetails.exception.description) || "Runtime.evaluate failed"
+      (exceptionDetails.exception && exceptionDetails.exception.description) ||
+        "Runtime.evaluate failed"
     );
   }
 

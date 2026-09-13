@@ -1,12 +1,7 @@
 (function installSmoothSurfer() {
   "use strict";
 
-  const {
-    loadSecrets,
-    loadSettings,
-    watchSecrets,
-    watchSettings
-  } = window.SmoothSurferStorage;
+  const { loadSecrets, loadSettings, watchSecrets, watchSettings } = window.SmoothSurferStorage;
   const { getPlatformForUrl, isWithinFocusWindow } = window.SmoothSurferSettings;
   const SCAN_DEBOUNCE_MS = 120;
   const CLASSIFICATION_TIMEOUT_MS = 12000;
@@ -32,6 +27,14 @@
     "PageDown",
     "PageUp"
   ]);
+  const REDDIT_TEXT_SELECTORS = [
+    '[slot="title"]',
+    '[slot="text-body"]',
+    '[data-testid="post-title"]',
+    '[data-click-id="text"]',
+    "a.title",
+    ".usertext-body"
+  ];
   const WORK_SITE_HOSTS = [
     "app.asana.com",
     "atlassian.net",
@@ -92,12 +95,21 @@
 
     watchSettings((nextSettings) => {
       const contentSettings = [
-        "enabled", "filterCriteria", "consumptionFactsEnabled",
-        "focusScheduleEnabled", "focusScheduleStart", "focusScheduleEnd",
+        "enabled",
+        "filterCriteria",
+        "consumptionFactsEnabled",
+        "focusScheduleEnabled",
+        "focusScheduleStart",
+        "focusScheduleEnd",
         ...Object.values(CONTENT_FILTER_SETTING_BY_PLATFORM)
       ];
-      if (contentSettings.some((key) => JSON.stringify(nextSettings[key]) !== JSON.stringify(settings[key]))) {
-        const verdictsChanged = nextSettings.consumptionFactsEnabled !== settings.consumptionFactsEnabled ||
+      if (
+        contentSettings.some(
+          (key) => JSON.stringify(nextSettings[key]) !== JSON.stringify(settings[key])
+        )
+      ) {
+        const verdictsChanged =
+          nextSettings.consumptionFactsEnabled !== settings.consumptionFactsEnabled ||
           JSON.stringify(nextSettings.filterCriteria) !== JSON.stringify(settings.filterCriteria);
         resetClassifications(verdictsChanged);
       }
@@ -318,7 +330,9 @@
 
   function hideYouTubeShelves() {
     document
-      .querySelectorAll("ytd-rich-section-renderer, ytd-rich-shelf-renderer, ytd-reel-shelf-renderer")
+      .querySelectorAll(
+        "ytd-rich-section-renderer, ytd-rich-shelf-renderer, ytd-reel-shelf-renderer"
+      )
       .forEach((section) => {
         const title = getYouTubeShelfTitle(section);
         const isShorts = effectsEnabled() && settings.youtubeHideShorts && title.includes("shorts");
@@ -379,6 +393,16 @@
 
   function processTweetArticle(article, canFilterContent) {
     const container = getTweetContainer(article);
+    const cell = article.closest('[data-testid="cellInnerDiv"]');
+    // A conversation may gain or lose replies in place. Move filtering to
+    // individual articles while they share a cell, so a blocked reply cannot
+    // hide the whole thread or overwrite another article's pending request.
+    if (cell && cell !== container && cell.dataset.smoothSurferHiddenKind === "tweet") {
+      restoreElement(cell);
+    }
+    if (article !== container && article.dataset.smoothSurferHiddenKind === "tweet") {
+      restoreElement(article);
+    }
     const identity = getTweetIdentity(article);
     if (tweetIdentities.get(container) !== identity) {
       restoreElement(container);
@@ -420,11 +444,16 @@
       const article = element.closest('article[data-testid="tweet"]');
       if (article) articles.add(article);
       if (descendants || element.matches('[data-testid="cellInnerDiv"]')) {
-        element.querySelectorAll('article[data-testid="tweet"]').forEach((tweet) => articles.add(tweet));
+        element
+          .querySelectorAll('article[data-testid="tweet"]')
+          .forEach((tweet) => articles.add(tweet));
       }
       const cell = element.closest('[data-testid="cellInnerDiv"]');
-      if (cell && !cell.querySelector('article[data-testid="tweet"]') &&
-          cell.dataset.smoothSurferHiddenKind === "tweet") {
+      if (
+        cell &&
+        !cell.querySelector('article[data-testid="tweet"]') &&
+        cell.dataset.smoothSurferHiddenKind === "tweet"
+      ) {
         restoreElement(cell);
       }
     };
@@ -466,7 +495,7 @@
       }
 
       if (canFilterContent) {
-        requestModelClassification(container, getElementText(container), "reddit-post");
+        requestModelClassification(container, getRedditPostText(container), "reddit-post");
       } else {
         restoreElement(container);
       }
@@ -559,7 +588,7 @@
       requestModelClassification(row, getHackerNewsStoryText(row), "hacker-news-story");
     });
     document.querySelectorAll("tr.comtr").forEach((row) => {
-      requestModelClassification(row, getElementText(row), "hacker-news-comment");
+      requestModelClassification(row, getHackerNewsCommentText(row), "hacker-news-comment");
     });
   }
 
@@ -604,9 +633,9 @@
           return;
         }
 
-        const label = normalizeInlineText(tab.textContent);
+        const label = normalizeInlineText(tab.textContent).toLowerCase();
 
-        if (label === "For you" || label === "Following") {
+        if (label === "for you" || label === "following") {
           twitterFollowingPreferenceResolved = true;
         }
       },
@@ -619,8 +648,10 @@
   }
 
   function findTwitterTab(label) {
+    const wanted = label.toLowerCase();
+
     return Array.from(document.querySelectorAll('[role="tab"]')).find(
-      (tab) => normalizeInlineText(tab.textContent) === label
+      (tab) => normalizeInlineText(tab.textContent).toLowerCase() === wanted
     );
   }
 
@@ -720,8 +751,7 @@
   function isEditableElement(element) {
     return Boolean(
       element &&
-        (element.isContentEditable ||
-          /^(input|select|textarea)$/i.test(element.tagName || ""))
+      (element.isContentEditable || /^(input|select|textarea)$/i.test(element.tagName || ""))
     );
   }
 
@@ -771,9 +801,7 @@
         event.stopPropagation();
 
         const rate =
-          delta === 0
-            ? 1
-            : clampSpeed(Math.round((video.playbackRate + delta) * 100) / 100);
+          delta === 0 ? 1 : clampSpeed(Math.round((video.playbackRate + delta) * 100) / 100);
 
         video.playbackRate = rate;
         showSpeedToast(rate);
@@ -797,9 +825,7 @@
 
     // The chosen modifier must be down and no other modifier may be, so the
     // shortcut doesn't collide with combos like Ctrl+Alt+].
-    return Object.keys(held).every((key) =>
-      key === required ? held[key] : !held[key]
-    );
+    return Object.keys(held).every((key) => (key === required ? held[key] : !held[key]));
   }
 
   function installSettingsHotkey() {
@@ -854,9 +880,7 @@
 
   function findActiveVideo() {
     const videos = Array.from(document.querySelectorAll("video"));
-    const playing = videos.find(
-      (video) => !video.paused && !video.ended && video.readyState > 1
-    );
+    const playing = videos.find((video) => !video.paused && !video.ended && video.readyState > 1);
 
     if (playing) {
       return playing;
@@ -942,7 +966,9 @@
     };
     pendingClassifications.set(container, request);
     container.dataset.smoothSurferPendingKey = key;
-    markPendingContent(container, kind);
+    if (kind === "tweet" || container.dataset.smoothSurferCleared !== "true") {
+      markPendingContent(container, kind);
+    }
 
     let promise = inFlightClassifications.get(key);
     if (!promise) {
@@ -952,9 +978,14 @@
           if (finished) return;
           finished = true;
           window.clearTimeout(timeout);
-          const result = response && typeof response.blocked === "boolean" ? response : {
-            blocked: false, reasons: [], classifier: "error"
-          };
+          const result =
+            response && typeof response.blocked === "boolean"
+              ? response
+              : {
+                  blocked: false,
+                  reasons: [],
+                  classifier: "error"
+                };
           if (result.classifier === "error" || result.classifier === "disabled") {
             result.retryAt = Date.now() + CLASSIFICATION_RETRY_MS;
           }
@@ -971,7 +1002,7 @@
               (response) => finish(chrome.runtime.lastError ? null : response)
             );
           }
-        } catch (error) {
+        } catch {
           // Extension reloads can invalidate the runtime while a tab stays open.
           finish(null);
         }
@@ -983,9 +1014,22 @@
     }
 
     promise.then((result) => {
-      if (!container.isConnected || pendingClassifications.get(container) !== request ||
-          request.epoch !== classificationEpoch || !canFilterPlatformContent(platform)) return;
-      if (kind === "tweet" && request.identity !== getTweetIdentity(getTweetArticle(container))) return;
+      if (
+        !container.isConnected ||
+        pendingClassifications.get(container) !== request ||
+        request.epoch !== classificationEpoch ||
+        !canFilterPlatformContent(platform)
+      )
+        return;
+      if (kind === "tweet") {
+        const article = getTweetArticle(container);
+        if (
+          !article ||
+          getTweetContainer(article) !== container ||
+          request.identity !== getTweetIdentity(article)
+        )
+          return;
+      }
       pendingClassifications.delete(container);
       delete container.dataset.smoothSurferPendingKey;
       applyModelClassification(container, result, kind);
@@ -997,6 +1041,7 @@
     if (classification.blocked) {
       hideContentElement(container, classification.reasons || [], kind, immediate);
     } else {
+      container.dataset.smoothSurferCleared = "true";
       restoreContentElement(container, kind);
     }
   }
@@ -1019,6 +1064,7 @@
     recordedConsumptionKeys.add(key);
     chrome.runtime.sendMessage({
       type: "recordConsumption",
+      key,
       source: platform === "unknown" ? "other" : platform,
       tags: Array.isArray(result.tags) ? result.tags : []
     });
@@ -1038,10 +1084,7 @@
     const settingName = CONTENT_FILTER_SETTING_BY_PLATFORM[targetPlatform];
 
     return Boolean(
-      effectsEnabled() &&
-        settingName &&
-        settings[settingName] &&
-        secrets.anthropicApiKey
+      effectsEnabled() && settingName && settings[settingName] && secrets.anthropicApiKey
     );
   }
 
@@ -1060,15 +1103,17 @@
 
     return Array.from(article.querySelectorAll("span, div")).some((element) => {
       // A tweet or quoted post saying "Ad" is not an advertising label.
-      if (element.closest('[data-testid="tweetText"], [data-testid="card.wrapper"], [role="link"]')) return false;
+      if (element.closest('[data-testid="tweetText"], [data-testid="card.wrapper"], [role="link"]'))
+        return false;
       const text = normalizeInlineText(element.textContent);
       return element.children.length === 0 && (text === "Promoted" || text === "Ad");
     });
   }
 
   function getTweetArticle(container) {
-    return container.matches('article[data-testid="tweet"]') ? container :
-      container.querySelector('article[data-testid="tweet"]');
+    return container.matches('article[data-testid="tweet"]')
+      ? container
+      : container.querySelector('article[data-testid="tweet"]');
   }
 
   function getTweetIdentity(article) {
@@ -1081,9 +1126,9 @@
     if (!article) return "";
     // Only stable content participates in classification: live counts, relative
     // timestamps and action labels otherwise cause repeated requests on media posts.
-    const parts = Array.from(article.querySelectorAll(
-      '[data-testid="tweetText"], [data-testid="card.wrapper"]'
-    )).map((node) => node.textContent || "");
+    const parts = Array.from(
+      article.querySelectorAll('[data-testid="tweetText"], [data-testid="card.wrapper"]')
+    ).map((node) => node.textContent || "");
     article.querySelectorAll('[data-testid="tweetPhoto"] img[alt]').forEach((image) => {
       const alt = image.getAttribute("alt");
       if (alt && alt !== "Image") parts.push(alt);
@@ -1092,7 +1137,10 @@
   }
 
   function getTweetContainer(article) {
-    return article.closest('[data-testid="cellInnerDiv"]') || article;
+    const cell = article.closest('[data-testid="cellInnerDiv"]');
+    return cell && cell.querySelectorAll('article[data-testid="tweet"]').length === 1
+      ? cell
+      : article;
   }
 
   function getRedditPostContainers() {
@@ -1102,7 +1150,10 @@
           "shreddit-post, article, [data-testid='post-container'], [data-testid='post'], [slot='post-container']"
         )
       )
-        .map((element) => element.closest("shreddit-post, article, [data-testid='post-container']") || element)
+        .map(
+          (element) =>
+            element.closest("shreddit-post, article, [data-testid='post-container']") || element
+        )
         .filter((element) => element && document.body.contains(element))
     );
   }
@@ -1115,11 +1166,13 @@
       return true;
     }
 
-    return Array.from(container.querySelectorAll("span, div, faceplate-tracker")).some((element) => {
-      const text = normalizeInlineText(element.textContent).toLowerCase();
+    return Array.from(container.querySelectorAll("span, div, faceplate-tracker")).some(
+      (element) => {
+        const text = normalizeInlineText(element.textContent).toLowerCase();
 
-      return text === "promoted" || text === "sponsored";
-    });
+        return text === "promoted" || text === "sponsored";
+      }
+    );
   }
 
   function isRedditRecommendation(container) {
@@ -1141,16 +1194,49 @@
           "article, [data-testid*='post'], [class*='post-preview'], [class*='feed-item'], [class*='note']"
         )
       )
-        .map((element) => element.closest("article, [data-testid*='post'], [class*='post-preview']") || element)
+        .map(
+          (element) =>
+            element.closest("article, [data-testid*='post'], [class*='post-preview']") || element
+        )
         .filter((element) => element && document.body.contains(element))
     );
+  }
+
+  function getRedditPostText(container) {
+    const parts = [];
+
+    REDDIT_TEXT_SELECTORS.forEach((selector) => {
+      container.querySelectorAll(selector).forEach((node) => {
+        parts.push(node.textContent || "");
+      });
+    });
+
+    if (parts.length > 0) {
+      return parts.join(" ");
+    }
+
+    const postTitle = container.getAttribute && container.getAttribute("post-title");
+
+    // Nothing named the post's own words, so take the whole card and accept
+    // that its counters make the classification key less stable.
+    return postTitle || getElementText(container);
+  }
+
+  function getHackerNewsCommentText(row) {
+    const comment = row.querySelector(".commtext");
+
+    // The comment head carries the author and an age that reads "3 hours ago"
+    // until it reads "4 hours ago"; only the body itself stays put.
+    return comment ? comment.textContent || "" : getElementText(row);
   }
 
   function getHackerNewsStoryText(row) {
     const title = row.querySelector(".titleline, .storylink, .title a");
     const site = row.querySelector(".sitestr");
 
-    return normalizeInlineText(`${title ? title.textContent : row.textContent} ${site ? site.textContent : ""}`);
+    return normalizeInlineText(
+      `${title ? title.textContent : row.textContent} ${site ? site.textContent : ""}`
+    );
   }
 
   function hasRecommendationText(text) {
@@ -1286,21 +1372,32 @@
       return;
     }
     element.classList.remove("smooth-surfer-tweet-deferred");
-    if (immediate || deferred || rect.top >= window.innerHeight ||
-        window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (
+      immediate ||
+      deferred ||
+      rect.top >= window.innerHeight ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
       element.classList.add("smooth-surfer-hidden");
       return;
     }
     const identity = getTweetIdentity(getTweetArticle(element));
     const epoch = classificationEpoch;
     element.classList.add("smooth-surfer-tweet-fading");
-    tweetFadeTimers.set(element, window.setTimeout(() => {
-      tweetFadeTimers.delete(element);
-      element.classList.remove("smooth-surfer-tweet-fading");
-      if (!element.isConnected || epoch !== classificationEpoch ||
-          identity !== getTweetIdentity(getTweetArticle(element))) return;
-      hideTweetWithoutScrollJump(element, true);
-    }, TWEET_FADE_MS));
+    tweetFadeTimers.set(
+      element,
+      window.setTimeout(() => {
+        tweetFadeTimers.delete(element);
+        element.classList.remove("smooth-surfer-tweet-fading");
+        if (
+          !element.isConnected ||
+          epoch !== classificationEpoch ||
+          identity !== getTweetIdentity(getTweetArticle(element))
+        )
+          return;
+        hideTweetWithoutScrollJump(element, true);
+      }, TWEET_FADE_MS)
+    );
   }
 
   function recordHideStat(element, reasons, kind) {
@@ -1326,7 +1423,11 @@
     pendingClassifications.delete(element);
     window.clearTimeout(tweetFadeTimers.get(element));
     tweetFadeTimers.delete(element);
-    element.classList.remove("smooth-surfer-hidden", "smooth-surfer-tweet-fading", "smooth-surfer-tweet-deferred");
+    element.classList.remove(
+      "smooth-surfer-hidden",
+      "smooth-surfer-tweet-fading",
+      "smooth-surfer-tweet-deferred"
+    );
     delete element.dataset.smoothSurferHidden;
     delete element.dataset.smoothSurferHiddenKind;
     delete element.dataset.smoothSurferPending;
@@ -1345,11 +1446,9 @@
   }
 
   function restoreHiddenElementsByKind(kind) {
-    document
-      .querySelectorAll(`[data-smooth-surfer-hidden-kind="${kind}"]`)
-      .forEach((element) => {
-        restoreElement(element);
-      });
+    document.querySelectorAll(`[data-smooth-surfer-hidden-kind="${kind}"]`).forEach((element) => {
+      restoreElement(element);
+    });
   }
 
   function normalizeInlineText(text) {
@@ -1363,5 +1462,4 @@
 
     return WORK_SITE_HOSTS.some((workHost) => host === workHost || host.endsWith("." + workHost));
   }
-
 })();

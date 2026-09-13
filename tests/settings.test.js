@@ -13,11 +13,14 @@ assert.deepEqual(settings.normalizeSettings({ filterCriteria: "one, two" }).filt
   "one",
   "two"
 ]);
-assert.deepEqual(settings.normalizeSettings({ twitterFilterCriteria: "legacy, criteria" }).filterCriteria, [
-  "legacy",
-  "criteria"
-]);
-assert.equal(settings.normalizeSecrets({ anthropicApiKey: "  sk-ant-test  " }).anthropicApiKey, "sk-ant-test");
+assert.deepEqual(
+  settings.normalizeSettings({ twitterFilterCriteria: "legacy, criteria" }).filterCriteria,
+  ["legacy", "criteria"]
+);
+assert.equal(
+  settings.normalizeSecrets({ anthropicApiKey: "  sk-ant-test  " }).anthropicApiKey,
+  "sk-ant-test"
+);
 
 const defaults = settings.normalizeSettings();
 assert.equal(Object.hasOwn(defaults, "twitterClassifierMode"), false);
@@ -54,9 +57,18 @@ assert.equal(settings.normalizeSettings({ videoSpeedModifier: "bogus" }).videoSp
 assert.equal(settings.normalizeSettings({ settingsHotkeyEnabled: 0 }).settingsHotkeyEnabled, false);
 assert.deepEqual(settings.VIDEO_SPEED_MODIFIERS, ["none", "alt", "ctrl", "shift", "meta"]);
 
-assert.equal(settings.normalizeSettings({ focusScheduleStart: "7:05" }).focusScheduleStart, "07:05");
-assert.equal(settings.normalizeSettings({ focusScheduleStart: "25:00" }).focusScheduleStart, "09:00");
-assert.equal(settings.normalizeSettings({ focusScheduleEnd: "not a time" }).focusScheduleEnd, "17:00");
+assert.equal(
+  settings.normalizeSettings({ focusScheduleStart: "7:05" }).focusScheduleStart,
+  "07:05"
+);
+assert.equal(
+  settings.normalizeSettings({ focusScheduleStart: "25:00" }).focusScheduleStart,
+  "09:00"
+);
+assert.equal(
+  settings.normalizeSettings({ focusScheduleEnd: "not a time" }).focusScheduleEnd,
+  "17:00"
+);
 
 const at = (hours, minutes) => new Date(2026, 5, 10, hours, minutes);
 assert.equal(settings.isWithinFocusWindow("09:00", "17:00", at(12, 0)), true);

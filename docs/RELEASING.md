@@ -62,7 +62,8 @@ are GitHub dashboard toggles only a maintainer can set:
 
 1. Land changes on `main`.
 2. Bump `version` in `manifest.json` and `package.json` (keep them equal —
-   the release workflow refuses mismatched tags).
+   the release workflow refuses mismatched tags), and move the pending
+   entries in [CHANGELOG.md](../CHANGELOG.md) under that version.
 3. `npm run check`
 4. If the UI or site styling changed, refresh screenshots:
    `node scripts/capture-store-assets.mjs`

@@ -2,7 +2,13 @@ import assert from "node:assert/strict";
 
 // Real Chrome layout + MutationObserver tests, with deterministic delayed model
 // replies. No API key, user feed, or external inference is used by this fixture.
-export async function verifyTwitterFeed({ client, navigate, evaluate, waitForExpression, baseUrl }) {
+export async function verifyTwitterFeed({
+  client,
+  navigate,
+  evaluate,
+  waitForExpression,
+  baseUrl
+}) {
   const run = (source) => evaluate(client, source);
   const wait = (source) => waitForExpression(client, source);
   const open = async () => {
@@ -44,7 +50,10 @@ export async function verifyTwitterFeed({ client, navigate, evaluate, waitForExp
   await wait(`requests.length === 9`);
   await run(`resolvePost(1, true)`);
   assert.equal(await run(`document.querySelector('#cell-1').dataset.smoothSurferPending`), "true");
-  assert.equal(await run(`document.querySelector('#cell-1').classList.contains('smooth-surfer-hidden')`), false);
+  assert.equal(
+    await run(`document.querySelector('#cell-1').classList.contains('smooth-surfer-hidden')`),
+    false
+  );
   await run(`resolvePost(8, false)`);
   await wait(`!document.querySelector('#cell-1').dataset.smoothSurferPending`);
 
@@ -52,9 +61,14 @@ export async function verifyTwitterFeed({ client, navigate, evaluate, waitForExp
   await run(`window.scrollTo(0, 800)`);
   const anchorBefore = await run(`document.querySelector('#cell-5').getBoundingClientRect().top`);
   await run(`resolvePost(2, true)`);
-  await wait(`document.querySelector('#cell-2').classList.contains('smooth-surfer-tweet-deferred')`);
+  await wait(
+    `document.querySelector('#cell-2').classList.contains('smooth-surfer-tweet-deferred')`
+  );
   assert.equal(await run(`document.querySelector('#cell-2').getBoundingClientRect().height`), 180);
-  assert.equal(await run(`document.querySelector('#cell-5').getBoundingClientRect().top`), anchorBefore);
+  assert.equal(
+    await run(`document.querySelector('#cell-5').getBoundingClientRect().top`),
+    anchorBefore
+  );
   await run(`window.scrollTo(0, 0); window.dispatchEvent(new Event('scroll'))`);
   await wait(`document.querySelector('#cell-2').classList.contains('smooth-surfer-hidden')`);
 
@@ -64,7 +78,9 @@ export async function verifyTwitterFeed({ client, navigate, evaluate, waitForExp
   assert.equal(await run(`requests.length`), 9);
 
   // A cell that stops containing a tweet must not hide the replacement module.
-  await run(`document.querySelector('#cell-cached').innerHTML = '<section>Who to follow</section>'`);
+  await run(
+    `document.querySelector('#cell-cached').innerHTML = '<section>Who to follow</section>'`
+  );
   await wait(`!document.querySelector('#cell-cached').dataset.smoothSurferHidden`);
 
   // Explicitly classified visible blocks get a short fade, then one removal.
@@ -73,8 +89,11 @@ export async function verifyTwitterFeed({ client, navigate, evaluate, waitForExp
   await run(`updateSettings({enabled:false})`);
   await wait(`!document.querySelector('[data-smooth-surfer-hidden-kind="tweet"]')`);
   await run(`resolvePost(4, true); resolvePost(5, true)`);
-  assert.equal(await run(`Boolean(document.querySelector('.smooth-surfer-hidden'))`), false,
-    "responses arriving after disabling filtering cannot hide posts");
+  assert.equal(
+    await run(`Boolean(document.querySelector('.smooth-surfer-hidden'))`),
+    false,
+    "responses arriving after disabling filtering cannot hide posts"
+  );
 
   // A busy feed must still apply a settings change within a scan interval.
   await open();
@@ -83,15 +102,21 @@ export async function verifyTwitterFeed({ client, navigate, evaluate, waitForExp
   await wait(`!document.querySelector('[data-smooth-surfer-pending]')`);
   await run(`clearInterval(window.busyFeed); updateSettings({enabled:true})`);
   await wait(`requests.length > 8`);
-  assert.equal(await run(`requests.filter(r => r.message.text === 'Post 0').length`), 1,
-    "toggling filtering preserves completed verdicts");
+  assert.equal(
+    await run(`requests.filter(r => r.message.text === 'Post 0').length`),
+    1,
+    "toggling filtering preserves completed verdicts"
+  );
 
   // Changing criteria invalidates pending work, even if text is unchanged.
   await open();
   await run(`updateSettings({filterCriteria:['A different criterion']})`);
   await wait(`requests.length === 16`);
   await run(`resolvePost(0, true)`);
-  assert.equal(await run(`document.querySelector('#cell-0').classList.contains('smooth-surfer-hidden')`), false);
+  assert.equal(
+    await run(`document.querySelector('#cell-0').classList.contains('smooth-surfer-hidden')`),
+    false
+  );
   await run(`resolvePost(8, false)`);
   await wait(`!document.querySelector('#cell-0').dataset.smoothSurferPending`);
 
@@ -121,7 +146,10 @@ export async function verifyTwitterFeed({ client, navigate, evaluate, waitForExp
     document.querySelector('main').append(ordinary, promoted);
   })()`);
   await wait(`document.querySelector('#cell-promoted').classList.contains('smooth-surfer-hidden')`);
-  assert.equal(await run(`document.querySelector('#cell-word-ad').dataset.smoothSurferHidden`), undefined);
+  assert.equal(
+    await run(`document.querySelector('#cell-word-ad').dataset.smoothSurferHidden`),
+    undefined
+  );
 
   // Media-only text extraction uses captions/alt text, never changing counts.
   await run(`(() => {
@@ -139,9 +167,44 @@ export async function verifyTwitterFeed({ client, navigate, evaluate, waitForExp
   // Deadline recovery: a lost reply cannot keep a row pending forever.
   await open();
   await wait(`!document.querySelector('#cell-0').dataset.smoothSurferPending`);
-  assert.equal(await run(`getComputedStyle(document.querySelector('#cell-0')).visibility`), "visible");
+  assert.equal(
+    await run(`getComputedStyle(document.querySelector('#cell-0')).visibility`),
+    "visible"
+  );
   await run(`resolvePost(0, true)`);
-  assert.equal(await run(`document.querySelector('#cell-0').dataset.smoothSurferHidden`), undefined);
+  assert.equal(
+    await run(`document.querySelector('#cell-0').dataset.smoothSurferHidden`),
+    undefined
+  );
+  // A conversation can gain a reply while its original cell is pending.
+  // Each verdict must follow its own article as the cell changes shape.
+  await open();
+  await run(
+    `document.querySelector('#cell-0').append(makeCell('reply','Grouped reply').firstChild)`
+  );
+  await wait(`requests.length === 9`);
+  await run(`resolvePost(0,false); resolvePost(8,true)`);
+  await wait(
+    `document.querySelector('#text-reply').closest('article').classList.contains('smooth-surfer-hidden')`
+  );
+  assert.equal(
+    await run(`document.querySelector('#cell-0').classList.contains('smooth-surfer-hidden')`),
+    false
+  );
+  assert.equal(
+    await run(
+      `document.querySelector('#text-0').closest('article').getBoundingClientRect().height`
+    ),
+    180
+  );
+  await run(`document.querySelector('#text-0').closest('article').remove()`);
+  await wait(`document.querySelector('#cell-0').classList.contains('smooth-surfer-hidden')`);
+  await run(`document.querySelector('#text-reply').firstChild.data = 'A replacement reply'`);
+  await wait(`requests.length === 10`);
+  assert.equal(await run(`document.querySelector('#cell-0').getBoundingClientRect().height`), 180);
+  await run(`resolvePost(9,false)`);
+  await wait(`!document.querySelector('#cell-0').dataset.smoothSurferPending`);
+
   // Model X's measured/positioned cells: removal must let the virtualizer
   // close the gap while pending/above-viewport rows retain their measurements.
   await open();
@@ -167,18 +230,28 @@ export async function verifyTwitterFeed({ client, navigate, evaluate, waitForExp
   assert.equal(await run(`document.querySelector('main').getBoundingClientRect().height`), 1440);
   await run(`resolvePost(6,true)`);
   await wait(`document.querySelector('main').getBoundingClientRect().height === 1260`);
-  assert.equal(await run(`document.querySelector('#cell-7').getBoundingClientRect().top`), 1080,
-    "virtual rows close the gap after confirmed removal");
+  assert.equal(
+    await run(`document.querySelector('#cell-7').getBoundingClientRect().top`),
+    1080,
+    "virtual rows close the gap after confirmed removal"
+  );
   await run(`window.scrollTo(0,500)`);
   const virtualAnchor = await run(`document.querySelector('#cell-4').getBoundingClientRect().top`);
   await run(`resolvePost(0,true)`);
-  await wait(`document.querySelector('#cell-0').classList.contains('smooth-surfer-tweet-deferred')`);
-  assert.equal(await run(`document.querySelector('#cell-4').getBoundingClientRect().top`), virtualAnchor);
+  await wait(
+    `document.querySelector('#cell-0').classList.contains('smooth-surfer-tweet-deferred')`
+  );
+  assert.equal(
+    await run(`document.querySelector('#cell-4').getBoundingClientRect().top`),
+    virtualAnchor
+  );
   await run(`window.scrollTo(0,0); window.dispatchEvent(new Event('scroll'))`);
   await wait(`document.querySelector('#cell-0').classList.contains('smooth-surfer-hidden')`);
   await wait(`document.querySelector('#cell-1').getBoundingClientRect().top === 0`);
 
-  console.log("Twitter feed regressions passed (layout, recycling, delayed replies, settings, errors, ads, media).");
+  console.log(
+    "Twitter feed regressions passed (layout, recycling, delayed replies, settings, errors, ads, media)."
+  );
 }
 
 export function twitterFilterFixture() {

@@ -3,14 +3,8 @@ importScripts("settings.js", "storage.js");
 (function installSmoothSurferBackground() {
   "use strict";
 
-  const {
-    loadConsumption,
-    loadSecrets,
-    loadSettings,
-    loadStats,
-    saveConsumption,
-    saveStats
-  } = self.SmoothSurferStorage;
+  const { loadConsumption, loadSecrets, loadSettings, loadStats, saveConsumption, saveStats } =
+    self.SmoothSurferStorage;
   const CONSUMPTION_TAG_SET = new Set(self.SmoothSurferSettings.CONSUMPTION_TAGS);
   const MODEL = "claude-haiku-4-5";
   const ANTHROPIC_VERSION = "2023-06-01";
@@ -32,7 +26,12 @@ importScripts("settings.js", "storage.js");
     "hacker-news": "Hacker News story or comment"
   };
   const resultCache = new Map();
-  let batchQueue = [];
+  // Classification keys already counted today, so the same post open in two
+  // tabs counts once. Each tab dedupes its own view; only the worker sees
+  // them all. It is memory-only, so a worker restart may let a post through
+  // a second time — an overcount of one beats persisting a growing key list.
+  const countedConsumptionKeys = new Set();
+  const batchQueue = [];
   let batchTimer = 0;
   let statsPromise = null;
   let statsWriteTimer = 0;
@@ -50,7 +49,7 @@ importScripts("settings.js", "storage.js");
     }
 
     if (message.type === "recordConsumption") {
-      recordConsumption(message.source, message.tags);
+      recordConsumption(message.source, message.tags, message.key);
       return false;
     }
 
@@ -104,7 +103,19 @@ importScripts("settings.js", "storage.js");
     scheduleStatsWrite();
   }
 
-  async function recordConsumption(source, tags) {
+  async function recordConsumption(source, tags, key) {
+    if (key) {
+      if (countedConsumptionKeys.has(key)) {
+        return;
+      }
+
+      countedConsumptionKeys.add(key);
+
+      if (countedConsumptionKeys.size > MAX_CACHE_ENTRIES) {
+        countedConsumptionKeys.delete(countedConsumptionKeys.values().next().value);
+      }
+    }
+
     if (!consumptionPromise) {
       consumptionPromise = loadConsumption();
     }
@@ -325,16 +336,14 @@ importScripts("settings.js", "storage.js");
   }
 
   function buildClassifierPrompt(items, criteria, includeTags) {
-    const criteriaLines = (criteria.length
-      ? criteria
-      : self.SmoothSurferSettings.DEFAULT_FILTER_CRITERIA
+    const criteriaLines = (
+      criteria.length ? criteria : self.SmoothSurferSettings.DEFAULT_FILTER_CRITERIA
     )
       .map((criterion, index) => `${index + 1}. ${criterion}`)
       .join("\n");
     const itemLines = items
       .map(
-        (item, index) =>
-          `${index + 1}. [${SOURCE_LABELS[item.source] || "feed item"}] ${item.text}`
+        (item, index) => `${index + 1}. [${SOURCE_LABELS[item.source] || "feed item"}] ${item.text}`
       )
       .join("\n\n");
     const tagsInstruction = includeTags
@@ -391,7 +400,10 @@ ${itemLines}`;
           ? entry.reasons.map(String).filter(Boolean).slice(0, 3)
           : [],
         tags: Array.isArray(entry.tags)
-          ? entry.tags.map(String).filter((tag) => CONSUMPTION_TAG_SET.has(tag)).slice(0, 6)
+          ? entry.tags
+              .map(String)
+              .filter((tag) => CONSUMPTION_TAG_SET.has(tag))
+              .slice(0, 6)
           : [],
         classifier: "claude-haiku"
       };
@@ -403,7 +415,7 @@ ${itemLines}`;
   function parseJsonAnswer(answer) {
     try {
       return JSON.parse(answer);
-    } catch (error) {
+    } catch {
       const match = answer.match(/\{[\s\S]*\}/);
 
       if (!match) {
@@ -412,7 +424,7 @@ ${itemLines}`;
 
       try {
         return JSON.parse(match[0]);
-      } catch (nestedError) {
+      } catch {
         return { blocked: false, reasons: [] };
       }
     }
