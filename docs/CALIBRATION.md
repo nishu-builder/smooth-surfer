@@ -34,3 +34,8 @@ Twitter review records use the permanent status ID across X/Twitter URL variants
 Existing text-based duplicates merge when read, keeping their distinct triggering
 rules. Feedback is deduplicated per tweet and rule; the latest judgment and its
 explanation win. Enter leaves the explanation box; Shift+Enter adds a new line.
+
+Archive unreviewed moves pending posts to Archived without deleting their previews.
+Archived posts share the 2,000-post / 6 MB budget and do not expire by age. Good
+and bad judgments keep their categories. Posts can be judged from Archived or
+returned to Uncategorized with a fresh seven-day queue window.

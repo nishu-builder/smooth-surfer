@@ -298,3 +298,34 @@ assert.equal(
     "archived feedback merges with its tweet"
   );
 }
+
+// Archived posts have no time cutoff, and old archives can reenter the queue.
+{
+  const S = require("../src/settings.js");
+  const at = Date.now() - 60 * 86400000;
+  const post = {
+    id: "old",
+    source: "twitter",
+    url: "https://x.com/a/status/123",
+    text: "Kept for later",
+    at
+  };
+  const archived = S.normalizeReview({ items: [post], archived: ["old"] });
+  assert.equal(archived.items.length, 1);
+  assert.deepEqual(archived.archived, ["twitter:status:123"]);
+  assert.equal(
+    S.normalizeReview(archived).items.length,
+    1,
+    "archives persist through normalization"
+  );
+  assert.equal(
+    S.normalizeReview({ items: [post] }).items.length,
+    0,
+    "ordinary history still expires"
+  );
+  assert.equal(
+    S.normalizeReview({ items: [{ ...post, queuedAt: Date.now() }], archived: [] }).items.length,
+    1,
+    "returned archives remain in the queue without changing original filter time"
+  );
+}

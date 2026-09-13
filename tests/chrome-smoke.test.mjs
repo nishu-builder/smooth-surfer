@@ -1381,35 +1381,64 @@ async function verifyExtensionPopupOpens() {
     );
     assert.equal(await evaluate(client, `document.querySelectorAll('.post').length`), 1);
     await evaluate(client, `document.getElementById('clear').click()`);
-    await waitForExpression(client, `document.querySelectorAll('.post').length === 0`);
+    await waitForExpression(
+      client,
+      `document.querySelector('[data-inbox="archived"]').getAttribute('aria-pressed')==='true' && document.querySelectorAll('.post').length===1`
+    );
+    await evaluate(client, `document.querySelector('.return-to-queue').click()`);
+    await waitForExpression(client, `document.querySelectorAll('.post').length===0`);
+    await chooseInbox("unreviewed");
+    assert.equal(
+      await evaluate(client, `document.querySelectorAll('.post').length`),
+      1,
+      "archived post can return to the queue"
+    );
+    await evaluate(client, `document.getElementById('clear').click()`);
+    await waitForExpression(
+      client,
+      `document.querySelector('[data-inbox="archived"]').getAttribute('aria-pressed')==='true' && document.querySelectorAll('.post').length===1`
+    );
+    await pressReviewKey("ArrowRight");
+    await waitForExpression(client, `document.querySelectorAll('.post').length===0`);
+    await pressReviewKey("z", { metaKey: true });
+    await waitForExpression(client, `document.querySelectorAll('.post').length===1`);
+    assert.equal(
+      await evaluate(
+        client,
+        `document.querySelector('[data-inbox="archived"]').getAttribute('aria-pressed')`
+      ),
+      "true",
+      "undo returns an archived judgment to Archived"
+    );
     assert.equal(
       await evaluate(
         workerClient,
         `(async()=> (await SmoothSurferStorage.loadCalibration()).feedback.length)()`
       ),
       2,
-      "clearing review keeps learning examples"
+      "archiving keeps learning examples"
     );
     await evaluate(
       client,
       `document.getElementById('search').value='';document.getElementById('search').dispatchEvent(new Event('input'))`
     );
+    await chooseInbox("unreviewed");
     assert.equal(
       await evaluate(client, `document.querySelectorAll('.post').length`),
       0,
-      "cleared inbox has no unreviewed posts"
+      "archived posts leave the unreviewed queue"
     );
     await chooseInbox("good");
     assert.equal(
       await evaluate(client, `document.querySelectorAll('.post').length`),
       1,
-      "good example survives clearing history"
+      "good example survives archiving"
     );
     await chooseInbox("bad");
     assert.equal(
       await evaluate(client, `document.querySelectorAll('.post').length`),
       1,
-      "bad example survives clearing history"
+      "bad example survives archiving"
     );
     await navigate(client, extensionOrigin + "/review.html");
     await waitForExpression(
@@ -1427,7 +1456,7 @@ async function verifyExtensionPopupOpens() {
     await navigate(client, extensionOrigin + "/popup.html");
     await waitForExpression(
       client,
-      `document.querySelector('[data-review-link]').textContent === 'Review rulings (2)'`
+      `document.querySelector('[data-review-link]').textContent === 'Review rulings (3)'`
     );
     // Categorize one rule at a time while retaining the post for remaining rules.
     await evaluate(

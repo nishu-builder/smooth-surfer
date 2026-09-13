@@ -116,6 +116,7 @@ global.importScripts = (...files) => {
           filterSetsState = self.SmoothSurferSettings.normalizeFilterSets(next);
         },
         loadReview: async () => structuredClone(reviewState),
+        loadCalibration: async () => self.SmoothSurferSettings.normalizeCalibration(),
         saveReview: async (next) => {
           await new Promise((resolve) => setTimeout(resolve, 5));
           reviewState = self.SmoothSurferSettings.normalizeReview(next);
@@ -299,8 +300,12 @@ function classify(text, source, priority = 0) {
   assert.deepEqual(reviewState.restored, []);
   await message({ type: "restoreFilteredPost", id });
   await message({ type: "clearReviewHistory" });
-  assert.equal(reviewState.items.length, 0);
-  assert.deepEqual(reviewState.restored, [id], "clearing previews preserves restoration");
+  assert.equal(reviewState.items.length, 2, "archiving retains saved posts");
+  assert.equal(reviewState.archived.length, 2);
+  assert.deepEqual(reviewState.restored, [id], "archiving preserves restoration");
+  await message({ type: "unarchiveReviewPost", id });
+  assert.equal(reviewState.archived.includes(id), false);
+  assert.ok(reviewState.items.find((item) => item.id === id).queuedAt);
   assert.equal((await message({ type: "restoreFilteredPost", id: "missing" })).ok, false);
   await Promise.all([
     message({ type: "addFilterCriterion", criterion: "First new rule" }),

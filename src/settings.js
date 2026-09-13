@@ -623,7 +623,7 @@
   }
 
   const REVIEW_KEY = "smoothSurferReview";
-  const DEFAULT_REVIEW = { items: [], restored: [] };
+  const DEFAULT_REVIEW = { items: [], restored: [], archived: [] };
 
   function canonicalReviewId(source, value) {
     if (source !== "twitter") return "";
@@ -657,6 +657,7 @@
   function normalizeReview(value) {
     const data = value || {};
     const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const archivedIds = new Set(Array.isArray(data.archived) ? data.archived : []);
     const remappedIds = new Map();
     const merged = new Map();
     const candidates = (Array.isArray(data.items) ? [...data.items] : []).sort(
@@ -667,11 +668,16 @@
         !item ||
         typeof item.id !== "string" ||
         (!item.text && !normalizeImageUrls(item.images).length) ||
-        !Number.isFinite(item.at) ||
-        item.at < cutoff
+        !Number.isFinite(item.at)
       )
         continue;
       const id = canonicalReviewId(item.source, item.url) || item.id.slice(0, 2050);
+      if (
+        Math.max(item.at, Number(item.queuedAt) || 0) < cutoff &&
+        !archivedIds.has(item.id) &&
+        !archivedIds.has(id)
+      )
+        continue;
       remappedIds.set(item.id, id);
       const previous = merged.get(id);
       if (previous) {
@@ -700,7 +706,8 @@
         criteria: normalizeCriteria(item.criteria || [])
           .slice(0, 20)
           .map((rule) => rule.slice(0, 500)),
-        at: item.at
+        at: item.at,
+        ...(Number.isFinite(item.queuedAt) ? { queuedAt: item.queuedAt } : {})
       });
     }
     const items = [...merged.values()];
@@ -712,14 +719,21 @@
       )
     ].slice(-4000);
     const encoder = new TextEncoder();
-    let bytes = encoder.encode(JSON.stringify({ items: [], restored })).length;
+    const archiveCandidates = [
+      ...new Set([...archivedIds].map((id) => remappedIds.get(id) || id))
+    ].filter((id) => merged.has(id));
+    let bytes = encoder.encode(
+      JSON.stringify({ items: [], restored, archived: archiveCandidates })
+    ).length;
     const boundedItems = [];
     for (const item of items) {
       bytes += encoder.encode(JSON.stringify(item)).length + 1;
       if (bytes > REVIEW_BYTE_LIMIT) break;
       boundedItems.push(item);
     }
-    return { items: boundedItems, restored };
+    const retainedIds = new Set(boundedItems.map((item) => item.id));
+    const archived = archiveCandidates.filter((id) => retainedIds.has(id));
+    return { items: boundedItems, restored, archived };
   }
 
   // Reviewed examples outlive the rolling feed history. Keep both judgments

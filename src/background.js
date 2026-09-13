@@ -87,9 +87,15 @@ importScripts("settings.js", "storage.js", "calibration.js");
       recordFilteredPost: () => recordFilteredPost(message.post),
       restoreFilteredPost: () => updateRestoredPost(message.id, true),
       refilterPost: () => updateRestoredPost(message.id, false),
-      clearReviewHistory: () =>
+      archiveUnreviewed: archiveUnreviewed,
+      // Older open review pages may still send the former clear action.
+      clearReviewHistory: archiveUnreviewed,
+      unarchiveReviewPost: () =>
         mutateReview((review) => {
-          review.items = [];
+          const post = review.items.find((item) => item.id === message.id);
+          if (!post) throw new Error("This post is no longer in review history.");
+          review.archived = review.archived.filter((id) => id !== post.id);
+          post.queuedAt = Date.now();
         }),
       editFilterCriterion: () => editFilterCriterion(message.previous, message.next),
       addFilterCriterion: () => editFilterCriterion(null, message.criterion),
@@ -137,6 +143,27 @@ importScripts("settings.js", "storage.js", "calibration.js");
 
     return true;
   });
+
+  function archiveUnreviewed() {
+    return mutateReview(async (review) => {
+      const state = await self.SmoothSurferStorage.loadCalibration();
+      const resolve = (rule) =>
+        self.SmoothSurferSettings.resolveCalibratedRule(rule, state.revisions);
+      const judged = new Set(
+        state.feedback.map((vote) => JSON.stringify([vote.postKey, resolve(vote.rule)]))
+      );
+      const archived = new Set(review.archived);
+      for (const item of review.items) {
+        const rules = [...item.criteria, ...item.formats.map((key) => `format:${key}`)];
+        if (
+          !rules.length ||
+          rules.some((rule) => !judged.has(JSON.stringify([item.id, resolve(rule)])))
+        )
+          archived.add(item.id);
+      }
+      review.archived = [...archived];
+    });
+  }
 
   function mutateReview(change) {
     const operation = reviewWrites.then(async () => {

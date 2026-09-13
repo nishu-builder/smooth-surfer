@@ -17,6 +17,7 @@
       <button type="button" data-inbox="unreviewed" aria-pressed="true">Uncategorized <span class="inbox-count">0</span></button>
       <button type="button" data-inbox="good" aria-pressed="false">Good rulings <span class="inbox-count">0</span></button>
       <button type="button" data-inbox="bad" aria-pressed="false">Bad rulings <span class="inbox-count">0</span></button>
+      <button type="button" data-inbox="archived" aria-pressed="false">Archived <span class="inbox-count">0</span></button>
     </nav>
     <section class="toolbar" aria-label="Find filtered posts">
       <label class="search">Search posts<input id="search" type="search" placeholder="Search text, reasons, or rules"></label>
@@ -26,10 +27,10 @@
     <p id="status" role="status" aria-live="polite"></p>
     <div id="calibration-results" aria-live="polite"></div>
     <details id="revision-history"><summary>Rule revisions</summary><div id="revisions"></div></details>
-    <div class="list-heading"><p id="count">Loading posts…</p><button id="clear" class="quiet" type="button">Clear unreviewed</button></div>
+    <div class="list-heading"><p id="count">Loading posts…</p><button id="clear" class="quiet" type="button">Archive unreviewed</button></div>
     <section id="posts" aria-label="Recent rulings"></section>
     <button id="more" type="button" hidden>Load more</button>
-    <footer>Recent posts: up to 2,000 from seven days, within 6 MB. Reviewed examples: up to 2,000 judgments within 2 MB, without a time cutoff. Feedback stays on this device until recalibration sends its examples and explanations to Claude. X embeds load from X; saved media loads from its original host. Clearing unreviewed posts keeps good and bad examples.</footer>
+    <footer>Recent and archived posts: up to 2,000 within 6 MB. Recent posts expire after seven days; archives have no time cutoff. Reviewed examples: up to 2,000 judgments within 2 MB, without a time cutoff. Feedback stays on this device until recalibration sends its examples and explanations to Claude. X embeds load from X; saved media loads from its original host. Archived posts remain available to review or return to the queue.</footer>
   </main>
   <script src="src/settings.js"></script><script src="src/storage.js"></script><script src="src/review.js"></script>
 </body>

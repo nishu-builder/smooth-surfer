@@ -29,6 +29,7 @@
     saving = false,
     inbox = "unreviewed",
     undoRequested = false;
+  let archivedPosts = new Set();
   const keyFor = (item, rule) => JSON.stringify([item.id, rule]);
   const rows = () => [...$("posts").querySelectorAll(".ruling")];
   const embedTimers = new Map();
@@ -301,10 +302,11 @@
   $("clear").addEventListener("click", async () => {
     $("clear").disabled = true;
     try {
-      await send({ type: "clearReviewHistory" });
+      await send({ type: "archiveUnreviewed" });
       review = await loadReview();
+      inbox = "archived";
       render();
-      status("Unreviewed posts cleared. Good and bad examples kept.");
+      status("Unreviewed posts archived. You can review them here or return them to the queue.");
     } catch (error) {
       status(error.message);
       $("clear").disabled = false;
@@ -385,12 +387,17 @@
         resolveCalibratedRule(vote.rule, calibration.revisions) === current
     );
   }
+  function unansweredInbox(item) {
+    return archivedPosts.has(item.id) ? "archived" : "unreviewed";
+  }
+  function categoryFor(item, rule) {
+    return voteFor(item, rule)?.judgment || unansweredInbox(item);
+  }
   function visibleRulesFor(item) {
-    return rulesFor(item).filter(
-      (rule) => (voteFor(item, rule)?.judgment || "unreviewed") === inbox
-    );
+    return rulesFor(item).filter((rule) => categoryFor(item, rule) === inbox);
   }
   function render() {
+    archivedPosts = new Set(review.archived || []);
     const query = $("search").value.trim().toLowerCase();
     const allItems = reviewItemsWithFeedback(review, calibration);
     const scopedItems = allItems.filter(
@@ -402,21 +409,26 @@
             .toLowerCase()
             .includes(query))
     );
-    const counts = { unreviewed: 0, good: 0, bad: 0 };
+    const counts = { unreviewed: 0, good: 0, bad: 0, archived: 0 };
     for (const item of scopedItems) {
       const rules = rulesFor(item);
-      if (!rules.length) counts.unreviewed++;
-      for (const rule of rules) counts[voteFor(item, rule)?.judgment || "unreviewed"]++;
+      if (!rules.length) counts[unansweredInbox(item)]++;
+      for (const rule of rules) counts[categoryFor(item, rule)]++;
     }
     document.querySelectorAll("[data-inbox]").forEach((button) => {
       button.setAttribute("aria-pressed", String(button.dataset.inbox === inbox));
       button.querySelector(".inbox-count").textContent = counts[button.dataset.inbox];
     });
     const items = scopedItems.filter(
-      (item) => visibleRulesFor(item).length || (inbox === "unreviewed" && !rulesFor(item).length)
+      (item) =>
+        visibleRulesFor(item).length || (inbox === unansweredInbox(item) && !rulesFor(item).length)
     );
     $("count").textContent = `${items.length} ${items.length === 1 ? "post" : "posts"}`;
-    $("clear").disabled = !review.items.length;
+    $("clear").disabled = !allItems.some(
+      (item) =>
+        unansweredInbox(item) === "unreviewed" &&
+        (!rulesFor(item).length || rulesFor(item).some((rule) => !voteFor(item, rule)))
+    );
     const shown = items.slice(0, limit);
     const shownIds = new Set(shown.map((item) => item.id));
     for (const [id, saved] of cards)
@@ -565,6 +577,22 @@
   function renderRulings(item) {
     const rulings = el("div", "rulings", "");
     rulings.append(el("h2", "ruling-heading", "Rulings"));
+    if (inbox === "archived") {
+      const back = button("Return to queue", async (node) => {
+        node.disabled = true;
+        try {
+          await send({ type: "unarchiveReviewPost", id: item.id });
+          review = await loadReview();
+          render();
+          status("Returned to Uncategorized.");
+        } catch (error) {
+          status(error.message);
+          node.disabled = false;
+        }
+      });
+      back.className = "return-to-queue";
+      rulings.append(back);
+    }
     const rules = visibleRulesFor(item);
     rulings.append(...rules.map((rule) => renderRuling(item, rule)));
     if (!rules.length)

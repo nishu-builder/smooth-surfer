@@ -35,8 +35,10 @@ Otherwise the rule stays as it is. The last 30 revisions support undo. This is
 calibration against your examples, not a guarantee of future accuracy. See
 [the algorithm](docs/CALIBRATION.md).
 
-Review keeps up to 2,000 posts from seven days within 6 MB. Feedback is retained
-separately, up to 2,000 judgments within 2 MB, so clearing history does not erase
+Review keeps up to 2,000 recent and archived posts within 6 MB. Recent posts expire
+after seven days; archived posts have no time cutoff. **Archive unreviewed** moves
+pending rulings to **Archived**, where you can judge them or return them to the queue. Feedback is retained
+separately, up to 2,000 judgments within 2 MB, so archiving does not erase
 what you taught the filter. Both good and bad examples remain visible after the
 seven-day history expires. X embeds and media load lazily from their original hosts.
 

@@ -134,7 +134,10 @@ dialog p { color: var(--ss-muted); }
   .review-page .post > .tweet-preview { padding-top: 0; }
 }
 
-.inboxes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 10px 0 0; }
+.inboxes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 10px 0 0; }
 .inboxes button { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px; padding: 8px; text-align: left; }
 .inboxes [aria-pressed="true"] { background: var(--ss-action); color: var(--ss-paper); }
 .inbox-count { font: 11px/1.4 var(--ss-mono); }
+
+.return-to-queue { margin-bottom: 6px; }
+@media (max-width: 600px) { .inboxes { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
