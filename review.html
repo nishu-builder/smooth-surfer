@@ -12,7 +12,7 @@
       <a class="brand" href="review.html"><img src="icons/icon48.png" alt="">Smooth Surfer</a>
       <div class="heading"><h1>Review rulings</h1><a class="page-link" href="filters.html">Filter sets</a><button id="recalibrate" class="primary" type="button">Recalibrate rules</button></div>
       <p class="review-help">Judge each rule’s match. Recalibration uses your feedback to improve future filtering.</p>
-      <p class="review-help">Uses your API key. Corrections and explanations guide revisions, checked against saved judgments. Additional rules appear as suggestions.</p>
+      <p class="review-help">Uses your selected model. Corrections and explanations guide revisions, checked against saved judgments. Additional rules appear as suggestions.</p>
     </header>
     <nav class="inboxes" aria-label="Ruling inboxes">
       <button type="button" data-inbox="unreviewed" aria-pressed="true">Uncategorized <span class="inbox-count">0</span></button>
@@ -34,7 +34,7 @@
     <div class="list-heading"><p id="count">Loading posts…</p><button id="clear" class="quiet" type="button">Archive unreviewed</button></div>
     <section id="posts" aria-label="Recent rulings"></section>
     <button id="more" type="button" hidden>Load more</button>
-    <footer>Recent and archived posts: up to 2,000 within 6 MB. Recent posts expire after seven days; archives have no time cutoff. Reviewed examples: up to 2,000 judgments within 2 MB, without a time cutoff. Feedback stays on this device until recalibration sends its examples and explanations to Claude. X embeds load from X; saved media loads from its original host. Archived posts remain available to review or return to the queue.</footer>
+    <footer>Recent and archived posts: up to 2,000 within 6 MB. Recent posts expire after seven days; archives have no time cutoff. Reviewed examples: up to 2,000 judgments within 2 MB, without a time cutoff. Recalibration uses your selected model: Claude sends examples and explanations to Anthropic; on-device processing keeps them local. X embeds load from X; saved media loads from its original host. Archived posts remain available to review or return to the queue.</footer>
   </main>
   <script src="src/settings.js"></script><script src="src/storage.js"></script><script src="src/workspace.js"></script><script src="src/review.js"></script>
 </body>

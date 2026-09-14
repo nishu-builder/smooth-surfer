@@ -96,7 +96,7 @@ selected provider is ready, content filtering leaves posts visible.
 The iPhone target operates on websites in Safari, not native apps. It initially
 uses Claude for AI filtering; Chrome's built-in model is unavailable on iOS.
 Building the iPhone package does not install it from the App Store. See the
-[platform scope](docs/PLATFORM_SCOPE.md) for the implementation boundaries.
+[iPhone build instructions](docs/iphone.md) and [platform scope](docs/PLATFORM_SCOPE.md).
 
 ## Build from source
 
