@@ -116,6 +116,7 @@
         "enabled",
         "filterCriteria",
         "imageAnalysisEnabled",
+        "aiProvider",
         ...FORMAT_KEYS,
         "consumptionFactsEnabled",
         "focusScheduleEnabled",
@@ -129,6 +130,7 @@
         )
       ) {
         const verdictsChanged =
+          nextSettings.aiProvider !== settings.aiProvider ||
           nextSettings.imageAnalysisEnabled !== settings.imageAnalysisEnabled ||
           nextSettings.consumptionFactsEnabled !== settings.consumptionFactsEnabled ||
           JSON.stringify(nextSettings.filterCriteria) !== JSON.stringify(settings.filterCriteria);
@@ -1053,7 +1055,10 @@
           if (request.epoch === classificationEpoch) cacheClassification(key, result);
           resolve(result);
         };
-        const timeout = window.setTimeout(() => finish(null), CLASSIFICATION_TIMEOUT_MS);
+        const timeout = window.setTimeout(
+          () => finish(null),
+          settings.aiProvider === "local" ? 180000 : CLASSIFICATION_TIMEOUT_MS
+        );
         try {
           if (!hasChromeRuntime()) {
             finish(null);
@@ -1186,7 +1191,7 @@
     if (
       !settings.consumptionFactsEnabled ||
       result.blocked ||
-      result.classifier !== "claude-haiku" ||
+      !["claude-haiku", "chrome-nano"].includes(result.classifier) ||
       recordedConsumptionKeys.has(key) ||
       !hasChromeRuntime()
     ) {
@@ -1206,7 +1211,7 @@
 
   function getClassificationKey(text, images = []) {
     return JSON.stringify({
-      classifier: "claude-haiku",
+      classifier: settings.aiProvider === "local" ? "chrome-nano" : "claude-haiku",
       consumption: Boolean(settings.consumptionFactsEnabled),
       criteria: settings.filterCriteria,
       imageAnalysis: settings.imageAnalysisEnabled,
@@ -1220,7 +1225,10 @@
     const settingName = CONTENT_FILTER_SETTING_BY_PLATFORM[targetPlatform];
 
     return Boolean(
-      effectsEnabled() && settingName && settings[settingName] && secrets.anthropicApiKey
+      effectsEnabled() &&
+      settingName &&
+      settings[settingName] &&
+      (settings.aiProvider === "local" || secrets.anthropicApiKey)
     );
   }
 
@@ -1479,6 +1487,8 @@
   }
 
   function markPendingContent(container, kind) {
+    // Local inference can be slower. Keep posts readable while it works.
+    if (settings.aiProvider === "local") return;
     if (kind === "tweet") {
       // Keep X's measured cell height intact while waiting. Collapsing every
       // unknown post makes its virtual timeline repeatedly shrink and expand.

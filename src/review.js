@@ -63,7 +63,7 @@
       ? "Draft could not be saved. Keep this page open and try again."
       : saving || starting
         ? "Saving… Wait before refreshing or closing this page."
-        : "Saved on this device. Safe to refresh or close Chrome." +
+        : "Saved on this device. Safe to refresh or close this tab." +
           (drafts.size
             ? " Draft explanations are kept; choose Good or Bad to use them in recalibration."
             : "");
@@ -537,7 +537,7 @@
     const progress = $("calibration-progress");
     progress.textContent =
       job?.status === "running"
-        ? `${job.phase || "Recalibrating"} · ${job.outcomes.filter((item) => item.status !== "pending").length} rules checked. Continues in the background; resumes when Chrome reopens.`
+        ? `${job.phase || "Recalibrating"} · ${job.outcomes.filter((item) => item.status !== "pending").length} rules checked. Progress is saved; reopen Review rulings to resume after the browser pauses.`
         : job?.status === "paused"
           ? `Paused: ${job.error} Completed work is saved. Resume when ready.`
           : job?.status === "complete"

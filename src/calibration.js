@@ -182,8 +182,9 @@
       try {
         const settings = await deps.loadSettings();
         const secrets = await deps.loadSecrets();
-        if (!secrets.anthropicApiKey)
-          throw new Error("Add an Anthropic key in the popup to recalibrate rules.");
+        const credential =
+          settings.aiProvider === "local" ? { provider: "local" } : secrets.anthropicApiKey;
+        if (!credential) throw new Error("Add an Anthropic key in the popup to recalibrate rules.");
         const initial = normalizeCalibration(await deps.loadCalibration());
         const affected = job?.rules || [
           ...new Set(
@@ -247,16 +248,19 @@
             (revision) => !revision.undone && revision.after === rule
           );
           if (latest && !latest.remaining && all.every((item) => item.at <= latest.at)) continue;
-          const usable = settings.imageAnalysisEnabled
-            ? all
-            : all.filter((item) => item.text.trim()).map((item) => ({ ...item, images: [] }));
+          const usable =
+            settings.aiProvider !== "local" && settings.imageAnalysisEnabled
+              ? all
+              : all.filter((item) => item.text.trim()).map((item) => ({ ...item, images: [] }));
           const skipped = all.length - usable.length;
           if (!usable.length) {
             await report({
               rule,
               status: "needs-images",
               detail:
-                "These examples contain only images. Enable Analyze images to check them; your feedback is still saved."
+                settings.aiProvider === "local"
+                  ? "These examples contain only images. On-device AI is text-only; your feedback is still saved."
+                  : "These examples contain only images. Enable Analyze images to check them; your feedback is still saved."
             });
             continue;
           }
@@ -290,6 +294,7 @@
               const freshSettings = await deps.loadSettings(),
                 freshSecrets = await deps.loadSecrets();
               if (
+                freshSettings.aiProvider !== settings.aiProvider ||
                 freshSecrets.anthropicApiKey !== secrets.anthropicApiKey ||
                 freshSettings.imageAnalysisEnabled !== settings.imageAnalysisEnabled ||
                 !freshSettings.filterCriteria.includes(rule)
@@ -308,24 +313,19 @@
             let baseline = null;
             for (let attempt = 0; attempt < 2; attempt++) {
               await progress(attempt ? "Refining revision" : "Proposing revision", rule);
-              const candidate = await deps.propose(
-                rule,
-                proposalExamples,
-                secrets.anthropicApiKey,
-                {
-                  activeRules: settings.filterCriteria,
-                  ...(attempt
-                    ? {
-                        failedCandidate: after,
-                        disagreements: evidence.filter(
-                          (item) =>
-                            !heldOut.has(item.postId) &&
-                            item.afterMatched !== (item.judgment === "good")
-                        )
-                      }
-                    : {})
-                }
-              );
+              const candidate = await deps.propose(rule, proposalExamples, credential, {
+                activeRules: settings.filterCriteria,
+                ...(attempt
+                  ? {
+                      failedCandidate: after,
+                      disagreements: evidence.filter(
+                        (item) =>
+                          !heldOut.has(item.postId) &&
+                          item.afterMatched !== (item.judgment === "good")
+                      )
+                    }
+                  : {})
+              });
               const proposal = typeof candidate === "string" ? { rule: candidate } : candidate;
               if (!proposal || typeof proposal !== "object")
                 throw new Error("No valid proposal was returned.");
@@ -369,11 +369,7 @@
                 for (let i = 0; i < examples.length; i += 20) {
                   await checkContext();
                   baseline.push(
-                    ...(await deps.evaluate(
-                      examples.slice(i, i + 20),
-                      [rule],
-                      secrets.anthropicApiKey
-                    ))
+                    ...(await deps.evaluate(examples.slice(i, i + 20), [rule], credential))
                   );
                 }
                 if (
@@ -386,11 +382,7 @@
               for (let i = 0; i < examples.length; i += 20) {
                 await checkContext();
                 predictions.push(
-                  ...(await deps.evaluate(
-                    examples.slice(i, i + 20),
-                    [after],
-                    secrets.anthropicApiKey
-                  ))
+                  ...(await deps.evaluate(examples.slice(i, i + 20), [after], credential))
                 );
               }
               if (
@@ -433,7 +425,9 @@
               oldErrors,
               newErrors,
               skipped,
-              textOnly: !settings.imageAnalysisEnabled && all.some((item) => item.images.length)
+              textOnly:
+                (settings.aiProvider === "local" || !settings.imageAnalysisEnabled) &&
+                all.some((item) => item.images.length)
             };
             if (additions.size)
               await mutate((state) => {
@@ -496,6 +490,7 @@
                   !current.filterCriteria.includes(rule) ||
                   current.filterCriteria.includes(after) ||
                   signature(examplesFor(state, rule)) !== signature(all) ||
+                  current.aiProvider !== settings.aiProvider ||
                   current.imageAnalysisEnabled !== settings.imageAnalysisEnabled
                 )
                   throw new Error("Rules or feedback changed during recalibration. Try again.");

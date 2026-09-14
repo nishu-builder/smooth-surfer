@@ -1,0 +1,25 @@
+/* Safari-only touch adjustments. The shared desktop styles remain unchanged. */
+@media (pointer: coarse) {
+  :root:not(.workspace), :root:not(.workspace) body { width: 100%; min-width: 0; }
+  button, select, input:not([type="checkbox"]), textarea,
+  .workspace-sidebar nav a, .popup-nav a, .switch-row, .switch-row.compact {
+    min-height: 44px;
+  }
+  :root :is(input:not([type="checkbox"]), textarea, select) {
+    /* Avoid Safari zooming into fields while entering feedback or an API key. */
+    font-size: 16px;
+  }
+  .feedback-note textarea { min-height: 44px; }
+  .pill summary { grid-template-columns: 10px minmax(0, 1fr) 44px; }
+  .pill button { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
+  .switch-row, .switch-row.compact { grid-template-columns: minmax(0, 1fr) 24px; }
+  input[type="checkbox"] { width: 24px; height: 24px; }
+  .switch-row::after { display: none; }
+  .review-controls { flex-wrap: wrap; }
+  .inboxes { display: flex; flex-wrap: wrap; }
+  .inboxes button { flex: 1 1 auto; }
+  .workspace .workspace-main {
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+  .workspace-sidebar { padding-top: max(10px, env(safe-area-inset-top)); }
+}

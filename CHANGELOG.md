@@ -3,6 +3,15 @@
 Notable changes per released version. Versions match `manifest.json`, and a
 release is a `v*` tag; see [docs/RELEASING.md](docs/RELEASING.md).
 
+## Unreleased
+
+- Default to Gemini Nano on desktop when no AI provider has been chosen; preserve explicit choices and keep Safari defaulting to Claude. Model download still requires setup, with no cloud fallback.
+
+- Add desktop on-device text processing with Chrome's built-in Gemini Nano, explicit setup and availability, and no automatic cloud fallback.
+- Use the selected model for feed decisions, filter suggestions, and feedback recalibration.
+- Add an iPhone Safari extension package with native setup instructions and a reproducible build from shared web sources.
+- Add a shared sidebar for review, settings, stats, and filter sets; keep tooltips clear of controls and expose Share ruleset.
+
 ## 0.2.7
 
 - Add native X embeds, a responsive post-and-ruling layout, clearer selection, and compact matching popup styling.

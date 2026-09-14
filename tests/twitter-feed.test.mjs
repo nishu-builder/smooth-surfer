@@ -405,7 +405,7 @@ export function twitterFilterFixture() {
       window.requests = [];
       window.messages = [];
       window.fixtureSettings = SmoothSurferSettings.normalizeSettings({
-        twitterEnforceFollowing:false, pauseDeepScrolling:false, softenDistractingElements:false
+        aiProvider:"anthropic", twitterEnforceFollowing:false, pauseDeepScrolling:false, softenDistractingElements:false
       });
       window.fixtureSecrets = {anthropicApiKey:'fixture-key-not-a-real-secret'};
       let settingsWatcher, secretsWatcher, reviewWatcher;

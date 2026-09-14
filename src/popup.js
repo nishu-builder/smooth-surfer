@@ -69,6 +69,33 @@
   const secretInputs = Array.from(document.querySelectorAll("[data-secret]"));
   const apiKeyRow = document.querySelector("[data-api-key-row]");
   const filterKeyStatus = document.querySelector("[data-filter-key-status]");
+  const localModelControls = document.querySelector("[data-local-model-controls]");
+  let localModelState = null;
+  let localModelChecking = false;
+  async function checkLocalModel() {
+    if (localModelChecking) return;
+    localModelChecking = true;
+    try {
+      if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage)
+        throw new Error("Open the installed Chrome extension to check on-device AI.");
+      localModelState = await chrome.runtime.sendMessage({ type: "getLocalModelStatus" });
+    } catch (error) {
+      localModelState = { state: "unsupported", error: error.message };
+    } finally {
+      localModelChecking = false;
+      renderFilterKeyStatus();
+    }
+  }
+  document.querySelector("[data-local-model-setup]").addEventListener("click", async () => {
+    try {
+      if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage)
+        throw new Error("Open the installed Chrome extension to set up on-device AI.");
+      await chrome.runtime.sendMessage({ type: "openLocalModelSetup" });
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+  document.querySelector("[data-local-model-refresh]").addEventListener("click", checkLocalModel);
   const phraseForm = document.querySelector("[data-phrase-form]");
   const phraseInput = document.querySelector("[data-phrase-input]");
   const phraseList = document.querySelector("[data-phrase-list]");
@@ -319,7 +346,11 @@
       input.disabled = !settings.enabled;
     });
 
-    apiKeyRow.hidden = false;
+    apiKeyRow.hidden = settings.aiProvider === "local";
+    localModelControls.hidden = settings.aiProvider !== "local";
+    document.querySelector('[data-setting="imageAnalysisEnabled"]').disabled =
+      !settings.enabled || settings.aiProvider === "local";
+    if (settings.aiProvider === "local" && !localModelState) void checkLocalModel();
     renderFilterKeyStatus();
     phraseInput.disabled = !settings.enabled || !isAnyContentFilterEnabled();
     phraseForm.querySelector("button").disabled = phraseInput.disabled;
@@ -332,6 +363,19 @@
     const hasContentFilter = isAnyContentFilterEnabled();
 
     filterKeyStatus.hidden = !hasContentFilter;
+    if (settings.aiProvider === "local") {
+      const messages = {
+        available: "On-device filtering is ready.",
+        downloadable: "Download the on-device model to start filtering.",
+        downloading: "Model downloading. Open setup for progress.",
+        unavailable: "On-device AI is unavailable on this device. Cloud filtering remains off.",
+        unsupported: "On-device AI requires a supported desktop Chrome installation."
+      };
+      filterKeyStatus.textContent = localModelState
+        ? localModelState.error || messages[localModelState.state] || "On-device AI unavailable."
+        : "Checking on-device model…";
+      return;
+    }
     filterKeyStatus.textContent = hasKey
       ? "Claude Haiku filtering is active."
       : "Content filtering is off until an Anthropic key is saved.";

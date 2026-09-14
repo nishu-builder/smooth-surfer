@@ -7,7 +7,10 @@ const before = "Promotional urgency",
 function fixture() {
   let job = null;
   let state = S.normalizeCalibration(),
-    settings = S.normalizeSettings({ filterCriteria: [before, "Unrelated rule"] });
+    settings = S.normalizeSettings({
+      aiProvider: "anthropic",
+      filterCriteria: [before, "Unrelated rule"]
+    });
   let queue = Promise.resolve(),
     mode = "pass",
     calls = 0,
@@ -92,6 +95,40 @@ function fixture() {
   };
 }
 (async () => {
+  const local = fixture();
+  local.settings.aiProvider = "local";
+  local.settings.imageAnalysisEnabled = true;
+  local.deps.loadSecrets = async () => ({ anthropicApiKey: "" });
+  await local.vote(0, "good");
+  await local.vote(1, "bad", "Exclude factual deadlines.");
+  const localPropose = local.deps.propose,
+    localEvaluate = local.deps.evaluate;
+  local.deps.propose = async (rule, examples, credential, context) => {
+    assert.deepEqual(credential, { provider: "local" });
+    assert.ok(examples.every((example) => example.images.length === 0));
+    return localPropose(rule, examples, credential, context);
+  };
+  local.deps.evaluate = async (examples, criteria, credential) => {
+    assert.deepEqual(credential, { provider: "local" });
+    return localEvaluate(examples, criteria, credential);
+  };
+  assert.equal(
+    (await local.api.recalibrate()).outcomes[0].status,
+    "updated",
+    "local calibration works without an API key"
+  );
+  const switched = fixture();
+  switched.settings.aiProvider = "local";
+  await switched.vote(1, "bad");
+  switched.onEvaluate = () => {
+    switched.settings.aiProvider = "anthropic";
+  };
+  assert.equal(
+    (await switched.api.recalibrate()).outcomes[0].status,
+    "error",
+    "a provider change rejects a running calibration"
+  );
+  assert.ok(switched.settings.filterCriteria.includes(before));
   const restart = fixture();
   const restartVote = await restart.vote(0, "good");
   await create(restart.deps).undoFeedback(restartVote.undoToken);
