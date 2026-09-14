@@ -10,6 +10,7 @@
   main.id = "workspace-main";
   main.tabIndex = -1;
   main.classList.add("workspace-main");
+  main.querySelectorAll("[data-workspace-link]").forEach((link) => link.removeAttribute("target"));
   const routes = [
     ["review", "Review rulings", "review.html"],
     ["settings", "Settings", "popup.html?view=settings"],

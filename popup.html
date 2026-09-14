@@ -229,13 +229,18 @@
       </section>
 
       <section>
-        <h2>Backup</h2>
-        <p class="notice">Exports settings only. Your API key is never included.</p>
-        <div class="button-row">
-          <button type="button" data-export-settings>Export</button>
-          <button type="button" data-import-settings>Import</button>
-        </div>
-        <input type="file" accept="application/json,.json" data-import-file hidden>
+        <h2>Share ruleset</h2>
+        <p>Save, export, or import a set of filtering rules.</p>
+        <a class="review-link" href="filters.html" target="_blank" rel="noopener" data-workspace-link>Open filter sets</a>
+        <details>
+          <summary>All settings</summary>
+          <p class="notice">Export or import all settings. Your API key is never included.</p>
+          <div class="button-row">
+            <button type="button" data-export-settings>Export settings</button>
+            <button type="button" data-import-settings>Import settings</button>
+          </div>
+          <input type="file" accept="application/json,.json" data-import-file hidden>
+        </details>
       </section>
     </main>
 
