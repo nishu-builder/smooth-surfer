@@ -223,6 +223,9 @@ try {
       hasOldFilterLabel: document.body.textContent.includes("Filter AI-upside FOMO"),
       hasLegacyClassifierSelect: Boolean(document.querySelector("[data-setting='twitterClassifierMode']")),
       keyStatus: document.querySelector("[data-filter-key-status]").textContent,
+      provider: document.querySelector("[data-setting=aiProvider]").value,
+      keyHidden: document.querySelector("[data-api-key-row]").hidden,
+      setupVisible: !document.querySelector("[data-local-model-controls]").hidden,
       hasCriteriaDisclosure: criterion.tagName === "DETAILS",
       toggleCount,
       describedToggleCount,
@@ -247,7 +250,10 @@ try {
   assert.equal(popupState.hasFilterLabel, true);
   assert.equal(popupState.hasOldFilterLabel, false);
   assert.equal(popupState.hasLegacyClassifierSelect, false);
-  assert.match(popupState.keyStatus, /off until an Anthropic key is saved/);
+  assert.equal(popupState.provider, "local");
+  assert.equal(popupState.keyHidden, true);
+  assert.equal(popupState.setupVisible, true);
+  assert.match(popupState.keyStatus, /installed Chrome extension/);
   assert.equal(popupState.hasCriteriaDisclosure, true);
   assert.equal(popupState.describedToggleCount, popupState.toggleCount);
   assert.equal(popupState.closedWhiteSpace, "nowrap");
@@ -261,6 +267,19 @@ try {
   assert.match(popupState.pillText, /missed upside/);
   assert.match(popupState.pillText, /one short sentence/);
   assert.ok(popupState.stored.filterCriteria.includes("high-pressure AI investing hype"));
+
+  await evaluate(
+    client,
+    `(() => {
+    const model = document.querySelector("[data-setting=aiProvider]");
+    model.value = "anthropic";
+    model.dispatchEvent(new Event("change", {bubbles:true}));
+  })()`
+  );
+  await waitForExpression(
+    client,
+    `document.querySelector("[data-filter-key-status]").textContent.includes("off until an Anthropic key is saved") && !document.querySelector("[data-api-key-row]").hidden`
+  );
 
   // Video speed keys (default Alt modifier) and the settings double-tap. The
   // fixture stubs chrome.runtime so requestOpenSettings has a sink to record.
