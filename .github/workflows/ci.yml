@@ -24,6 +24,10 @@ jobs:
           node-version: 24
 
       - name: Run checks
+        env:
+          # Runner-provided branded Chrome ignores --load-extension. Let the
+          # smoke test obtain Chrome for Testing instead.
+          CHROME_BIN: ""
         run: npm run check
 
   ios:
