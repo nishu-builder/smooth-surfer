@@ -49,6 +49,14 @@ export async function verifyTwitterFeed({
   await run(`document.querySelector('#text-1').firstChild.data = 'Replacement post'`);
   await wait(`requests.length === 9`);
   await run(`resolvePost(1, true)`);
+  await wait(`messages.some(m => m.type === 'recordFilteredPost' && m.post.text === 'Post 1')`);
+  assert.equal(
+    await run(
+      `messages.find(m => m.type === 'recordFilteredPost' && m.post.text === 'Post 1').post.display.text`
+    ),
+    "Post 1",
+    "late ruling uses the original tweet snapshot"
+  );
   assert.equal(await run(`document.querySelector('#cell-1').dataset.smoothSurferPending`), "true");
   assert.equal(
     await run(`document.querySelector('#cell-1').classList.contains('smooth-surfer-hidden')`),
@@ -95,6 +103,36 @@ export async function verifyTwitterFeed({
     "responses arriving after disabling filtering cannot hide posts"
   );
 
+  assert.equal(
+    await run(`messages.some(m => m.type === 'recordFilteredPost' && m.post.text === 'Post 4')`),
+    false,
+    "late rulings after disabling are not saved"
+  );
+
+  // Nano decisions survive unmounting and dedupe on remount.
+  await open();
+  await run(`updateSettings({aiProvider:'local'})`);
+  await wait(`requests.length === 16`);
+  await run(`document.querySelector('#cell-0').remove(); resolvePost(8, true, 'chrome-nano')`);
+  await wait(`messages.some(m => m.type === 'recordFilteredPost' && m.post.text === 'Post 0')`);
+  await run(`document.querySelector('main').prepend(makeCell('0', 'Post 0'))`);
+  await wait(`document.querySelector('#cell-0').classList.contains('smooth-surfer-hidden')`);
+  assert.equal(
+    await run(
+      `messages.filter(m => m.type === 'recordFilteredPost' && m.post.text === 'Post 0').length`
+    ),
+    1,
+    "remount does not duplicate the saved ruling"
+  );
+  await run(
+    `restorePost('Post 1'); document.querySelector('#cell-1').remove(); resolvePost(9, true, 'chrome-nano')`
+  );
+  assert.equal(
+    await run(`messages.some(m => m.type === 'recordFilteredPost' && m.post.text === 'Post 1')`),
+    false,
+    "restoring a post suppresses its late ruling even after unmounting"
+  );
+
   // A busy feed must still apply a settings change within a scan interval.
   await open();
   await run(`resolvePost(0, false); updateSettings({enabled:false});
@@ -116,6 +154,11 @@ export async function verifyTwitterFeed({
   assert.equal(
     await run(`document.querySelector('#cell-0').classList.contains('smooth-surfer-hidden')`),
     false
+  );
+  assert.equal(
+    await run(`messages.some(m => m.type === 'recordFilteredPost')`),
+    false,
+    "changed rules invalidate late review snapshots"
   );
   await run(`resolvePost(8, false)`);
   await wait(`!document.querySelector('#cell-0').dataset.smoothSurferPending`);

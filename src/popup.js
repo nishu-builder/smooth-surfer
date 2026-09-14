@@ -71,21 +71,10 @@
   const filterKeyStatus = document.querySelector("[data-filter-key-status]");
   const localModelControls = document.querySelector("[data-local-model-controls]");
   let localModelState = null;
-  let localModelChecking = false;
-  async function checkLocalModel() {
-    if (localModelChecking) return;
-    localModelChecking = true;
-    try {
-      if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage)
-        throw new Error("Open the installed Chrome extension to check on-device AI.");
-      localModelState = await chrome.runtime.sendMessage({ type: "getLocalModelStatus" });
-    } catch (error) {
-      localModelState = { state: "unsupported", error: error.message };
-    } finally {
-      localModelChecking = false;
-      renderFilterKeyStatus();
-    }
-  }
+  window.SmoothSurferModelStatus.subscribe((next) => {
+    localModelState = next;
+    renderFilterKeyStatus();
+  });
   document.querySelector("[data-local-model-setup]").addEventListener("click", async () => {
     try {
       if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage)
@@ -95,7 +84,6 @@
       setStatus(error.message);
     }
   });
-  document.querySelector("[data-local-model-refresh]").addEventListener("click", checkLocalModel);
   const phraseForm = document.querySelector("[data-phrase-form]");
   const phraseInput = document.querySelector("[data-phrase-input]");
   const phraseList = document.querySelector("[data-phrase-list]");
@@ -350,7 +338,6 @@
     localModelControls.hidden = settings.aiProvider !== "local";
     document.querySelector('[data-setting="imageAnalysisEnabled"]').disabled =
       !settings.enabled || settings.aiProvider === "local";
-    if (settings.aiProvider === "local" && !localModelState) void checkLocalModel();
     renderFilterKeyStatus();
     phraseInput.disabled = !settings.enabled || !isAnyContentFilterEnabled();
     phraseForm.querySelector("button").disabled = phraseInput.disabled;
@@ -359,21 +346,46 @@
   }
 
   function renderFilterKeyStatus() {
+    status.textContent = window.SmoothSurferModelStatus.summary();
     const hasKey = Boolean(secrets.anthropicApiKey);
     const hasContentFilter = isAnyContentFilterEnabled();
 
     filterKeyStatus.hidden = !hasContentFilter;
     if (settings.aiProvider === "local") {
       const messages = {
-        available: "On-device filtering is ready.",
+        available: "Model ready.",
         downloadable: "Download the on-device model to start filtering.",
         downloading: "Model downloading. Open setup for progress.",
         unavailable: "On-device AI is unavailable on this device. Cloud filtering remains off.",
         unsupported: "On-device AI requires a supported desktop Chrome installation."
       };
-      filterKeyStatus.textContent = localModelState
-        ? localModelState.error || messages[localModelState.state] || "On-device AI unavailable."
-        : "Checking on-device model…";
+      const state = localModelState;
+      if (state?.checking) {
+        filterKeyStatus.textContent = "Checking Gemini Nano…";
+        return;
+      }
+      const parts = [
+        state ? messages[state.state] || "On-device AI unavailable." : "Checking on-device model…"
+      ];
+      if (state?.feed) {
+        const { checked, filtered, failed, active, queued } = state.feed;
+        parts.push(
+          `This session: ${checked} checked · ${filtered} filtered · ${active + queued} waiting · ${failed} failed.`
+        );
+        if (!checked && !active && !queued && !failed && state.state === "available")
+          parts.push("Waiting for posts. Refresh the feed after reloading the extension.");
+      }
+      if (state?.activity?.activeSince)
+        parts.push(
+          `Current request: ${Math.max(1, Math.round((Date.now() - state.activity.activeSince) / 1000))}s.`
+        );
+      else if (state?.activity?.lastDurationMs)
+        parts.push(`Last request: ${(state.activity.lastDurationMs / 1000).toFixed(1)}s.`);
+      const error = state?.feed?.lastError || state?.error;
+      if (error) parts.push(error);
+      if (state?.checkedAt)
+        parts.push(`Checked ${new Date(state.checkedAt).toLocaleTimeString()}.`);
+      filterKeyStatus.textContent = parts.join(" ");
       return;
     }
     filterKeyStatus.textContent = hasKey
@@ -671,7 +683,7 @@
   function setStatus(message) {
     status.textContent = message;
     window.setTimeout(() => {
-      status.textContent = "Ready";
+      status.textContent = window.SmoothSurferModelStatus.summary();
     }, 900);
   }
 

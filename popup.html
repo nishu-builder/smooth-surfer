@@ -24,7 +24,8 @@
           <a class="review-link" href="popup.html?view=settings" target="_blank" rel="noopener">Settings</a>
           <a class="review-link" href="popup.html?view=stats" target="_blank" rel="noopener">Stats</a>
         </nav>
-      </header>
+            <div class="model-notice" data-model-notice hidden role="status"><p data-model-notice-text></p><a href="src/local-model-setup.html" target="_blank" rel="noopener" data-model-notice-action>Set up Gemini Nano</a></div>
+</header>
 
       <section data-site-section="youtube">
         <h2>YouTube</h2>
@@ -145,7 +146,7 @@
 
       <section data-filter-panel>
         <h2>Content filter</h2>
-        <label class="field-row"><span>AI model</span><select data-setting="aiProvider"><option value="local">Gemini Nano · on-device</option><option value="anthropic">Claude Haiku · cloud</option></select></label>
+        <label class="field-row"><span>AI model</span><select data-setting="aiProvider"><option value="anthropic">Claude Haiku · cloud</option><option value="local">Gemini Nano · on-device</option></select></label>
         <div data-local-model-controls hidden><p class="notice">Experimental. Text stays on this device. Image analysis is unavailable. No cloud fallback.</p><button type="button" data-local-model-setup>Set up on-device AI</button><button type="button" data-local-model-refresh>Check status</button></div>
         <label class="switch-row" data-description="Optional. Sends up to two supported image URLs per post to Claude alongside text. Adds API cost and latency. Requires an Anthropic key.">
           <span>Analyze images</span><input type="checkbox" data-setting="imageAnalysisEnabled">
@@ -164,10 +165,6 @@
 
       <section>
         <h2>Everywhere</h2>
-        <label class="switch-row" data-description="Hides floating sticky video players outside work sites.">
-          <span>Hide sticky videos</span>
-          <input type="checkbox" data-setting="hideStickyVideoPlayers">
-        </label>
         <label class="switch-row" data-description="Pauses after about sixteen screenfuls outside work sites until you choose Keep going.">
           <span>Pause deep scrolling</span>
           <input type="checkbox" data-setting="pauseDeepScrolling">
@@ -248,6 +245,6 @@
 
     <script src="src/settings.js"></script>
     <script src="src/storage.js"></script>
-    <script src="src/workspace.js"></script><script src="src/popup.js"></script>
+    <script src="src/model-status.js"></script><script src="src/workspace.js"></script><script src="src/popup.js"></script>
   </body>
 </html>

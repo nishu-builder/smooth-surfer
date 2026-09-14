@@ -121,10 +121,16 @@ try {
   const page = await connect((await targets()).find((target) => target.type === "page"));
   await page.send("Page.navigate", { url: `${extension}/popup.html?view=settings` });
   await retry(() => evaluate(page, 'Boolean(document.querySelector("[data-local-model-setup]"))'));
+  await retry(() => evaluate(page, 'document.querySelector("[data-setting=enabled]").checked'));
   assert.equal(
     await evaluate(page, 'document.querySelector("[data-setting=aiProvider]").value'),
-    "local",
-    "Fresh installs choose Nano"
+    "anthropic",
+    "Fresh installs choose Claude"
+  );
+  assert.equal(await evaluate(page, 'document.querySelector("[data-model-notice]").hidden'), true);
+  await evaluate(
+    page,
+    `(() => { const select = document.querySelector('[data-setting="aiProvider"]'); select.value = 'local'; select.dispatchEvent(new Event('change', {bubbles:true})); })()`
   );
   await retry(() => evaluate(page, 'document.querySelector("[data-api-key-row]").hidden'));
   const real = await evaluate(page, 'chrome.runtime.sendMessage({type:"getLocalModelStatus"})');
@@ -142,6 +148,67 @@ try {
     offscreen,
     `document.querySelector("iframe").contentWindow.LanguageModel=${modelStub}`
   );
+  await evaluate(
+    offscreen,
+    `document.querySelector("iframe").contentWindow.LanguageModel.availability=async()=>{await new Promise(resolve=>setTimeout(resolve,200));return "downloadable"}`
+  );
+  await retry(() =>
+    evaluate(page, '!document.querySelector("[data-local-model-refresh]").disabled')
+  );
+  await evaluate(page, 'document.querySelector("[data-local-model-refresh]").click()');
+  assert.equal(
+    await evaluate(page, 'document.querySelector("[data-local-model-refresh]").textContent'),
+    "Checking…"
+  );
+  assert.match(
+    await evaluate(page, 'document.querySelector("[data-filter-key-status]").textContent'),
+    /Checking/
+  );
+  await retry(() =>
+    evaluate(
+      page,
+      'document.querySelector("[data-model-notice-text]").textContent.includes("Download Gemini Nano")'
+    )
+  );
+  assert.equal(await evaluate(page, 'document.querySelector("[data-model-notice]").hidden'), false);
+  assert.match(
+    await evaluate(page, 'document.querySelector("[data-model-notice-action]").href'),
+    /local-model-setup.html$/
+  );
+  await page.send("Page.navigate", { url: `${extension}/review.html` });
+  await retry(() =>
+    evaluate(
+      page,
+      'document.querySelector("[data-model-notice-text]")?.textContent.includes("Download Gemini Nano")'
+    )
+  );
+  assert.equal(
+    await evaluate(page, 'document.querySelector("[data-model-notice]").hidden'),
+    false,
+    "empty review advertises required setup"
+  );
+  await evaluate(
+    offscreen,
+    'document.querySelector("iframe").contentWindow.LanguageModel.availability=async()=>"downloading"'
+  );
+  await retry(() =>
+    evaluate(
+      page,
+      'document.querySelector("[data-model-notice-action]").textContent === "View download"'
+    )
+  );
+  await evaluate(
+    offscreen,
+    'document.querySelector("iframe").contentWindow.LanguageModel.availability=async()=>"available"'
+  );
+  await retry(() => evaluate(page, 'document.querySelector("[data-model-notice]").hidden'));
+  await page.send("Page.navigate", { url: `${extension}/popup.html?view=settings` });
+  await retry(() =>
+    evaluate(
+      page,
+      'document.querySelector("[data-filter-key-status]")?.textContent.includes("Model ready")'
+    )
+  );
   const background = await connect(worker);
   await evaluate(
     background,
@@ -157,6 +224,12 @@ try {
   );
   assert.equal(result.classifier, "chrome-nano");
   assert.equal(result.blocked, true);
+  await retry(() =>
+    evaluate(
+      page,
+      'document.querySelector("[data-filter-key-status]").textContent.includes("1 checked · 1 filtered")'
+    )
+  );
   await evaluate(
     offscreen,
     'document.querySelector("iframe").contentWindow.LanguageModel.availability=async()=>"unavailable"'
@@ -167,12 +240,23 @@ try {
   );
   assert.equal(unavailable.classifier, "error");
   assert.match(unavailable.error, /not ready/);
+  await retry(() =>
+    evaluate(
+      page,
+      'document.querySelector("[data-filter-key-status]").textContent.includes("1 failed")'
+    )
+  );
+  assert.match(
+    await evaluate(page, 'document.querySelector("[data-filter-key-status]").textContent'),
+    /not ready/
+  );
   await evaluate(page, 'document.querySelector("[data-local-model-setup]").click()');
   const setupTarget = await retry(async () =>
     (await targets()).find((target) => target.url.endsWith("/src/local-model-setup.html"))
   );
   const setup = await connect(setupTarget);
   await retry(() => evaluate(setup, 'Boolean(document.querySelector("[data-model-download]"))'));
+  await retry(() => evaluate(setup, '!document.querySelector("[data-model-check]").disabled'));
   await evaluate(
     setup,
     `self.LanguageModel={availability:async()=>"downloadable",create:async()=>{self.setupHadActivation=navigator.userActivation.isActive;return {destroy(){}}}};document.querySelector("[data-model-check]").click()`

@@ -318,15 +318,8 @@
 
   function scanCommonPage() {
     if (!effectsEnabled() || isWorkSite()) {
-      restoreHiddenElementsByKind("sticky-video");
       removeScrollPause();
       return;
-    }
-
-    if (settings.hideStickyVideoPlayers) {
-      hideStickyVideoPlayers();
-    } else {
-      restoreHiddenElementsByKind("sticky-video");
     }
 
     if (settings.pauseDeepScrolling) {
@@ -705,35 +698,6 @@
     );
   }
 
-  function hideStickyVideoPlayers() {
-    document.querySelectorAll("video, iframe").forEach((media) => {
-      const container = findStickyMediaContainer(media);
-
-      if (container) {
-        hideElement(container, ["sticky video"], "sticky-video");
-      }
-    });
-  }
-
-  function findStickyMediaContainer(media) {
-    let current = media;
-
-    for (let depth = 0; current && depth < 5; depth += 1) {
-      const style = window.getComputedStyle(current);
-      const rect = current.getBoundingClientRect();
-      const isFloating = style.position === "fixed" || style.position === "sticky";
-      const isLargeEnough = rect.width >= 160 && rect.height >= 90;
-
-      if (isFloating && isLargeEnough) {
-        return current;
-      }
-
-      current = current.parentElement;
-    }
-
-    return null;
-  }
-
   function checkDeepScroll() {
     if (!scrollLimit) {
       scrollLimit = window.innerHeight * SCROLL_BREAK_SCREENFULS;
@@ -1025,7 +989,8 @@
     const request = {
       key,
       epoch: classificationEpoch,
-      identity: kind === "tweet" ? getTweetIdentity(getTweetArticle(container)) : null
+      identity: kind === "tweet" ? getTweetIdentity(getTweetArticle(container)) : null,
+      review: captureReviewPost(container, normalizedText, reviewImages)
     };
     pendingClassifications.set(container, request);
     container.dataset.smoothSurferPendingKey = key;
@@ -1086,6 +1051,12 @@
     }
 
     promise.then((result) => {
+      // X recycles rows while Nano is working. Preserve a completed ruling from
+      // the original snapshot even after its row disappears or changes identity.
+      // Settings changes and explicit restores still invalidate late results.
+      if (request.epoch !== classificationEpoch || !canFilterPlatformContent(platform)) return;
+      if (result.blocked && request.review && !isReviewSnapshotRestored(request.review))
+        recordReviewSnapshot(request.review, result);
       if (
         !container.isConnected ||
         pendingClassifications.get(container) !== request ||
@@ -1145,33 +1116,50 @@
   }
 
   function recordReviewPost(container, text, classification, images = []) {
+    const post = captureReviewPost(container, text, images);
+    if (post) recordReviewSnapshot(post, classification);
+  }
+
+  function isReviewSnapshotRestored(post) {
+    return (
+      restoredPosts.has(reviewKey(post.text, post.images, post.url)) ||
+      restoredPosts.has(reviewKey(post.text, post.images))
+    );
+  }
+
+  function captureReviewPost(container, text, images = []) {
     const article = platform === "twitter" ? getTweetArticle(container) : container;
     if (!article) return;
     let link = article.querySelector("time")?.closest("a");
     if (!link && platform === "reddit") link = article.querySelector('a[href*="/comments/"]');
     if (!link && platform === "hacker-news") link = article.querySelector('a[href^="item?id="]');
     if (!link && platform === "substack") link = article.querySelector('a[href*="/p/"]');
-    const id = reviewKey(text, images, link?.href || "");
+    return {
+      source: platform,
+      text,
+      author: article.querySelector('[data-testid="User-Name"]')?.textContent || "",
+      images,
+      display: platform === "twitter" ? getTweetDisplay(article) : { text },
+      url: link?.href || ""
+    };
+  }
+
+  function recordReviewSnapshot(post, classification) {
+    const id = reviewKey(post.text, post.images, post.url);
     const recordKey = JSON.stringify([
       id,
       classification.matchedCriteria || [],
       classification.formats || []
     ]);
     if (recordedReviewKeys.has(recordKey) || !hasChromeRuntime()) return;
-    const author = article.querySelector('[data-testid="User-Name"]')?.textContent || "";
     recordedReviewKeys.add(recordKey);
     try {
       chrome.runtime.sendMessage(
         {
           type: "recordFilteredPost",
           post: {
-            source: platform,
-            text,
-            author,
-            images,
-            display: platform === "twitter" ? getTweetDisplay(article) : { text },
+            ...post,
             formats: classification.formats || [],
-            url: link?.href || "",
             reasons: classification.reasons || [],
             criteria: classification.matchedCriteria || []
           }

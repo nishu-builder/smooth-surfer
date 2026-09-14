@@ -50,3 +50,9 @@ html.workspace { width: auto; min-width: 0; overflow-x: visible; }
   .workspace .workspace-main { width: 100%; margin: 0; padding: 12px 10px; }
   .workspace .popup { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Setup status is shared by extension pages, never injected into host pages. */
+.model-notice { grid-column: 1 / -1; padding: 10px; margin: 8px 0; border: 1px solid var(--ss-ink); background: var(--ss-gray); color: var(--ss-ink); font: 13px/1.4 var(--ss-sans); }
+.model-notice[hidden] { display: none; }
+.model-notice p { margin: 0 0 6px; }
+.model-notice a, .model-notice a:visited { color: var(--ss-ink); font-family: var(--ss-mono); text-decoration: underline; }

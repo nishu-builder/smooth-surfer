@@ -3,6 +3,7 @@ import prettier from "eslint-config-prettier";
 
 const browserGlobals = {
   AbortSignal: "readonly",
+  AbortController: "readonly",
   TextEncoder: "readonly",
   structuredClone: "readonly",
   Blob: "readonly",

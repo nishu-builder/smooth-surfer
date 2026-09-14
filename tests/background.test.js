@@ -476,6 +476,7 @@ function classify(text, source, priority = 0) {
   const localCalls = [];
   let localFails = false;
   self.SmoothSurferLocalClient = {
+    status: async () => ({ state: "available", error: "" }),
     prompt: async (system, prompt) => {
       localCalls.push({ system, prompt });
       if (localFails) throw new Error("Model unavailable");
@@ -512,6 +513,11 @@ function classify(text, source, priority = 0) {
   const localCount = localCalls.length;
   await classifyImage("Image opt out");
   assert.equal(localCalls.length, localCount, "local classifications are cached");
+  assert.deepEqual(
+    (await message({ type: "getLocalModelStatus" })).feed,
+    { checked: 1, filtered: 1, failed: 0, active: 0, queued: 0, lastError: "" },
+    "feed activity counts completed posts, not cache hits"
+  );
   assert.deepEqual((await message({ type: "suggestFilterCriteria", text: "A post" })).suggestions, [
     "Local suggestion"
   ]);
@@ -522,6 +528,10 @@ function classify(text, source, priority = 0) {
   );
   localFails = true;
   assert.equal((await classifyImage("Unavailable local model")).classifier, "error");
+  const failedStatus = await message({ type: "getLocalModelStatus" });
+  assert.equal(failedStatus.feed.failed, 2);
+  assert.equal(failedStatus.feed.active, 0);
+  assert.match(failedStatus.feed.lastError, /Model unavailable/);
   assert.equal(
     fetchCalls.length,
     beforeLocal,

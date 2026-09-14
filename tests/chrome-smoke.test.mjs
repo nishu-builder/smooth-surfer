@@ -135,7 +135,7 @@ const chrome = spawn(chromePath, [
   "--disable-sync",
   "--disable-component-update",
   "--allow-file-access-from-files",
-  "--host-resolver-rules=MAP youtube.com.test 127.0.0.1,MAP twitter.com.test 127.0.0.1,MAP github.com.test 127.0.0.1,MAP reddit.com.test 127.0.0.1,MAP substack.com.test 127.0.0.1,MAP news.ycombinator.com.test 127.0.0.1",
+  "--host-resolver-rules=MAP shopify.com.test 127.0.0.1,MAP youtube.com.test 127.0.0.1,MAP twitter.com.test 127.0.0.1,MAP github.com.test 127.0.0.1,MAP reddit.com.test 127.0.0.1,MAP substack.com.test 127.0.0.1,MAP news.ycombinator.com.test 127.0.0.1",
   "about:blank"
 ]);
 
@@ -250,10 +250,10 @@ try {
   assert.equal(popupState.hasFilterLabel, true);
   assert.equal(popupState.hasOldFilterLabel, false);
   assert.equal(popupState.hasLegacyClassifierSelect, false);
-  assert.equal(popupState.provider, "local");
-  assert.equal(popupState.keyHidden, true);
-  assert.equal(popupState.setupVisible, true);
-  assert.match(popupState.keyStatus, /installed Chrome extension/);
+  assert.equal(popupState.provider, "anthropic");
+  assert.equal(popupState.keyHidden, false);
+  assert.equal(popupState.setupVisible, false);
+  assert.match(popupState.keyStatus, /until an Anthropic key is saved/);
   assert.equal(popupState.hasCriteriaDisclosure, true);
   assert.equal(popupState.describedToggleCount, popupState.toggleCount);
   assert.equal(popupState.closedWhiteSpace, "nowrap");
@@ -348,7 +348,7 @@ try {
   assert.equal(youtubeContentState.shortsHidden, true);
   assert.equal(youtubeContentState.gamesHidden, true);
   assert.equal(youtubeContentState.autoplayClicked, true);
-  assert.equal(youtubeContentState.stickyHidden, true);
+  assert.equal(youtubeContentState.stickyHidden, false, "floating players are no longer hidden");
 
   await evaluate(
     client,
@@ -433,6 +433,42 @@ try {
   assert.equal(workSiteState.hasPausePrompt, false);
   assert.equal(workSiteState.stickyHidden, false);
   assert.equal(workSiteState.thumbFilter, "none");
+
+  // A shopping dialog containing an iframe used to match the broad floating
+  // media heuristic. It must remain visible and usable across repeated scans.
+  await navigate(client, `http://shopify.com.test:${fixturePort}/work-content.html`);
+  await evaluate(
+    client,
+    `(() => {
+    const dialog = document.createElement('div');
+    dialog.id = 'address-dialog'; dialog.setAttribute('role', 'dialog');
+    dialog.style.cssText = 'position:fixed;top:20px;left:20px;width:400px;height:300px;background:white';
+    dialog.innerHTML = '<h2>Add address</h2><iframe title="Address form" srcdoc="<form><label>Address<input name=address></label><button>Save address</button></form>"></iframe>';
+    document.body.append(dialog);
+  })()`
+  );
+  await waitForExpression(
+    client,
+    `Boolean(document.querySelector('#address-dialog iframe').contentDocument?.querySelector('form'))`
+  );
+  await evaluate(client, `new Promise(resolve => setTimeout(resolve, 2300))`);
+  const addressState = await evaluate(
+    client,
+    `(() => {
+    const dialog = document.querySelector('#address-dialog');
+    const frame = dialog.querySelector('iframe');
+    const form = frame.contentDocument.querySelector('form');
+    form.addEventListener('submit', event => { event.preventDefault(); dialog.dataset.saved = form.elements.address.value; });
+    form.elements.address.value = '123 Test Street';
+    form.querySelector('button').click();
+    return { visible: dialog.checkVisibility(), frameVisible: frame.checkVisibility(), hidden: Boolean(dialog.closest('.smooth-surfer-hidden')), saved: dialog.dataset.saved };
+  })()`
+  );
+  assert.deepEqual(
+    addressState,
+    { visible: true, frameVisible: true, hidden: false, saved: "123 Test Street" },
+    "iframe address forms remain visible and can submit on shopping sites"
+  );
 
   await navigate(client, `http://twitter.com.test:${fixturePort}/home`);
   await waitForExpression(

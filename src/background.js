@@ -34,6 +34,8 @@ importScripts("settings.js", "storage.js", "calibration.js", "local-model-client
   let reviewWrites = Promise.resolve();
   let ruleWrites = Promise.resolve();
   let activeBatches = 0;
+  // Session-only diagnostics: no post text or credentials are retained here.
+  const localFeed = { checked: 0, filtered: 0, failed: 0, active: 0, lastError: "" };
   const MAX_ACTIVE_BATCHES = 2;
   const resultCache = new Map();
   // Classification keys already counted today, so the same post open in two
@@ -79,7 +81,13 @@ importScripts("settings.js", "storage.js", "calibration.js", "local-model-client
     }
 
     const reviewActions = {
-      getLocalModelStatus: () => self.SmoothSurferLocalClient.status(),
+      getLocalModelStatus: async () => ({
+        ...(await self.SmoothSurferLocalClient.status()),
+        feed: {
+          ...localFeed,
+          queued: batchQueue.filter((item) => item.provider === "local").length
+        }
+      }),
       openLocalModelSetup: () =>
         chrome.tabs.create({ url: chrome.runtime.getURL("src/local-model-setup.html") }),
       getReviewCount: async () => {
@@ -679,6 +687,9 @@ importScripts("settings.js", "storage.js", "calibration.js", "local-model-client
 
     if (activeBatches >= MAX_ACTIVE_BATCHES) return;
     batchQueue.sort((a, b) => a.priority - b.priority);
+    // Nano runs serially. Leave work in this priority queue until it is ready
+    // instead of reserving a second batch in the model's FIFO queue.
+    if (batchQueue[0]?.provider === "local" && localFeed.active) return;
     const queued = batchQueue.splice(0, batchQueue[0]?.provider === "local" ? 2 : MAX_BATCH_SIZE);
 
     if (batchQueue.length > 0) {
@@ -689,6 +700,8 @@ importScripts("settings.js", "storage.js", "calibration.js", "local-model-client
 
     queued.forEach((item) => {
       if (item.provider === "local" && Date.now() - item.queuedAt > 60000) {
+        localFeed.failed += 1;
+        localFeed.lastError = "On-device AI is falling behind. Some posts need retrying.";
         item.resolve({
           blocked: false,
           reasons: [],
@@ -721,6 +734,8 @@ importScripts("settings.js", "storage.js", "calibration.js", "local-model-client
     }
 
     const items = Array.from(entries.values());
+    const isLocal = queued[0]?.provider === "local";
+    if (isLocal) localFeed.active += items.length;
     activeBatches += 1;
 
     try {
@@ -746,6 +761,11 @@ importScripts("settings.js", "storage.js", "calibration.js", "local-model-client
         settings.aiProvider === "local" ? { provider: "local" } : secrets.anthropicApiKey
       );
 
+      if (isLocal) {
+        localFeed.checked += results.length;
+        localFeed.filtered += results.filter((result) => result.blocked).length;
+        localFeed.lastError = "";
+      }
       Array.from(entries.keys()).forEach((cacheKey, index) => {
         const result = results[index];
 
@@ -753,6 +773,10 @@ importScripts("settings.js", "storage.js", "calibration.js", "local-model-client
         entries.get(cacheKey).resolvers.forEach((resolve) => resolve(result));
       });
     } catch (error) {
+      if (isLocal) {
+        localFeed.failed += items.length;
+        localFeed.lastError = error.message;
+      }
       const failure = {
         blocked: false,
         reasons: [],
@@ -765,6 +789,7 @@ importScripts("settings.js", "storage.js", "calibration.js", "local-model-client
       });
     } finally {
       activeBatches -= 1;
+      if (isLocal) localFeed.active -= items.length;
       if (batchQueue.length && !batchTimer) batchTimer = setTimeout(flushBatch, 0);
     }
   }
