@@ -92,6 +92,7 @@ After installing, pin Smooth Surfer from Chrome's extensions menu. To enable
 Haiku filtering, open the toolbar popup and save an Anthropic API key. Alternatively,
 choose on-device processing in Settings and complete model setup. Until the
 selected provider is ready, content filtering leaves posts visible.
+See [on-device setup and limits](docs/LOCAL_MODELS.md).
 
 The iPhone target operates on websites in Safari, not native apps. It initially
 uses Claude for AI filtering; Chrome's built-in model is unavailable on iOS.
