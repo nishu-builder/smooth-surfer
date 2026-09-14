@@ -23,6 +23,24 @@ assert.equal(
 );
 
 const defaults = settings.normalizeSettings();
+assert.equal(settings.DEFAULT_SETTINGS.aiProvider, "local");
+assert.equal(defaults.aiProvider, "local");
+assert.equal(
+  settings.normalizeSettings({ enabled: true }).aiProvider,
+  "local",
+  "Legacy settings without a provider use Nano"
+);
+assert.equal(
+  settings.normalizeSettings({ aiProvider: "anthropic" }).aiProvider,
+  "anthropic",
+  "Preserve an explicit cloud choice"
+);
+assert.equal(settings.normalizeSettings({ aiProvider: "local" }).aiProvider, "local");
+assert.equal(
+  settings.normalizeSettings({ aiProvider: "unknown" }).aiProvider,
+  "local",
+  "Invalid settings cannot enable cloud processing"
+);
 assert.equal(Object.hasOwn(defaults, "twitterClassifierMode"), false);
 assert.equal(Object.hasOwn(defaults, "twitterFilterCriteria"), false);
 assert.equal(defaults.youtubeHideShorts, true);

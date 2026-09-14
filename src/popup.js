@@ -76,6 +76,8 @@
     if (localModelChecking) return;
     localModelChecking = true;
     try {
+      if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage)
+        throw new Error("Open the installed Chrome extension to check on-device AI.");
       localModelState = await chrome.runtime.sendMessage({ type: "getLocalModelStatus" });
     } catch (error) {
       localModelState = { state: "unsupported", error: error.message };
@@ -84,10 +86,14 @@
       renderFilterKeyStatus();
     }
   }
-  document.querySelector("[data-local-model-setup]").addEventListener("click", () => {
-    chrome.runtime
-      .sendMessage({ type: "openLocalModelSetup" })
-      .catch((error) => setStatus(error.message));
+  document.querySelector("[data-local-model-setup]").addEventListener("click", async () => {
+    try {
+      if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage)
+        throw new Error("Open the installed Chrome extension to set up on-device AI.");
+      await chrome.runtime.sendMessage({ type: "openLocalModelSetup" });
+    } catch (error) {
+      setStatus(error.message);
+    }
   });
   document.querySelector("[data-local-model-refresh]").addEventListener("click", checkLocalModel);
   const phraseForm = document.querySelector("[data-phrase-form]");

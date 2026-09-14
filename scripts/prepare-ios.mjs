@@ -24,6 +24,15 @@ export function safariManifest(chromeManifest) {
   return manifest;
 }
 
+// Safari cannot run Chrome's Nano model. Change only the unset-provider default;
+// explicit saved/imported choices still pass through normalization unchanged.
+export function safariSettings(source) {
+  const marker = 'aiProvider: "local",';
+  if (source.split(marker).length !== 2)
+    throw new Error("Safari provider default marker changed. Update packaging before building.");
+  return source.replace(marker, 'aiProvider: "anthropic",');
+}
+
 export async function prepareIOS(root = repositoryRoot, output = path.join(root, "dist", "ios")) {
   const destination = path.join(output, "extension");
   // Only replace this task's generated extension staging directory.
@@ -42,6 +51,8 @@ export async function prepareIOS(root = repositoryRoot, output = path.join(root,
   for (const folder of ["src", "icons"]) {
     await cp(path.join(root, folder), path.join(destination, folder), { recursive: true });
   }
+  const settingsPath = path.join(destination, "src", "settings.js");
+  await writeFile(settingsPath, safariSettings(await readFile(settingsPath, "utf8")));
   // Root HTML includes extension pages and any bundled model runtime document.
   // Never package tests, dependencies, developer previews, or repository secrets.
   for (const file of await readdir(root)) {

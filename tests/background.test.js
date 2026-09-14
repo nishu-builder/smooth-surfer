@@ -110,7 +110,10 @@ global.importScripts = (...files) => {
     } else if (file === "storage.js") {
       self.SmoothSurferStorage = {
         loadSettings: async () =>
-          structuredClone(settingsState || self.SmoothSurferSettings.normalizeSettings()),
+          structuredClone(
+            settingsState ||
+              self.SmoothSurferSettings.normalizeSettings({ aiProvider: "anthropic" })
+          ),
         saveSettings: async (next) => {
           settingsState = structuredClone(next);
         },

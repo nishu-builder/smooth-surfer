@@ -145,7 +145,7 @@
 
       <section data-filter-panel>
         <h2>Content filter</h2>
-        <label class="field-row"><span>AI model</span><select data-setting="aiProvider"><option value="anthropic">Claude Haiku · cloud</option><option value="local">Gemini Nano · on-device</option></select></label>
+        <label class="field-row"><span>AI model</span><select data-setting="aiProvider"><option value="local">Gemini Nano · on-device</option><option value="anthropic">Claude Haiku · cloud</option></select></label>
         <div data-local-model-controls hidden><p class="notice">Experimental. Text stays on this device. Image analysis is unavailable. No cloud fallback.</p><button type="button" data-local-model-setup>Set up on-device AI</button><button type="button" data-local-model-refresh>Check status</button></div>
         <label class="switch-row" data-description="Optional. Sends up to two supported image URLs per post to Claude alongside text. Adds API cost and latency. Requires an Anthropic key.">
           <span>Analyze images</span><input type="checkbox" data-setting="imageAnalysisEnabled">

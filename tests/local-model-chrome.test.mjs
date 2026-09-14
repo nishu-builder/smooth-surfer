@@ -121,6 +121,12 @@ try {
   const page = await connect((await targets()).find((target) => target.type === "page"));
   await page.send("Page.navigate", { url: `${extension}/popup.html?view=settings` });
   await retry(() => evaluate(page, 'Boolean(document.querySelector("[data-local-model-setup]"))'));
+  assert.equal(
+    await evaluate(page, 'document.querySelector("[data-setting=aiProvider]").value'),
+    "local",
+    "Fresh installs choose Nano"
+  );
+  await retry(() => evaluate(page, 'document.querySelector("[data-api-key-row]").hidden'));
   const real = await evaluate(page, 'chrome.runtime.sendMessage({type:"getLocalModelStatus"})');
   assert.equal(real.ok, true);
   console.log(

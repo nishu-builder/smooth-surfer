@@ -7,7 +7,10 @@ const before = "Promotional urgency",
 function fixture() {
   let job = null;
   let state = S.normalizeCalibration(),
-    settings = S.normalizeSettings({ filterCriteria: [before, "Unrelated rule"] });
+    settings = S.normalizeSettings({
+      aiProvider: "anthropic",
+      filterCriteria: [before, "Unrelated rule"]
+    });
   let queue = Promise.resolve(),
     mode = "pass",
     calls = 0,

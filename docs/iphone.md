@@ -43,7 +43,7 @@ Apple's converter can change its project format with Xcode updates; generation f
 
 The containing app shows these instructions. Its **Open app settings** button uses Apple's supported app-settings URL; it does not pretend to jump directly to Safari's extensions pane. API keys stay in the extension's local storage. The native container neither reads them nor logs extension messages.
 
-Chrome's Gemini Nano/offscreen runtime is unavailable in Safari and is not a mobile on-device implementation. Safari packaging removes the Chrome-only `offscreen` permission; runtime capability detection reports the local option as unavailable. Selecting a local provider must never silently send posts to a cloud model. Use Anthropic explicitly on iPhone.
+Chrome's Gemini Nano/offscreen runtime is unavailable in Safari and is not a mobile on-device implementation. Safari packaging defaults to Claude when no provider is saved and removes the Chrome-only `offscreen` permission; runtime capability detection reports the local option as unavailable. Selecting a local provider must never silently send posts to a cloud model. Use Anthropic explicitly on iPhone.
 
 Rules, review history, and feedback belong to this Safari profile and do not automatically sync with Chrome. Safari may suspend extension workers when the browser is backgrounded. Recalibration checkpoints are stored, and opening Review rulings resumes the job; timers are not a promise that work continues while the phone is locked. Successfully saved feedback is safe to refresh. Keep the existing saved-state indicator as the source of truth while a write is pending.
 

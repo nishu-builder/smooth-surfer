@@ -6,7 +6,7 @@
   const check = document.querySelector("[data-model-check]");
   const progress = document.querySelector("[data-model-progress]");
   const labels = {
-    available: "Ready. Choose On-device in Settings to use this model.",
+    available: "Model ready. Return to Settings.",
     downloadable: "Model download required.",
     downloading: "Model is downloading. Continue setup to see progress.",
     unavailable:

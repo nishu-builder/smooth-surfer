@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
 import { cp, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
+import vm from "node:vm";
 import path from "node:path";
-import { prepareIOS, repositoryRoot, safariManifest } from "../scripts/prepare-ios.mjs";
+import {
+  prepareIOS,
+  repositoryRoot,
+  safariManifest,
+  safariSettings
+} from "../scripts/prepare-ios.mjs";
 
 const chromeManifest = JSON.parse(
   await readFile(path.join(repositoryRoot, "manifest.json"), "utf8")
@@ -54,6 +60,20 @@ try {
       await readFile(path.join(destination, resource));
     }
   }
+  const settingsSource = await readFile(path.join(root, "src", "settings.js"), "utf8");
+  const stagedSettings = await readFile(path.join(destination, "src", "settings.js"), "utf8");
+  assert.equal(stagedSettings, safariSettings(settingsSource));
+  const context = vm.createContext({});
+  vm.runInContext(stagedSettings, context);
+  const safariAPI = context.SmoothSurferSettings;
+  assert.equal(safariAPI.DEFAULT_SETTINGS.aiProvider, "anthropic");
+  assert.equal(safariAPI.normalizeSettings({}).aiProvider, "anthropic");
+  assert.equal(
+    safariAPI.normalizeSettings({ aiProvider: "local" }).aiProvider,
+    "local",
+    "Safari never silently overrides an explicit local choice"
+  );
+  assert.throws(() => safariSettings("changed settings source"), /marker changed/);
   const original = await readFile(path.join(root, "src", "background.js"), "utf8");
   assert.equal(await readFile(path.join(destination, "src", "background.js"), "utf8"), original);
   await writeFile(path.join(root, "src", "background.js"), `${original}\n// fresh source\n`);

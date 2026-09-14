@@ -930,7 +930,7 @@ async function verifyExtensionPopupOpens() {
     await evaluate(
       workerClient,
       `(async () => {
-      await SmoothSurferStorage.saveSettings(SmoothSurferSettings.normalizeSettings({filterCriteria: ['Engagement bait', 'Unsubstantiated predictions']}));
+      await SmoothSurferStorage.saveSettings(SmoothSurferSettings.normalizeSettings({aiProvider:'anthropic',filterCriteria: ['Engagement bait', 'Unsubstantiated predictions']}));
       const posts = [
         {source:'twitter',author:'River Chen · @river',display:{name:'River Chen',handle:'@river',text:'Repost this thread and follow for a chance to win a new setup.\\n\\nWinners announced tomorrow.',postedAt:new Date().toISOString(),quoted:{name:'Gear desk',handle:'@gear',text:'A new setup for this month.'}},text:'Repost this thread and follow for a chance to win a new setup. Winners announced tomorrow.',reasons:['Asks for reposts in exchange for a prize'],criteria:['Engagement bait'],url:'https://x.com/jack/status/20'},
         {source:'reddit',author:'',text:'This changes everything. One chart proves the next big market move is guaranteed.',reasons:['Presents an uncertain prediction as a guarantee'],criteria:['Unsubstantiated predictions'],url:'https://www.reddit.com/r/example/comments/123/example/'},
@@ -2399,13 +2399,16 @@ That changed everything for my work.</div>
 }
 
 function classificationStubScript() {
-  // Filtering only runs with a saved key, and the page stands in for the
+  // Exercise the cloud provider with a saved key; the page stands in for the
   // service worker so verdicts can be released one at a time.
   return `      <script>
         if (location.pathname === "/twitter-filtered.html") {
           const nativeTimeout = window.setTimeout.bind(window);
           window.setTimeout = (fn, ms, ...args) => nativeTimeout(fn, ms === 12000 ? 1000 : ms, ...args);
         }
+        localStorage.setItem("smoothSurferSettings", JSON.stringify({
+          ...JSON.parse(localStorage.getItem("smoothSurferSettings") || "{}"), aiProvider: "anthropic"
+        }));
         localStorage.setItem(
           "smoothSurferSecrets",
           JSON.stringify({ anthropicApiKey: "test-key" })
