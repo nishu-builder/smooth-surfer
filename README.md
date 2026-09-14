@@ -5,9 +5,9 @@
 
 <img src="icons/icon1024.png" alt="Smooth Surfer icon" width="420">
 
-Smooth Surfer is a small Chrome extension for browsing with less feed noise. It hides or softens selected YouTube, X/Twitter, Reddit, Substack, Hacker News, and generic feed distractions from the toolbar popup.
+Smooth Surfer is a browser extension for browsing with less feed noise. It hides or softens selected YouTube, X/Twitter, Reddit, Substack, Hacker News, and generic feed distractions from the toolbar popup. The source also includes an iPhone Safari extension package.
 
-AI content filtering is disabled unless you save an Anthropic key. When a key is present, Smooth Surfer uses Claude Haiku 4.5 to filter X/Twitter, Reddit, Substack, and Hacker News against your filter criteria, batching visible and upcoming posts into shared classification calls.
+Choose Claude Haiku 4.5 with an Anthropic key or on-device processing with Chrome's built-in Gemini Nano. Both filter X/Twitter, Reddit, Substack, and Hacker News against your criteria. The cloud provider is the default. On-device processing requires a supported desktop Chrome installation and model setup; it does not silently fall back to Claude. Local mode processes text and supplied image descriptions. Image analysis is available with Claude.
 
 On X/Twitter, posts stay in place while classification runs. Confirmed matches
 fade out, and removals above your reading position keep their space until you
@@ -28,7 +28,7 @@ to navigation. A brief green or red confirmation fades before the ruling leaves
 its inbox. Votes save your judgment; they do not restore the post or change a
 rule immediately.
 
-**Recalibrate rules** uses your API key to propose revisions and replay saved
+**Recalibrate rules** uses your selected model to propose revisions and replay saved
 examples. Corrections and written explanations can be used without both label
 classes. Revisions must improve the replay without introducing regressions;
 written feedback can also justify clearer wording when both versions pass.
@@ -48,7 +48,7 @@ what you taught the filter. Both good and bad examples remain visible after the
 seven-day history expires. X embeds and media load lazily from their original hosts.
 
 On X, the **Less like this** button beside a post's actions opens a rule editor.
-Write your own rule or choose **Suggest filters** to ask Claude for suggestions.
+Write your own rule or choose **Suggest filters** to ask the selected model for suggestions.
 You can edit a suggestion before adding it; suggestions never change your rules
 automatically. New rules apply wherever content filtering is enabled.
 
@@ -69,7 +69,7 @@ and unrelated settings.
 
 The popup also includes:
 
-- A Consumption Facts label: a nutrition-facts-style breakdown of the emotional ingredients (outrage, joy, humor, fear, curiosity/beauty, memes, polls) in the posts you actually saw today. It rides on the same Haiku classification calls as filtering, so it also needs an Anthropic key.
+- A Consumption Facts label: a nutrition-facts-style breakdown of the emotional ingredients (outrage, joy, humor, fear, curiosity/beauty, memes, polls) in the posts you actually saw today. It uses the same selected-model classification calls as filtering.
 - Comment hiding for YouTube and Reddit.
 - Video speed keys on any site: `Alt+]` faster, `Alt+[` slower, `Alt+\` reset. The modifier is configurable (Alt/Ctrl/Shift/Cmd, or no modifier) in the popup.
 - A settings shortcut: press `Cmd+Shift+S` (`Ctrl+Shift+S` on Windows/Linux) twice quickly to open the popup.
@@ -89,8 +89,14 @@ The store build is packaged from this repository; see
 release.
 
 After installing, pin Smooth Surfer from Chrome's extensions menu. To enable
-Haiku filtering, open the toolbar popup and save an Anthropic API key. Without a
-key, `Filter out content` does not hide posts.
+Haiku filtering, open the toolbar popup and save an Anthropic API key. Alternatively,
+choose on-device processing in Settings and complete model setup. Until the
+selected provider is ready, content filtering leaves posts visible.
+
+The iPhone target operates on websites in Safari, not native apps. It initially
+uses Claude for AI filtering; Chrome's built-in model is unavailable on iOS.
+Building the iPhone package does not install it from the App Store. See the
+[platform scope](docs/PLATFORM_SCOPE.md) for the implementation boundaries.
 
 ## Build from source
 
