@@ -6,7 +6,7 @@
   const check = document.querySelector("[data-model-check]");
   const progress = document.querySelector("[data-model-progress]");
   const labels = {
-    available: "Model ready. Return to Settings.",
+    available: "Model ready. Return to your feed to start filtering.",
     downloadable: "Model download required.",
     downloading: "Model is downloading. Continue setup to see progress.",
     unavailable:
@@ -15,8 +15,15 @@
       "This browser does not support on-device AI. Use a supported desktop Chrome installation."
   };
   async function refresh() {
+    check.disabled = true;
+    check.textContent = "Checking…";
+    status.textContent = "Checking Gemini Nano…";
     const result = await engine.status();
-    status.textContent = labels[result.state] || result.error || "On-device AI unavailable.";
+    status.textContent =
+      (result.error || labels[result.state] || "On-device AI unavailable.") +
+      ` Checked ${new Date().toLocaleTimeString()}.`;
+    check.disabled = false;
+    check.textContent = "Check again";
     download.disabled = !["downloadable", "downloading"].includes(result.state);
     download.textContent = result.state === "downloading" ? "Continue setup" : "Download model";
   }

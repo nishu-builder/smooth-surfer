@@ -65,7 +65,7 @@
     twitterHideQuotes: false,
     twitterHideVideos: false,
     imageAnalysisEnabled: false,
-    aiProvider: "local",
+    aiProvider: "anthropic",
     twitterFilterContent: true,
     twitterHideTrends: true,
     twitterEnforceFollowing: true,
@@ -78,7 +78,6 @@
     hackerNewsFilterContent: true,
     hackerNewsHideScores: true,
     consumptionFactsEnabled: true,
-    hideStickyVideoPlayers: true,
     pauseDeepScrolling: true,
     softenDistractingElements: true,
     videoSpeedHotkeys: true,
@@ -154,7 +153,8 @@
     next.hackerNewsFilterContent = Boolean(next.hackerNewsFilterContent);
     next.hackerNewsHideScores = Boolean(next.hackerNewsHideScores);
     next.consumptionFactsEnabled = Boolean(next.consumptionFactsEnabled);
-    next.hideStickyVideoPlayers = Boolean(next.hideStickyVideoPlayers);
+    // Retired: floating iframe detection also hid ordinary forms and dialogs.
+    delete next.hideStickyVideoPlayers;
     next.pauseDeepScrolling = Boolean(next.pauseDeepScrolling);
     next.softenDistractingElements = Boolean(next.softenDistractingElements);
     next.videoSpeedHotkeys = Boolean(next.videoSpeedHotkeys);

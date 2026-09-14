@@ -23,12 +23,12 @@ assert.equal(
 );
 
 const defaults = settings.normalizeSettings();
-assert.equal(settings.DEFAULT_SETTINGS.aiProvider, "local");
-assert.equal(defaults.aiProvider, "local");
+assert.equal(settings.DEFAULT_SETTINGS.aiProvider, "anthropic");
+assert.equal(defaults.aiProvider, "anthropic");
 assert.equal(
   settings.normalizeSettings({ enabled: true }).aiProvider,
-  "local",
-  "Legacy settings without a provider use Nano"
+  "anthropic",
+  "Legacy settings without a provider use Claude"
 );
 assert.equal(
   settings.normalizeSettings({ aiProvider: "anthropic" }).aiProvider,
@@ -38,8 +38,8 @@ assert.equal(
 assert.equal(settings.normalizeSettings({ aiProvider: "local" }).aiProvider, "local");
 assert.equal(
   settings.normalizeSettings({ aiProvider: "unknown" }).aiProvider,
-  "local",
-  "Invalid settings cannot enable cloud processing"
+  "anthropic",
+  "Invalid settings use the default provider"
 );
 assert.equal(Object.hasOwn(defaults, "twitterClassifierMode"), false);
 assert.equal(Object.hasOwn(defaults, "twitterFilterCriteria"), false);
@@ -57,7 +57,15 @@ assert.equal(defaults.substackFilterContent, true);
 assert.equal(defaults.hackerNewsFilterContent, true);
 assert.equal(defaults.hackerNewsHideScores, true);
 assert.equal(defaults.consumptionFactsEnabled, true);
-assert.equal(defaults.hideStickyVideoPlayers, true);
+assert.equal(Object.hasOwn(defaults, "hideStickyVideoPlayers"), false);
+assert.equal(
+  Object.hasOwn(
+    settings.normalizeSettings({ hideStickyVideoPlayers: true }),
+    "hideStickyVideoPlayers"
+  ),
+  false,
+  "saved or imported legacy settings cannot re-enable floating-container hiding"
+);
 assert.equal(defaults.pauseDeepScrolling, true);
 assert.equal(defaults.softenDistractingElements, true);
 assert.equal(defaults.youtubeHideComments, false);

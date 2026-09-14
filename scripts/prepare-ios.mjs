@@ -24,13 +24,13 @@ export function safariManifest(chromeManifest) {
   return manifest;
 }
 
-// Safari cannot run Chrome's Nano model. Change only the unset-provider default;
+// Safari cannot run Chrome's Nano model. Verify the shared cloud default;
 // explicit saved/imported choices still pass through normalization unchanged.
 export function safariSettings(source) {
-  const marker = 'aiProvider: "local",';
+  const marker = 'aiProvider: "anthropic",';
   if (source.split(marker).length !== 2)
     throw new Error("Safari provider default marker changed. Update packaging before building.");
-  return source.replace(marker, 'aiProvider: "anthropic",');
+  return source;
 }
 
 export async function prepareIOS(root = repositoryRoot, output = path.join(root, "dist", "ios")) {

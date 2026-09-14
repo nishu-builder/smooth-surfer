@@ -4,3 +4,6 @@
 .model-setup progress { width: 100%; margin-bottom: 8px; }
 
 .model-setup p { margin: 12px 0; }
+
+.model-actions a, .model-actions a:visited { color: var(--ss-ink); }
+.model-setup progress { accent-color: var(--ss-ink); }

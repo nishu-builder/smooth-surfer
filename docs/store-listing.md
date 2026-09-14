@@ -28,8 +28,7 @@ Per-site cleanup:
   comment threads.
 - Substack: hide recommendation modules.
 - Hacker News: hide story scores.
-- Everywhere: hide sticky/floating video players, soften distracting
-  elements, pause after deep scrolling, and
+- Everywhere: soften distracting elements, pause after deep scrolling, and
   control video speed from the keyboard (Alt+] faster, Alt+[ slower, Alt+\
   reset; modifier configurable). Open the popup with a Cmd/Ctrl+Shift+S
   double-tap.
@@ -85,8 +84,7 @@ sites.
 - Content script on `<all_urls>`: Powers every on-page effect the user can
   toggle — the per-site cleanups on YouTube, X/Twitter, Reddit, Substack, and
   Hacker News (ads, recommendations, Shorts, comments, scores) and the
-  cross-site effects (hiding sticky/floating video players, graying
-  distracting media, the deep-scroll pause, video speed keys, and the settings
+  cross-site effects (graying distracting media, the deep-scroll pause, video speed keys, and the settings
   shortcut). Page content is read locally; nothing is transmitted except when
   the user enables AI filtering or requests filter suggestions, which send post text and optionally supported image URLs to Anthropic using their own key. Review images and avatars load from their original providers.
 

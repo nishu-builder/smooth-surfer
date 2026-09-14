@@ -7,7 +7,7 @@
 
 Smooth Surfer is a browser extension for browsing with less feed noise. It hides or softens selected YouTube, X/Twitter, Reddit, Substack, Hacker News, and generic feed distractions from the toolbar popup. The source also includes an iPhone Safari extension package.
 
-Choose Claude Haiku 4.5 with an Anthropic key or on-device processing with Chrome's built-in Gemini Nano. Both filter X/Twitter, Reddit, Substack, and Hacker News against your criteria. Gemini Nano is the desktop default when no provider has been chosen; explicit saved provider choices are preserved. Safari defaults to Claude because Nano is unavailable there. On-device processing requires a supported desktop Chrome installation and model setup; it does not silently fall back to Claude. Local mode processes text and supplied image descriptions. Image analysis is available with Claude.
+Choose Claude Haiku 4.5 with an Anthropic key or on-device processing with Chrome's built-in Gemini Nano. Both filter X/Twitter, Reddit, Substack, and Hacker News against your criteria. Claude is the default on desktop and Safari; explicit saved provider choices are preserved. Gemini Nano is an experimental opt-in. On-device processing requires a supported desktop Chrome installation and model setup; it does not silently fall back to Claude. Local mode processes text and supplied image descriptions. Image analysis is available with Claude.
 
 On X/Twitter, posts stay in place while classification runs. Confirmed matches
 fade out, and removals above your reading position keep their space until you
