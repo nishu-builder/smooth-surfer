@@ -142,3 +142,9 @@ close the review page once it says **Safe to refresh**. Closing Chrome pauses wo
 it resumes when Chrome reopens. Explanation drafts and the latest results survive
 reloads. The judgment buttons mirror the keyboard: **← Bad ruling** and
 **Good ruling →**.
+
+Full-page Review rulings, Settings, Stats, and Filter sets share a sidebar. Open
+any page from the popup, then switch sections without opening more tabs. Stats
+shows hidden-item totals for today and the past seven days, broken down by site
+and recorded reason, with consumption facts below. Settings share the same
+controls and saved values as the toolbar popup.

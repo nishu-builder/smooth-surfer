@@ -375,6 +375,7 @@
   }
 
   function renderActiveSection() {
+    if (document.body.dataset.workspace) return;
     let insertAfter = header;
 
     defaultSiteSectionOrder.forEach((section) => {
@@ -402,6 +403,7 @@
     const weekKeys = new Set(lastDayKeys(7));
     const todayKey = localDayKey(new Date());
     const totals = new Map();
+    const reasons = new Map();
 
     Object.keys(stats.days).forEach((day) => {
       if (!weekKeys.has(day)) {
@@ -412,6 +414,8 @@
 
       Object.keys(platforms).forEach((platformName) => {
         const count = Object.values(platforms[platformName]).reduce((sum, value) => sum + value, 0);
+        for (const [reason, amount] of Object.entries(platforms[platformName]))
+          reasons.set(reason, (reasons.get(reason) || 0) + amount);
         const entry = totals.get(platformName) || { today: 0, week: 0 };
 
         entry.week += count;
@@ -424,6 +428,28 @@
       });
     });
 
+    const todayTotal = document.querySelector("[data-hidden-today]");
+    if (todayTotal) {
+      todayTotal.textContent = [...totals.values()]
+        .reduce((sum, value) => sum + value.today, 0)
+        .toLocaleString();
+      document.querySelector("[data-hidden-week]").textContent = [...totals.values()]
+        .reduce((sum, value) => sum + value.week, 0)
+        .toLocaleString();
+      const host = document.querySelector("[data-stats-reasons]");
+      host.replaceChildren();
+      for (const [reason, count] of [...reasons].sort((a, b) => b[1] - a[1])) {
+        const row = document.createElement("div");
+        row.className = "stats-row";
+        const label = document.createElement("span");
+        label.textContent = reason;
+        const value = document.createElement("span");
+        value.textContent = count.toLocaleString();
+        row.append(label, value);
+        host.append(row);
+      }
+      if (!reasons.size) host.textContent = "No recorded reasons yet.";
+    }
     if (totals.size === 0) {
       const empty = document.createElement("div");
       empty.className = "empty";

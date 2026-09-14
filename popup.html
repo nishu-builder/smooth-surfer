@@ -6,7 +6,8 @@
     <title>Smooth Surfer</title>
     <link rel="stylesheet" href="src/theme.css">
     <link rel="stylesheet" href="src/popup.css">
-  </head>
+    <link rel="stylesheet" href="src/workspace.css">
+</head>
   <body>
     <main class="popup">
       <header>
@@ -20,7 +21,8 @@
         </label>
         <nav class="popup-nav" aria-label="Pages">
           <a class="review-link" href="review.html" target="_blank" rel="noopener" data-review-link>Review rulings</a>
-          <a class="review-link" href="filters.html" target="_blank" rel="noopener">Filter sets</a>
+          <a class="review-link" href="popup.html?view=settings" target="_blank" rel="noopener">Settings</a>
+          <a class="review-link" href="popup.html?view=stats" target="_blank" rel="noopener">Stats</a>
         </nav>
       </header>
 
@@ -141,7 +143,7 @@
         </label>
       </section>
 
-      <section>
+      <section data-filter-panel>
         <h2>Content filter</h2>
         <label class="switch-row" data-description="Optional. Sends up to two supported image URLs per post to Claude alongside text. Adds API cost and latency. Requires an Anthropic key.">
           <span>Analyze images</span><input type="checkbox" data-setting="imageAnalysisEnabled">
@@ -210,7 +212,7 @@
         </div>
       </section>
 
-      <section>
+      <section data-consumption-panel>
         <h2>Consumption facts</h2>
         <label class="switch-row" data-description="Labels posts you actually see with their emotional ingredients, using the same Claude Haiku calls as content filtering. Requires an Anthropic key.">
           <span>Track consumption</span>
@@ -220,25 +222,30 @@
         <button type="button" data-clear-facts>Clear consumption facts</button>
       </section>
 
-      <section>
+      <section data-stats-panel>
         <h2>Stats</h2>
         <div class="stats" data-stats-list aria-live="polite"></div>
         <button type="button" data-clear-stats>Clear stats</button>
       </section>
 
       <section>
-        <h2>Backup</h2>
-        <p class="notice">Exports settings only. Your API key is never included.</p>
-        <div class="button-row">
-          <button type="button" data-export-settings>Export</button>
-          <button type="button" data-import-settings>Import</button>
-        </div>
-        <input type="file" accept="application/json,.json" data-import-file hidden>
+        <h2>Share ruleset</h2>
+        <p>Save, export, or import a set of filtering rules.</p>
+        <a class="review-link" href="filters.html" target="_blank" rel="noopener" data-workspace-link>Open filter sets</a>
+        <details>
+          <summary>All settings</summary>
+          <p class="notice">Export or import all settings. Your API key is never included.</p>
+          <div class="button-row">
+            <button type="button" data-export-settings>Export settings</button>
+            <button type="button" data-import-settings>Import settings</button>
+          </div>
+          <input type="file" accept="application/json,.json" data-import-file hidden>
+        </details>
       </section>
     </main>
 
     <script src="src/settings.js"></script>
     <script src="src/storage.js"></script>
-    <script src="src/popup.js"></script>
+    <script src="src/workspace.js"></script><script src="src/popup.js"></script>
   </body>
 </html>

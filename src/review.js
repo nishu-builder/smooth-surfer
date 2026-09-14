@@ -168,7 +168,9 @@
       event.defaultPrevented ||
       event.repeat ||
       event.isComposing ||
-      event.target.closest("input, textarea, select, [contenteditable], summary")
+      event.target.closest(
+        "input, textarea, select, [contenteditable], summary, .workspace-sidebar"
+      )
     )
       return;
     if (
