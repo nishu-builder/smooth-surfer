@@ -4,6 +4,12 @@
     expectedInputs: [{ type: "text", languages: ["en"] }],
     expectedOutputs: [{ type: "text", languages: ["en"] }]
   };
+  function modelOptions() {
+    return {
+      ...options,
+      ...(typeof root.LanguageModel?.params === "function" ? { temperature: 0, topK: 1 } : {})
+    };
+  }
   let queue = Promise.resolve();
   let lastError = "";
   async function status() {
@@ -15,7 +21,7 @@
     let timer;
     try {
       const state = await Promise.race([
-        root.LanguageModel.availability(options),
+        root.LanguageModel.availability(modelOptions()),
         new Promise((_, reject) => {
           timer = setTimeout(
             () =>
@@ -36,7 +42,7 @@
   async function prepare(onProgress) {
     if (!root.LanguageModel) throw new Error("This browser does not support on-device AI.");
     const session = await root.LanguageModel.create({
-      ...options,
+      ...modelOptions(),
       monitor(monitor) {
         monitor.addEventListener("downloadprogress", (event) => onProgress(event.loaded));
       }
@@ -60,7 +66,7 @@
           );
         const signal = AbortSignal.timeout(45000);
         session = await root.LanguageModel.create({
-          ...options,
+          ...modelOptions(),
           signal,
           initialPrompts: [{ role: "system", content: system }]
         });

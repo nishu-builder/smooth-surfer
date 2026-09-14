@@ -12,6 +12,7 @@ let state = "available",
   budget = 20000;
 const creations = [];
 global.LanguageModel = {
+  params: async () => ({ maxTopK: 128 }),
   availability: async () => state,
   create: async (options) => {
     creations.push(options);
@@ -58,6 +59,8 @@ global.LanguageModel = {
   assert.equal(JSON.parse(answers[1]).text, "Post B");
   assert.deepEqual(creations[2].initialPrompts, [{ role: "system", content: "System B" }]);
   assert.equal(destroyed, 3);
+  assert.equal(creations[2].temperature, 0);
+  assert.equal(creations[2].topK, 1);
   fail = true;
   await assert.rejects(engine.prompt("System", "Post"), /JSON|Unexpected/);
   assert.equal(destroyed, 4, "failed inference releases the session");
