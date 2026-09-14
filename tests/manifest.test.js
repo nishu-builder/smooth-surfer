@@ -29,6 +29,8 @@ for (const file of [
   "filters.html",
   "src/filters.js",
   "src/calibration.js",
+  "src/workspace.js",
+  "src/workspace.css",
   "src/filters.css",
   "review.html",
   "src/review.js",

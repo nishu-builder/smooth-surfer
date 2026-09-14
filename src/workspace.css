@@ -1,0 +1,52 @@
+/* Shared full-page shell; the toolbar popup keeps its own compact layout. */
+html.workspace { width: auto; min-width: 0; overflow-x: visible; }
+.workspace body { width: auto; min-width: 0; background: var(--ss-paper); }
+.workspace [hidden] { display: none !important; }
+.workspace .workspace-main { width: calc(100% - 180px); max-width: 1320px; min-width: 0; margin: 0 0 0 180px; padding: 16px 20px; container: workspace / inline-size; }
+.workspace-sidebar { position: fixed; inset: 0 auto 0 0; width: 180px; padding: 16px 10px; border-right: 1px solid var(--ss-line); background: var(--ss-paper); z-index: 40; font: 12px/1.4 var(--ss-mono); }
+.workspace-brand { display: block; margin: 0 6px 18px; padding-top: 8px; border-top: 2px solid var(--ss-action); color: var(--ss-ink); text-decoration: none; white-space: nowrap; }
+.workspace-sidebar nav { display: grid; gap: 3px; }
+.workspace-sidebar nav a { display: block; padding: 8px; min-height: 32px; color: var(--ss-ink); text-decoration: none; border: 1px solid transparent; border-radius: var(--ss-radius); }
+.workspace-sidebar nav a:hover { background: var(--ss-gray); }
+.workspace-sidebar nav [aria-current="page"] { color: var(--ss-paper); background: var(--ss-action); }
+.workspace-sidebar a:focus-visible, .workspace-skip:focus-visible { outline: 2px solid var(--ss-focus); outline-offset: 2px; }
+.workspace-skip { position: fixed; top: 4px; left: 4px; z-index: 100; transform: translateY(-180%); padding: 8px; background: var(--ss-paper); color: var(--ss-ink); font: 12px var(--ss-mono); }
+.workspace-skip:focus { transform: none; }
+.workspace-main > header .brand, .workspace-main > header .page-link { display: none; }
+.workspace-main > header .heading { margin: 0 0 8px; }
+.workspace .popup { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: start; }
+.workspace .popup > header { grid-column: 1 / -1; border: 0; border-top: 2px solid var(--ss-action); border-radius: 0; padding: 8px 0; }
+.workspace .popup h1 { font: 400 26px/1.15 var(--ss-mono); letter-spacing: -.045em; }
+.workspace .popup > section { padding: 10px; gap: 6px; }
+.workspace .popup > [data-filter-panel], .workspace .popup > [data-reasons-panel] { grid-column: 1 / -1; }
+.workspace .popup [data-stats-panel] { grid-column: 1 / -1; }
+.workspace .popup > [data-consumption-panel] { width: 100%; max-width: 500px; grid-column: 1 / -1; }
+.workspace .popup .pill-label { max-width: none; white-space: normal; }
+.workspace .popup .stats-row { gap: 16px; }
+.workspace .popup .stats-row span:first-child { overflow-wrap: anywhere; min-width: 0; }
+.workspace .popup .stats-row span:last-child { flex-shrink: 0; }
+.workspace .popup [data-stats-reasons] { display: grid; }
+.workspace .popup [data-clear-stats], .workspace .popup [data-clear-facts] { justify-self: end; width: auto; background: var(--ss-paper); color: var(--ss-muted); border: 1px solid var(--ss-line); padding: 5px 8px; }
+.stats-overview { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; border-block: 1px solid var(--ss-line); }
+.stats-overview > div { display: grid; gap: 6px; padding: 12px 0; }
+.stats-overview > div + div { border-left: 1px solid var(--ss-line); padding-left: 16px; }
+.stats-overview span { color: var(--ss-muted); font: 12px var(--ss-mono); }
+.stats-overview strong { font: 400 32px var(--ss-mono); }
+.workspace-stats-note { grid-column: 1 / -1; color: var(--ss-muted); font: 12px/1.5 var(--ss-sans); }
+/* Side-by-side posts depend on available content width, not window width. */
+.workspace .review-page #posts, .workspace .review-page .list-heading { max-width: 550px; }
+.workspace .review-page .post { display: block; }
+.workspace .review-page .rulings { border-left: 0; border-top: 1px solid var(--ss-line); padding: 12px 0 0; }
+@container workspace (min-width: 840px) {
+  .workspace .review-page #posts, .workspace .review-page .list-heading { max-width: none; }
+  .workspace .review-page .post { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+  .workspace .review-page .rulings { border-top: 0; border-left: 1px solid var(--ss-line); padding: 0 0 0 14px; }
+}
+@media (max-width: 700px) {
+  .workspace-sidebar { position: static; width: auto; padding: 10px; border-right: 0; border-bottom: 1px solid var(--ss-line); }
+  .workspace-brand { margin: 0 0 8px; padding-top: 6px; }
+  .workspace-sidebar nav { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; }
+  .workspace-sidebar nav a { display: flex; align-items: center; padding: 6px; font-size: 11px; }
+  .workspace .workspace-main { width: 100%; margin: 0; padding: 12px 10px; }
+  .workspace .popup { grid-template-columns: minmax(0, 1fr); }
+}

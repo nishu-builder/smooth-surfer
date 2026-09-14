@@ -1838,6 +1838,150 @@ async function verifyExtensionPopupOpens() {
     console.log(
       "Filter sets passed (save, preview, selective import, validation, responsive layout)."
     );
+    // All full-page destinations share one navigation and the real settings store.
+    await client.send("Emulation.setDeviceMetricsOverride", {
+      width: 1280,
+      height: 900,
+      deviceScaleFactor: 1,
+      mobile: false
+    });
+    assert.equal(
+      await evaluate(
+        client,
+        `document.querySelector('.workspace-sidebar [aria-current="page"]').textContent`
+      ),
+      "Filter sets"
+    );
+    await evaluate(
+      client,
+      `document.querySelector('.workspace-sidebar a[href="popup.html?view=settings"]').click()`
+    );
+    await waitForExpression(
+      client,
+      `document.body.dataset.workspace==='settings' && document.querySelector('[data-setting="enabled"]')?.checked`
+    );
+    assert.equal(await evaluate(client, `document.querySelector('h1').textContent`), "Settings");
+    assert.equal(
+      await evaluate(client, `document.querySelector('[data-stats-panel]').hidden`),
+      true
+    );
+    assert.equal(
+      await evaluate(
+        client,
+        `document.querySelector('[data-setting="consumptionFactsEnabled"]').closest('[data-filter-panel]')!==null`
+      ),
+      true,
+      "tracking control is available in full-page settings"
+    );
+    const beforeToggle = await evaluate(
+      client,
+      `document.querySelector('[data-setting="twitterHideTrends"]').checked`
+    );
+    await evaluate(client, `document.querySelector('[data-setting="twitterHideTrends"]').click()`);
+    await waitForExpression(
+      workerClient,
+      `(async()=> (await SmoothSurferStorage.loadSettings()).twitterHideTrends===${!beforeToggle})()`
+    );
+    await writeFile(
+      path.join(cacheDir, "workspace-settings.png"),
+      Buffer.from((await client.send("Page.captureScreenshot", { format: "png" })).data, "base64")
+    );
+    await evaluate(
+      workerClient,
+      `(async()=>{
+      const day=(offset)=>{const date=new Date();date.setDate(date.getDate()-offset);return date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0');};
+      await SmoothSurferStorage.saveStats({days:{[day(0)]:{twitter:{'Engagement bait':4,Ads:3}},[day(1)]:{youtube:{Recommendations:5}},[day(9)]:{twitter:{Ads:100}}}});
+    })()`
+    );
+    await evaluate(
+      client,
+      `document.querySelector('.workspace-sidebar a[href="popup.html?view=stats"]').click()`
+    );
+    await waitForExpression(
+      client,
+      `document.querySelector('[data-hidden-today]')?.textContent==='7' && document.querySelector('[data-hidden-week]')?.textContent==='12'`
+    );
+    assert.equal(
+      await evaluate(
+        client,
+        `document.querySelector('.workspace-sidebar [aria-current="page"]').textContent`
+      ),
+      "Stats"
+    );
+    assert.equal(
+      await evaluate(
+        client,
+        `Array.from(document.querySelectorAll('[data-stats-reasons] .stats-row')).map(row=>row.textContent).join('|')`
+      ),
+      "Recommendations5|Engagement bait4|Ads3",
+      "reason totals use the same seven-day window as site totals"
+    );
+    assert.equal(
+      await evaluate(
+        client,
+        `Array.from(document.querySelectorAll('.popup > section:not([hidden])')).length`
+      ),
+      3
+    );
+    await writeFile(
+      path.join(cacheDir, "workspace-stats.png"),
+      Buffer.from((await client.send("Page.captureScreenshot", { format: "png" })).data, "base64")
+    );
+    await client.send("Emulation.setDeviceMetricsOverride", {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 1,
+      mobile: true
+    });
+    assert.equal(
+      await evaluate(client, `document.documentElement.scrollWidth <= innerWidth`),
+      true,
+      "stats and sidebar fit narrow windows"
+    );
+    await evaluate(client, `document.querySelector('[data-clear-stats]').click()`);
+    await waitForExpression(
+      client,
+      `document.querySelector('[data-hidden-today]').textContent==='0' && document.querySelector('[data-stats-list]').textContent.includes('Nothing hidden')`
+    );
+    await evaluate(
+      client,
+      `document.querySelector('.workspace-sidebar a[href="review.html"]').click()`
+    );
+    await waitForExpression(
+      client,
+      `document.querySelector('.workspace-sidebar [aria-current="page"]')?.textContent==='Review rulings'`
+    );
+    await evaluate(
+      client,
+      `document.querySelector('.workspace-sidebar a[href="popup.html?view=settings"]').click()`
+    );
+    await waitForExpression(
+      client,
+      `document.body.dataset.workspace==='settings' && document.querySelector('[data-setting="twitterHideTrends"]')?.checked===${!beforeToggle}`
+    );
+    assert.equal(
+      await evaluate(client, `document.documentElement.scrollWidth <= innerWidth`),
+      true,
+      "settings fit narrow windows"
+    );
+    await writeFile(
+      path.join(cacheDir, "workspace-settings-mobile.png"),
+      Buffer.from((await client.send("Page.captureScreenshot", { format: "png" })).data, "base64")
+    );
+    await navigate(client, extensionOrigin + "/popup.html");
+    await waitForExpression(
+      client,
+      `document.querySelector('[data-setting="twitterHideTrends"]')?.checked===${!beforeToggle}`
+    );
+    assert.equal(
+      await evaluate(client, `document.body.getBoundingClientRect().width`),
+      320,
+      "full-page views do not change the toolbar popup"
+    );
+    assert.equal(await evaluate(client, `document.querySelector('.workspace-sidebar')`), null);
+    console.log(
+      "Workspace passed (navigation, shared settings, stats totals, empty states, responsive layout, compact popup)."
+    );
     workerClient.close();
     client.close();
     console.log(
