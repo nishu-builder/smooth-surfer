@@ -82,7 +82,101 @@
         return {};
       });
     }
-    async function recalibrate() {
+    let jobRun = null;
+    let starts = Promise.resolve();
+    async function startJob() {
+      const operation = starts.then(async () => {
+        let job = await deps.loadCalibrationJob();
+        if (job?.status !== "running" && jobRun) {
+          // Finish the prior job's alarm cleanup before scheduling a new job.
+          await jobRun;
+          job = await deps.loadCalibrationJob();
+        }
+        if (job?.status !== "running") {
+          if (job?.status === "paused") {
+            job.status = "running";
+            job.error = "";
+          } else {
+            job = {
+              version: 1,
+              id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+              status: "running",
+              at: Date.now(),
+              outcomes: [],
+              attemptedRules: [],
+              phase: "Starting"
+            };
+          }
+          await deps.scheduleJob();
+          await deps.saveCalibrationJob(job);
+        }
+        return job;
+      });
+      starts = operation.catch(() => {});
+      const job = await operation;
+      void resumeJob();
+      return { job };
+    }
+    function resumeJob() {
+      if (jobRun) return jobRun;
+      jobRun = (async () => {
+        const job = await deps.loadCalibrationJob();
+        if (job?.status !== "running") return;
+        await deps.scheduleJob();
+        try {
+          // Settings and history use separate storage areas. A durable intent
+          // closes the crash window between those writes without reapplying.
+          if (job.pending) {
+            await deps.withRuleLock(() =>
+              mutate(async (state) => {
+                const { revision, outcome } = job.pending;
+                const config = await deps.loadSettings();
+                const recorded = state.revisions.some((item) => item.id === revision.id);
+                if (
+                  recorded ||
+                  (config.filterCriteria.includes(revision.after) &&
+                    !config.filterCriteria.includes(revision.before))
+                ) {
+                  if (!recorded) {
+                    state.revisions.unshift(revision);
+                    await deps.saveCalibration(state);
+                  }
+                  job.outcomes = job.outcomes.filter((item) => item.rule !== outcome.rule);
+                  job.outcomes.push(outcome);
+                } else if (!config.filterCriteria.includes(revision.before)) {
+                  job.outcomes.push({
+                    rule: revision.before,
+                    status: "error",
+                    detail:
+                      "This rule changed while recalibration was interrupted. Current settings were kept."
+                  });
+                }
+                job.pending = null;
+                await deps.saveCalibrationJob(job);
+              }, false)
+            );
+          }
+          await recalibrate(job);
+          job.status = "complete";
+          job.phase = "Complete";
+          job.finishedAt = Date.now();
+          await deps.saveCalibrationJob(job);
+        } catch (error) {
+          job.status = "paused";
+          job.error = error.message;
+          await deps.saveCalibrationJob(job);
+        }
+        await deps.clearJobSchedule();
+      })()
+        .catch(() => {
+          // Keep the durable job and alarm if storage itself is unavailable.
+        })
+        .finally(() => {
+          jobRun = null;
+        });
+      return jobRun;
+    }
+    async function recalibrate(job = null) {
       if (running) throw new Error("Recalibration is already running.");
       running = true;
       try {
@@ -91,23 +185,47 @@
         if (!secrets.anthropicApiKey)
           throw new Error("Add an Anthropic key in the popup to recalibrate rules.");
         const initial = normalizeCalibration(await deps.loadCalibration());
-        const affected = [
+        const affected = job?.rules || [
           ...new Set(
             initial.feedback
               .filter((item) => item.judgment === "bad" || item.explanation.trim())
               .map((item) => resolveCalibratedRule(item.rule, initial.revisions))
           )
         ];
-        affected.sort(
-          (a, b) =>
-            (initial.attempts.find((item) => item.rule === a)?.at || 0) -
-            (initial.attempts.find((item) => item.rule === b)?.at || 0)
-        );
-        const outcomes = [];
-        let attempted = 0;
+        if (!job?.rules)
+          affected.sort(
+            (a, b) =>
+              (initial.attempts.find((item) => item.rule === a)?.at || 0) -
+              (initial.attempts.find((item) => item.rule === b)?.at || 0)
+          );
+        if (job && !job.rules) {
+          job.rules = affected;
+          await deps.saveCalibrationJob(job);
+        }
+        const outcomes = job ? job.outcomes : [];
+        const report = async (outcome) => {
+          if (job) {
+            await deps.saveCalibrationJob({
+              ...job,
+              outcomes: [...outcomes, outcome],
+              pending: null
+            });
+            job.pending = null;
+          }
+          outcomes.push(outcome);
+        };
+        const progress = async (phase, rule) => {
+          if (job) {
+            job.phase = phase;
+            job.currentRule = rule;
+            await deps.saveCalibrationJob(job);
+          }
+        };
+        let attempted = job?.attemptedRules.length || 0;
         for (const rule of affected) {
+          if (job?.outcomes.some((item) => item.rule === rule)) continue;
           if (rule.startsWith("format:")) {
-            outcomes.push({
+            await report({
               rule,
               status: "not-supported",
               detail:
@@ -116,8 +234,8 @@
             continue;
           }
           if (!settings.filterCriteria.includes(rule)) continue;
-          if (attempted >= 3) {
-            outcomes.push({
+          if (attempted >= 3 && !job?.attemptedRules.includes(rule)) {
+            await report({
               rule,
               status: "pending",
               detail: "Run recalibration again to review more rules."
@@ -134,7 +252,7 @@
             : all.filter((item) => item.text.trim()).map((item) => ({ ...item, images: [] }));
           const skipped = all.length - usable.length;
           if (!usable.length) {
-            outcomes.push({
+            await report({
               rule,
               status: "needs-images",
               detail:
@@ -163,7 +281,10 @@
             const withoutNotes = group.filter((item) => !item.explanation.trim());
             if (group.length >= 3 && withoutNotes.length) heldOut.add(withoutNotes.at(-1).postKey);
           }
-          attempted++;
+          if (!job?.attemptedRules.includes(rule)) {
+            attempted++;
+            if (job) job.attemptedRules.push(rule);
+          }
           try {
             const checkContext = async () => {
               const freshSettings = await deps.loadSettings(),
@@ -186,6 +307,7 @@
               accepted = false;
             let baseline = null;
             for (let attempt = 0; attempt < 2; attempt++) {
+              await progress(attempt ? "Refining revision" : "Proposing revision", rule);
               const candidate = await deps.propose(
                 rule,
                 proposalExamples,
@@ -241,6 +363,7 @@
               )
                 throw new Error("No distinct, valid revision was proposed.");
               after = proposal.rule.trim();
+              await progress("Checking saved judgments", rule);
               if (!baseline) {
                 baseline = [];
                 for (let i = 0; i < examples.length; i += 20) {
@@ -334,7 +457,7 @@
                 }
               });
             if (!accepted) {
-              outcomes.push({
+              await report({
                 rule,
                 ...diagnostics,
                 status:
@@ -349,6 +472,23 @@
               });
               continue;
             }
+            const revision = {
+              id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+              before: rule,
+              after,
+              at: Date.now(),
+              examples: examples.length,
+              fixed: oldErrors - newErrors,
+              remaining: newErrors,
+              undone: false
+            };
+            const outcome = {
+              rule,
+              ...diagnostics,
+              status: "updated",
+              after,
+              detail: `${examples.length} examples checked: ${oldErrors} disagreements before, ${newErrors} after${heldOut.size ? `; ${heldOut.size} examples withheld from drafting` : ""}. ${!oldErrors ? "Wording clarified from your explanation." : "Previously correct matches were preserved."}`
+            };
             await deps.withRuleLock(() =>
               mutate(async (state) => {
                 const current = await deps.loadSettings();
@@ -363,17 +503,12 @@
                 current.filterCriteria = current.filterCriteria.map((item) =>
                   item === rule ? after : item
                 );
+                if (job) {
+                  job.pending = { revision, outcome };
+                  await deps.saveCalibrationJob(job);
+                }
                 await deps.saveSettings(current);
-                state.revisions.unshift({
-                  id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
-                  before: rule,
-                  after,
-                  at: Date.now(),
-                  examples: examples.length,
-                  fixed: oldErrors - newErrors,
-                  remaining: newErrors,
-                  undone: false
-                });
+                state.revisions.unshift(revision);
                 // Persist inside the lock; if local storage rejects, roll back the
                 // rule so we never knowingly leave a revision without its history.
                 try {
@@ -384,15 +519,10 @@
                 }
               }, false)
             );
-            outcomes.push({
-              rule,
-              ...diagnostics,
-              status: "updated",
-              after,
-              detail: `${examples.length} examples checked: ${oldErrors} disagreements before, ${newErrors} after${heldOut.size ? `; ${heldOut.size} examples withheld from drafting` : ""}. ${!oldErrors ? "Wording clarified from your explanation." : "Previously correct matches were preserved."}`
-            });
+            await report(outcome);
           } catch (error) {
-            outcomes.push({ rule, status: "error", detail: error.message });
+            if (job?.pending) throw error;
+            await report({ rule, status: "error", detail: error.message });
           }
         }
         await mutate((state) => {
@@ -489,7 +619,7 @@
         }, false)
       );
     }
-    return { record, undoFeedback, recalibrate, undo, changeSuggestion };
+    return { record, undoFeedback, recalibrate, startJob, resumeJob, undo, changeSuggestion };
   }
   root.SmoothSurferCalibration = { create };
   if (typeof module !== "undefined" && module.exports)

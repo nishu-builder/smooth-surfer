@@ -9,7 +9,10 @@ global.self = global;
 
 let messageListener = null;
 global.chrome = {
+  alarms: { onAlarm: { addListener() {} }, create: async () => {}, clear: async () => {} },
   runtime: {
+    onStartup: { addListener() {} },
+    onInstalled: { addListener() {} },
     onMessage: {
       addListener(listener) {
         messageListener = listener;
@@ -116,6 +119,7 @@ global.importScripts = (...files) => {
           filterSetsState = self.SmoothSurferSettings.normalizeFilterSets(next);
         },
         loadReview: async () => structuredClone(reviewState),
+        loadCalibrationJob: async () => null,
         loadCalibration: async () => self.SmoothSurferSettings.normalizeCalibration(),
         saveReview: async (next) => {
           await new Promise((resolve) => setTimeout(resolve, 5));

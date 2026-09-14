@@ -1144,6 +1144,27 @@ async function verifyExtensionPopupOpens() {
       true,
       "typing focuses the selected ruling's explanation"
     );
+    assert.deepEqual(
+      await evaluate(
+        client,
+        `Array.from(document.querySelector('.ruling .judgments').children).map(node=>node.textContent)`
+      ),
+      ["← Bad ruling", "Good ruling →"],
+      "button order matches keyboard directions"
+    );
+    await navigate(client, extensionOrigin + "/review.html");
+    await waitForExpression(
+      client,
+      `document.querySelector('.ruling textarea')?.value === 'A giveaway asks for engagement.'`
+    );
+    assert.match(
+      await evaluate(client, `document.getElementById('save-status').textContent`),
+      /Safe to refresh/
+    );
+    await evaluate(
+      client,
+      `(()=>{const input=document.querySelector('.ruling textarea');input.focus();input.setSelectionRange(input.value.length,input.value.length);})()`
+    );
     await client.send("Input.dispatchKeyEvent", {
       type: "keyDown",
       key: "Enter",
@@ -1357,9 +1378,11 @@ async function verifyExtensionPopupOpens() {
       `(async()=>{
       await SmoothSurferStorage.saveSecrets({anthropicApiKey:'fixture-not-a-real-key'});
       globalThis.calibrationCalls=[];
+      globalThis.calibrationGate=new Promise(resolve=>{globalThis.releaseCalibration=resolve;});
       globalThis.fetch=async(url,options)=>{
         const body=JSON.parse(options.body);calibrationCalls.push(body);
         const proposal=body.system.startsWith('Revise one');
+        if(proposal) await calibrationGate;
         const prompt=body.messages[0].content[0].text;
         const rows=proposal ? [] : prompt.split('Items:')[1].trim().split(/\\n\\n/);
         const revised=!proposal && prompt.includes('1. Giveaway engagement bait');
@@ -1369,6 +1392,29 @@ async function verifyExtensionPopupOpens() {
     })()`
     );
     await evaluate(client, `document.getElementById('recalibrate').click()`);
+    await waitForExpression(
+      client,
+      `document.getElementById('calibration-progress').textContent.includes('Proposing revision') && document.getElementById('save-status').textContent.includes('Safe to refresh')`
+    );
+    const runningJobId = await evaluate(
+      workerClient,
+      `(async()=> (await SmoothSurferStorage.loadCalibrationJob()).id)()`
+    );
+    await navigate(client, "about:blank");
+    await navigate(client, extensionOrigin + "/review.html");
+    await waitForExpression(
+      client,
+      `document.getElementById('recalibrate').disabled && document.getElementById('calibration-progress').textContent.includes('Proposing revision')`
+    );
+    assert.equal(
+      await evaluate(
+        workerClient,
+        `(async()=> (await SmoothSurferStorage.loadCalibrationJob()).id)()`
+      ),
+      runningJobId,
+      "reopened review attaches to the same background job"
+    );
+    await evaluate(workerClient, `releaseCalibration()`);
     await waitForExpression(
       client,
       `document.getElementById('status').textContent === '1 rule updated. 1 additional rule suggested.'`
@@ -1400,6 +1446,11 @@ async function verifyExtensionPopupOpens() {
       await evaluate(client, `document.querySelectorAll('.replay-example').length`),
       2,
       "recalibration exposes per-example replay decisions"
+    );
+    await navigate(client, extensionOrigin + "/review.html");
+    await waitForExpression(
+      client,
+      `document.getElementById('calibration-progress').textContent.includes('Results saved') && document.querySelectorAll('.replay-example').length===2`
     );
     await client.send("Emulation.setDeviceMetricsOverride", {
       width: 1100,

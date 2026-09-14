@@ -149,3 +149,5 @@ dialog p { color: var(--ss-muted); }
 .suggested-rule p { margin: 4px 0; }
 .suggested-rule button + button { margin-left: 6px; }
 .suggestion-history summary { cursor: pointer; margin-top: 8px; font: 11px var(--ss-mono); }
+
+.selection-marker:empty { display: none; }

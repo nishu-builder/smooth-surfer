@@ -55,10 +55,23 @@ importScripts("settings.js", "storage.js", "calibration.js");
       ruleWrites = operation.catch(() => {});
       return operation;
     },
+    scheduleJob: () => chrome.alarms.create("recalibration", { periodInMinutes: 1 }),
+    clearJobSchedule: () => chrome.alarms.clear("recalibration"),
     propose: proposeRuleRevision,
     evaluate: (examples, criteria, key) =>
       classifyBatchWithHaiku(examples, criteria, false, key, true)
   });
+
+  chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === "recalibration") void calibration.resumeJob();
+  });
+  chrome.runtime.onStartup.addListener(() => {
+    void calibration.resumeJob();
+  });
+  chrome.runtime.onInstalled.addListener(() => {
+    void calibration.resumeJob();
+  });
+  void calibration.resumeJob();
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (!message) {
@@ -78,7 +91,11 @@ importScripts("settings.js", "storage.js", "calibration.js");
       updateSettings: () => updateSettings(message.patch, message.expectedCriteria),
       recordRuleFeedback: () => calibration.record(message),
       undoRuleFeedback: () => calibration.undoFeedback(message.undoToken),
-      recalibrateRules: () => calibration.recalibrate(),
+      recalibrateRules: () => calibration.startJob(),
+      getCalibrationJob: async () => {
+        void calibration.resumeJob();
+        return { job: await self.SmoothSurferStorage.loadCalibrationJob() };
+      },
       undoCalibration: () => calibration.undo(message.id),
       applyRuleSuggestion: () => calibration.changeSuggestion(message.id, "add"),
       dismissRuleSuggestion: () => calibration.changeSuggestion(message.id, "dismiss"),

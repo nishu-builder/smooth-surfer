@@ -25,3 +25,9 @@ Undo keeps up to 50 prior judgment receipts locally within 512 KB so a backgroun
 Rule suggestions retain the proposed rule, its source rule, the supporting excerpt
 from your explanation, and its pending/added/dismissed status locally. Up to 50
 suggestions are kept within 100 KB so they remain available across review sessions.
+
+Recalibration progress, the latest run's results, and pending update recovery data
+are also kept on this device. Explanation drafts are saved locally as you type;
+unjudged drafts are not sent for recalibration. Jobs resume after Chrome reopens.
+An API request interrupted by browser shutdown may be repeated. These local
+records are removed when extension data is cleared or the extension is uninstalled.

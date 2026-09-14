@@ -5,6 +5,7 @@ const { create } = require("../src/calibration.js");
 const before = "Promotional urgency",
   after = "Promotional urgency about buying a speculative asset; exclude factual deadlines.";
 function fixture() {
+  let job = null;
   let state = S.normalizeCalibration(),
     settings = S.normalizeSettings({ filterCriteria: [before, "Unrelated rule"] });
   let queue = Promise.resolve(),
@@ -22,6 +23,12 @@ function fixture() {
   }));
   let onEvaluate = () => {};
   const deps = {
+    loadCalibrationJob: async () => structuredClone(job),
+    saveCalibrationJob: async (value) => {
+      job = structuredClone(value);
+    },
+    scheduleJob: async () => {},
+    clearJobSchedule: async () => {},
     loadReview: async () => ({ items: posts, restored: [] }),
     loadCalibration: async () => structuredClone(state),
     saveCalibration: async (value) => {
@@ -444,6 +451,132 @@ function fixture() {
   await assert.rejects(() => concurrent.api.recalibrate(), /already running/);
   resume();
   await pending;
+  {
+    // Restart with durable storage but none of the original worker's memory.
+    const durable = fixture();
+    await durable.vote(0, "good");
+    await durable.vote(1, "bad", "Allow factual deadlines.");
+    let enteredProposal;
+    const entered = new Promise((resolve) => {
+      enteredProposal = resolve;
+    });
+    const originalPropose = durable.deps.propose;
+    durable.deps.propose = async () => {
+      enteredProposal();
+      return new Promise(() => {});
+    };
+    const [started, duplicate] = await Promise.all([
+      durable.api.startJob(),
+      durable.api.startJob()
+    ]);
+    assert.equal(started.job.id, duplicate.job.id, "two tabs share one durable job");
+    await entered;
+    assert.equal((await durable.deps.loadCalibrationJob()).status, "running");
+    durable.deps.propose = originalPropose;
+    const restartedWorker = create(durable.deps);
+    await restartedWorker.resumeJob();
+    let finished = await durable.deps.loadCalibrationJob();
+    assert.equal(finished.status, "complete");
+    assert.equal(finished.outcomes[0].status, "updated");
+    assert.equal(durable.state.revisions.length, 1);
+    await create(durable.deps).resumeJob();
+    assert.equal(durable.calls, 1, "finished jobs are never rerun on startup");
+
+    // Simulate termination at each side of the settings/history commit window.
+    for (const crashPoint of ["before-settings", "after-settings", "after-history"]) {
+      const interrupted = fixture();
+      await interrupted.vote(0, "good");
+      await interrupted.vote(1, "bad");
+      let crash;
+      const reachedCrash = new Promise((resolve) => {
+        crash = resolve;
+      });
+      const saveSettings = interrupted.deps.saveSettings;
+      const saveCalibration = interrupted.deps.saveCalibration;
+      if (crashPoint !== "after-history")
+        interrupted.deps.saveSettings = async (value) => {
+          if (crashPoint === "after-settings") await saveSettings(value);
+          crash();
+          return new Promise(() => {});
+        };
+      else
+        interrupted.deps.saveCalibration = async (value) => {
+          await saveCalibration(value);
+          if (value.revisions.length) {
+            crash();
+            return new Promise(() => {});
+          }
+        };
+      await interrupted.api.startJob();
+      await reachedCrash;
+      assert.ok(
+        (await interrupted.deps.loadCalibrationJob()).pending,
+        "intent persisted before settings write"
+      );
+      interrupted.deps.saveSettings = saveSettings;
+      interrupted.deps.saveCalibration = saveCalibration;
+      interrupted.deps.withRuleLock = (change) => change(); // fresh worker's lock
+      const recovered = create(interrupted.deps);
+      await recovered.resumeJob();
+      finished = await interrupted.deps.loadCalibrationJob();
+      assert.equal(finished.status, "complete", crashPoint);
+      assert.equal(finished.outcomes.length, 1, crashPoint);
+      assert.equal(finished.outcomes[0].status, "updated", crashPoint);
+      assert.equal(interrupted.state.revisions.length, 1, "one revision after " + crashPoint);
+      assert.equal(interrupted.settings.filterCriteria[0], after);
+      assert.equal(interrupted.calls, crashPoint === "before-settings" ? 2 : 1);
+      await recovered.undo(interrupted.state.revisions[0].id);
+      assert.equal(
+        interrupted.settings.filterCriteria[0],
+        before,
+        "recovered changes remain undoable"
+      );
+    }
+    const partial = fixture();
+    partial.posts[1].criteria = ["Unrelated rule"];
+    await partial.vote(0, "bad");
+    await partial.api.record({ postId: "p1", rule: "Unrelated rule", judgment: "bad" });
+    const proposedRules = [];
+    let reachedSecond;
+    const secondStarted = new Promise((resolve) => {
+      reachedSecond = resolve;
+    });
+    partial.deps.propose = async (rule) => {
+      proposedRules.push(rule);
+      if (proposedRules.length === 2) {
+        reachedSecond();
+        return new Promise(() => {});
+      }
+      return { rule: null, reason: "Checked feedback; no change." };
+    };
+    await partial.api.startJob();
+    await secondStarted;
+    assert.equal((await partial.deps.loadCalibrationJob()).outcomes.length, 1);
+    partial.deps.propose = async (rule) => {
+      proposedRules.push(rule);
+      return { rule: null, reason: "Checked feedback; no change." };
+    };
+    await create(partial.deps).resumeJob();
+    assert.equal((await partial.deps.loadCalibrationJob()).outcomes.length, 2);
+    assert.deepEqual(
+      proposedRules,
+      ["Unrelated rule", before, before],
+      "only the unfinished rule is repeated"
+    );
+
+    const paused = fixture();
+    await paused.vote(1, "bad");
+    const loadSecrets = paused.deps.loadSecrets;
+    paused.deps.loadSecrets = async () => ({ anthropicApiKey: "" });
+    const pausedStart = await paused.api.startJob();
+    await paused.api.resumeJob();
+    assert.equal((await paused.deps.loadCalibrationJob()).status, "paused");
+    paused.deps.loadSecrets = loadSecrets;
+    const resumed = await paused.api.startJob();
+    assert.equal(resumed.job.id, pausedStart.job.id, "resume keeps the job identity");
+    await paused.api.resumeJob();
+    assert.equal((await paused.deps.loadCalibrationJob()).status, "complete");
+  }
   console.log(
     "calibration tests passed (feedback, replay, regression rejection, holdout, stale state, rollback, undo)"
   );

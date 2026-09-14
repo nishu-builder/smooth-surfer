@@ -136,3 +136,9 @@ hand-formatted.
 Follow the [product style guide](docs/STYLE_GUIDE.md) for interface copy and interactions.
 
 Review has three inboxes: Uncategorized, Good rulings, and Bad rulings. Categorizing a ruling moves it out of the current queue; other uncategorized rules on the same post remain. Counts refer to rulings. Undo restores the prior category and selects that ruling.
+
+Recalibration runs in the background and saves its progress. You can refresh or
+close the review page once it says **Safe to refresh**. Closing Chrome pauses work;
+it resumes when Chrome reopens. Explanation drafts and the latest results survive
+reloads. The judgment buttons mirror the keyboard: **← Bad ruling** and
+**Good ruling →**.

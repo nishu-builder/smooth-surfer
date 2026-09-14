@@ -49,3 +49,28 @@ remain available after reloads or a successful revision, with Add, Dismiss,
 Reconsider, and Undo addition actions. Applying or undoing an addition uses the
 same settings lock and rollback-on-storage-failure behavior as revisions.
 The local suggestion history is limited to 50 records within 100 KB.
+
+## Refresh and restart recovery
+
+Recalibrate starts a persisted background job and returns immediately. The review
+page subscribes to its progress, so closing or refreshing that page does not own
+the job's lifetime. Chrome startup, extension startup, and a one-minute alarm
+resume a running job after interruption. Nothing runs while Chrome is closed.
+Completed rule outcomes are checkpointed and skipped on recovery; an unfinished
+rule is retried using current settings and feedback. An interrupted API request
+may therefore be repeated and incur another charge. API errors are displayed,
+not automatically retried forever. A paused job offers Resume recalibration.
+
+A durable update intent is saved before changing synced rules. On recovery, the
+worker reconciles it with the current rules and local revision history so an
+applied revision is recorded once and remains undoable. Unrelated settings are
+not overwritten. Multiple review tabs attach to the same active job. The latest
+job's results remain visible after reload; starting a new job replaces that
+result display, while revision history and suggestions remain saved.
+
+Explanation drafts are saved locally while typing, including drafts without a
+judgment. Drafts do not become calibration examples until judged. The review page
+shows when saving is in progress and warns before navigating away during a save.
+Once it says Safe to refresh, saved feedback, drafts, and job progress survive a
+normal browser restart. Uninstalling the extension or clearing its data removes
+this local state.

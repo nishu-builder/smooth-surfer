@@ -6,7 +6,9 @@
     loadSettings,
     watchSettings,
     loadCalibration,
-    watchCalibration
+    watchCalibration,
+    loadCalibrationJob,
+    watchCalibrationJob
   } = window.SmoothSurferStorage;
   const { safePostUrl, FORMAT_LABELS, resolveCalibratedRule, reviewItemsWithFeedback } =
     window.SmoothSurferSettings;
@@ -23,6 +25,55 @@
   let limit = 25,
     running = false;
   const drafts = new Map();
+  const draftStorageKey = "smoothSurferReviewDrafts";
+  let draftError = false,
+    starting = false,
+    currentJob = null,
+    resultSignature = "";
+  try {
+    const saved = JSON.parse(localStorage.getItem(draftStorageKey) || "[]");
+    for (const [key, text] of saved.slice(0, 2000)) {
+      const pair = JSON.parse(key);
+      if (
+        Array.isArray(pair) &&
+        pair.length === 2 &&
+        pair.every((part) => typeof part === "string") &&
+        typeof text === "string"
+      )
+        drafts.set(key, text.slice(0, 800));
+    }
+  } catch {
+    draftError = true;
+  }
+  function persistDrafts() {
+    try {
+      localStorage.setItem(draftStorageKey, JSON.stringify([...drafts]));
+      draftError = false;
+    } catch {
+      draftError = true;
+    }
+    renderSafety();
+  }
+  function removeDraft(key) {
+    drafts.delete(key);
+    persistDrafts();
+  }
+  function renderSafety() {
+    $("save-status").textContent = draftError
+      ? "Draft could not be saved. Keep this page open and try again."
+      : saving || starting
+        ? "Saving… Wait before refreshing or closing this page."
+        : "Saved on this device. Safe to refresh or close Chrome." +
+          (drafts.size
+            ? " Draft explanations are kept; choose Good or Bad to use them in recalibration."
+            : "");
+  }
+  window.addEventListener("beforeunload", (event) => {
+    if (saving || starting || draftError) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+  });
   const cards = new Map();
   const undoStack = [];
   let activeKey = "",
@@ -227,6 +278,7 @@
   }
   function finishSaving() {
     saving = false;
+    renderSafety();
     $("undo-feedback").disabled = !undoStack.length;
     $("recalibrate").disabled = running;
     if (undoRequested) {
@@ -256,7 +308,7 @@
     } finally {
       animation.cancel();
       delete row.dataset.feedback;
-      row.querySelector(".selection-marker").textContent = "Selected · ← Bad · → Good";
+      row.querySelector(".selection-marker").textContent = "";
     }
   }
   function clearCards() {
@@ -316,6 +368,7 @@
   async function saveExplanationDrafts() {
     let unjudged = 0;
     saving = true;
+    renderSafety();
     try {
       const items = reviewItemsWithFeedback(review, calibration);
       for (const [key, explanation] of [...drafts]) {
@@ -337,7 +390,7 @@
           undoStack.push({ token: result.undoToken, key, inbox: vote.judgment });
           if (undoStack.length > 50) undoStack.shift();
         }
-        if (drafts.get(key) === explanation) drafts.delete(key);
+        if (drafts.get(key) === explanation) removeDraft(key);
       }
       calibration = await loadCalibration();
       return unjudged;
@@ -470,39 +523,68 @@
     }
     if (history.children.length > 1) host.append(history);
   }
+  function renderJob(job) {
+    currentJob = job;
+    running = starting || job?.status === "running";
+    $("recalibrate").disabled = running || saving;
+    $("recalibrate").textContent = running
+      ? "Recalibrating…"
+      : job?.status === "paused"
+        ? "Resume recalibration"
+        : "Recalibrate rules";
+    const progress = $("calibration-progress");
+    progress.textContent =
+      job?.status === "running"
+        ? `${job.phase || "Recalibrating"} · ${job.outcomes.filter((item) => item.status !== "pending").length} rules checked. Continues in the background; resumes when Chrome reopens.`
+        : job?.status === "paused"
+          ? `Paused: ${job.error} Completed work is saved. Resume when ready.`
+          : job?.status === "complete"
+            ? "Recalibration complete. Results saved on this device."
+            : "";
+    const signature = JSON.stringify([job?.id, job?.status, job?.outcomes]);
+    if (signature !== resultSignature) {
+      resultSignature = signature;
+      $("calibration-results").replaceChildren(
+        ...(job?.outcomes || []).map(renderCalibrationOutcome)
+      );
+      if (job?.status === "complete") {
+        const count = job.outcomes.filter((item) => item.status === "updated").length;
+        const suggestions = job.outcomes.reduce(
+          (sum, item) => sum + (item.additions?.length || 0),
+          0
+        );
+        status(
+          (job.outcomes.length
+            ? `${count} ${count === 1 ? "rule" : "rules"} updated.`
+            : "No new corrections to apply.") +
+            (suggestions
+              ? ` ${suggestions} additional ${suggestions === 1 ? "rule suggested" : "rules suggested"}.`
+              : "")
+        );
+      }
+    }
+    renderSafety();
+  }
+  watchCalibrationJob(renderJob);
+  loadCalibrationJob()
+    .then(renderJob)
+    .catch(() => status("Could not load recalibration progress."));
+  send({ type: "getCalibrationJob" }).catch(() => {});
   $("recalibrate").addEventListener("click", async () => {
     if (running || saving) return;
-    running = true;
-    $("recalibrate").disabled = true;
-    $("recalibrate").textContent = "Recalibrating…";
-    status("Proposing revisions and replaying saved judgments. This can take a minute.");
-    $("calibration-results").replaceChildren();
+    starting = true;
+    renderJob(currentJob);
     try {
-      const unjudged = await saveExplanationDrafts();
-      const result = await send({ type: "recalibrateRules" });
-      [settings, calibration] = await Promise.all([loadSettings(), loadCalibration()]);
-      $("calibration-results").replaceChildren(...result.outcomes.map(renderCalibrationOutcome));
-      const count = result.outcomes.filter((item) => item.status === "updated").length;
-      const suggestions = result.outcomes.reduce(
-        (sum, item) => sum + (item.additions?.length || 0),
-        0
-      );
-      status(
-        (result.outcomes.length
-          ? `${count} ${count === 1 ? "rule" : "rules"} updated.`
-          : "No new corrections to apply.") +
-          (suggestions
-            ? ` ${suggestions} additional ${suggestions === 1 ? "rule suggested" : "rules suggested"}.`
-            : "") +
-          (unjudged ? ` ${unjudged} explanations still need a Good or Bad judgment.` : "")
-      );
-      render();
+      await saveExplanationDrafts();
+      await send({ type: "recalibrateRules" });
+      // Read the current checkpoint; the job may already have advanced since
+      // its initial acknowledgement was sent.
+      currentJob = await loadCalibrationJob();
     } catch (error) {
       status(error.message);
     } finally {
-      running = false;
-      $("recalibrate").disabled = false;
-      $("recalibrate").textContent = "Recalibrate rules";
+      starting = false;
+      renderJob(currentJob);
     }
   });
   function status(text) {
@@ -635,7 +717,7 @@
     const name = isFormat
       ? `Hide ${FORMAT_LABELS[rule.slice(7)]?.toLowerCase() || "this format"}`
       : rule;
-    const marker = el("p", "selection-marker", "Selected · ← Bad · → Good");
+    const marker = el("p", "selection-marker", "");
     marker.setAttribute("aria-hidden", "true");
     row.append(marker, el("p", "trigger-rule", name));
     const current = resolveCalibratedRule(rule, calibration.revisions);
@@ -658,6 +740,7 @@
     input.value = drafts.get(key) ?? vote?.explanation ?? "";
     input.addEventListener("input", () => {
       drafts.set(key, input.value);
+      persistDrafts();
       input.classList.toggle("has-text", Boolean(input.value));
       saveNote.hidden = !vote || input.value === vote.explanation;
     });
@@ -672,6 +755,7 @@
     const save = async (node, judgment, advance = true) => {
       if (saving) return;
       saving = true;
+      renderSafety();
       $("recalibrate").disabled = true;
       $("undo-feedback").disabled = true;
       const list = rows(),
@@ -695,7 +779,7 @@
         $("undo-feedback").disabled = false;
         status(judgment === "good" ? "Good ruling saved." : "Bad ruling saved.");
         await confirmJudgment(row, judgment, judgment !== originInbox);
-        drafts.delete(key);
+        removeDraft(key);
         activeKey = advance && nextKey ? nextKey : key;
         render();
         selectRuling(activeKey, true);
@@ -711,8 +795,8 @@
         finishSaving();
       }
     };
-    for (const judgment of ["good", "bad"]) {
-      const node = button(judgment === "good" ? "Good ruling" : "Bad ruling", (button) =>
+    for (const judgment of ["bad", "good"]) {
+      const node = button(judgment === "good" ? "Good ruling →" : "← Bad ruling", (button) =>
         save(button, judgment)
       );
       node.dataset.judgment = judgment;

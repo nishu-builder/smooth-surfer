@@ -23,6 +23,18 @@
     normalizeStats
   } = root.SmoothSurferSettings;
 
+  const JOB_KEY = "smoothSurferCalibrationJob";
+  const normalizeJob = (value) => (value?.version === 1 ? value : null);
+  function loadCalibrationJob() {
+    return read("local", JOB_KEY, null, normalizeJob);
+  }
+  function saveCalibrationJob(value) {
+    return write("local", JOB_KEY, value);
+  }
+  function watchCalibrationJob(callback) {
+    watchStorage("local", JOB_KEY, normalizeJob, callback);
+  }
+
   function loadCalibration() {
     return read("local", CALIBRATION_KEY, {}, normalizeCalibration);
   }
@@ -137,9 +149,11 @@
     const chromeArea = area(areaName);
 
     if (chromeArea) {
-      return new Promise((resolve) => {
+      return new Promise((resolve, reject) => {
         chromeArea.get({ [key]: defaults }, (result) => {
-          resolve(normalize(result[key]));
+          const lastError = chrome.runtime && chrome.runtime.lastError;
+          if (lastError) reject(new Error(lastError.message));
+          else resolve(normalize(result[key]));
         });
       });
     }
@@ -181,6 +195,9 @@
   }
 
   root.SmoothSurferStorage = {
+    loadCalibrationJob,
+    saveCalibrationJob,
+    watchCalibrationJob,
     loadCalibration,
     saveCalibration,
     watchCalibration,
