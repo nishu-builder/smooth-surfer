@@ -111,10 +111,12 @@ p {
   content: attr(data-description);
   position: absolute;
   top: calc(100% + 4px);
-  right: 0;
+  /* Reserve the checkbox column, including its keyboard focus outline. */
+  right: 30px;
+  pointer-events: none;
   z-index: 20;
   display: none;
-  width: min(260px, calc(100vw - 32px));
+  width: min(260px, calc(100% - 30px));
   border: 1px solid var(--ss-line);
   border-radius: var(--ss-radius);
   background: var(--ss-paper);
@@ -126,6 +128,10 @@ p {
   line-height: 1.35;
   padding: 6px;
   white-space: normal;
+}
+
+.switch-row.compact[data-description]::after {
+  width: min(260px, calc(100vw - 60px));
 }
 
 .switch-row[data-description]:hover::after,
