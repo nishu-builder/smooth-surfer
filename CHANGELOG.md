@@ -3,6 +3,15 @@
 Notable changes per released version. Versions match `manifest.json`, and a
 release is a `v*` tag; see [docs/RELEASING.md](docs/RELEASING.md).
 
+## 0.2.7
+
+- Add native X embeds, a responsive post-and-ruling layout, clearer selection, and compact matching popup styling.
+- Organize review into Uncategorized, Good rulings, Bad rulings, and Archived; retain judgments and archive unreviewed posts instead of deleting them.
+- Add arrow-key navigation and judgments, Cmd/Ctrl+Z undo, typing directly into explanations, Enter to save, and brief judgment confirmation animations.
+- Deduplicate posts by canonical status ID and keep popup startup fast without loading bulk review history.
+- Use written feedback and Bad rulings to propose and independently test rule revisions; explain outcomes and retain additional rule suggestions with Add, Dismiss, Reconsider, and Undo.
+- Save explanation drafts and run recalibration as a recoverable background job, with persistent results, restart recovery, and a clear safe-to-refresh status.
+
 ## 0.2.6
 
 - Replace restore/edit controls in review with per-rule Good ruling / Bad ruling feedback and optional explanations.
