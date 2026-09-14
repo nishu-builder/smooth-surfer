@@ -469,6 +469,67 @@ function classify(text, source, priority = 0) {
       self.SmoothSurferSettings.getReviewPostKey("twitter", "", [image])
     )
   );
+  const beforeLocal = fetchCalls.length;
+  const localCalls = [];
+  let localFails = false;
+  self.SmoothSurferLocalClient = {
+    prompt: async (system, prompt) => {
+      localCalls.push({ system, prompt });
+      if (localFails) throw new Error("Model unavailable");
+      if (system.startsWith("Suggest three"))
+        return JSON.stringify({ suggestions: ["Local suggestion"] });
+      if (prompt.includes("MALFORMED"))
+        return '{"results":[{"i":1,"blocked":true,"matches":[999]}]}';
+      const count = (prompt.match(/^\d+\. \[/gm) || []).length;
+      return JSON.stringify({
+        results: Array.from({ length: count }, (_, index) => ({
+          i: index + 1,
+          blocked: true,
+          matches: [1],
+          reasons: ["Local match"]
+        }))
+      });
+    }
+  };
+  self.SmoothSurferStorage.loadSecrets = async () => ({ anthropicApiKey: "" });
+  settingsState.aiProvider = "local";
+  settingsState.imageAnalysisEnabled = true;
+  const localResult = await classifyImage("Image opt out");
+  assert.equal(
+    localResult.classifier,
+    "chrome-nano",
+    "switching provider must not reuse a cloud cache entry"
+  );
+  assert.equal(localResult.blocked, true);
+  assert.equal(
+    localCalls[0].prompt.includes("pbs.twimg.com"),
+    false,
+    "local text mode must omit image URLs"
+  );
+  const localCount = localCalls.length;
+  await classifyImage("Image opt out");
+  assert.equal(localCalls.length, localCount, "local classifications are cached");
+  assert.deepEqual((await message({ type: "suggestFilterCriteria", text: "A post" })).suggestions, [
+    "Local suggestion"
+  ]);
+  assert.equal(
+    (await classifyImage("MALFORMED")).classifier,
+    "error",
+    "local results validate every match"
+  );
+  localFails = true;
+  assert.equal((await classifyImage("Unavailable local model")).classifier, "error");
+  assert.equal(
+    fetchCalls.length,
+    beforeLocal,
+    "local successes and failures never send data to the cloud"
+  );
+  localFails = false;
+  const pendingLocal = classifyImage("Provider changed while queued");
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  settingsState.aiProvider = "anthropic";
+  assert.equal((await pendingLocal).classifier, "error");
+  assert.equal(fetchCalls.length, beforeLocal, "queued local request must not switch to cloud");
   console.log("background tests passed");
   process.exit(0);
 })().catch((error) => {

@@ -1,0 +1,6 @@
+:root, body { width: auto; min-width: 280px; background: var(--ss-paper); }
+.model-setup { max-width: 640px; margin: 24px auto; padding: 16px; }
+.model-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.model-setup progress { width: 100%; margin-bottom: 8px; }
+
+.model-setup p { margin: 12px 0; }

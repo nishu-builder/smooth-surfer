@@ -76,7 +76,7 @@
           <span>Remove feed ads</span>
           <input type="checkbox" data-setting="twitterHideAds">
         </label>
-        <label class="switch-row" data-description="Requires an Anthropic key. Without one, content filtering stays off.">
+        <label class="switch-row" data-description="Uses the selected AI model. Cloud mode needs an Anthropic key; on-device mode needs a downloaded model.">
           <span>Filter out content</span>
           <input type="checkbox" data-setting="twitterFilterContent">
         </label>
@@ -109,7 +109,7 @@
           <span>Hide recommendations</span>
           <input type="checkbox" data-setting="redditHideRecommendations">
         </label>
-        <label class="switch-row" data-description="Requires an Anthropic key. Without one, content filtering stays off.">
+        <label class="switch-row" data-description="Uses the selected AI model. Cloud mode needs an Anthropic key; on-device mode needs a downloaded model.">
           <span>Filter out content</span>
           <input type="checkbox" data-setting="redditFilterContent">
         </label>
@@ -125,7 +125,7 @@
           <span>Hide recommendations</span>
           <input type="checkbox" data-setting="substackHideRecommendations">
         </label>
-        <label class="switch-row" data-description="Requires an Anthropic key. Without one, content filtering stays off.">
+        <label class="switch-row" data-description="Uses the selected AI model. Cloud mode needs an Anthropic key; on-device mode needs a downloaded model.">
           <span>Filter out content</span>
           <input type="checkbox" data-setting="substackFilterContent">
         </label>
@@ -133,7 +133,7 @@
 
       <section data-site-section="hacker-news">
         <h2>Hacker News</h2>
-        <label class="switch-row" data-description="Requires an Anthropic key. Without one, story and comment filtering stays off.">
+        <label class="switch-row" data-description="Uses the selected AI model. Set it up below to filter stories and comments.">
           <span>Filter stories/comments</span>
           <input type="checkbox" data-setting="hackerNewsFilterContent">
         </label>
@@ -145,6 +145,8 @@
 
       <section data-filter-panel>
         <h2>Content filter</h2>
+        <label class="field-row"><span>AI model</span><select data-setting="aiProvider"><option value="anthropic">Claude Haiku · cloud</option><option value="local">Gemini Nano · on-device</option></select></label>
+        <div data-local-model-controls hidden><p class="notice">Experimental. Text stays on this device. Image analysis is unavailable. No cloud fallback.</p><button type="button" data-local-model-setup>Set up on-device AI</button><button type="button" data-local-model-refresh>Check status</button></div>
         <label class="switch-row" data-description="Optional. Sends up to two supported image URLs per post to Claude alongside text. Adds API cost and latency. Requires an Anthropic key.">
           <span>Analyze images</span><input type="checkbox" data-setting="imageAnalysisEnabled">
         </label>
@@ -214,7 +216,7 @@
 
       <section data-consumption-panel>
         <h2>Consumption facts</h2>
-        <label class="switch-row" data-description="Labels posts you actually see with their emotional ingredients, using the same Claude Haiku calls as content filtering. Requires an Anthropic key.">
+        <label class="switch-row" data-description="Labels posts you actually see with their emotional ingredients, using the selected AI model.">
           <span>Track consumption</span>
           <input type="checkbox" data-setting="consumptionFactsEnabled">
         </label>

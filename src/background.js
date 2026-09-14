@@ -1,4 +1,4 @@
-importScripts("settings.js", "storage.js", "calibration.js");
+importScripts("settings.js", "storage.js", "calibration.js", "local-model-client.js");
 
 (function installSmoothSurferBackground() {
   "use strict";
@@ -74,11 +74,14 @@ importScripts("settings.js", "storage.js", "calibration.js");
   void calibration.resumeJob();
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (!message) {
+    if (!message || message.target === "local-model") {
       return false;
     }
 
     const reviewActions = {
+      getLocalModelStatus: () => self.SmoothSurferLocalClient.status(),
+      openLocalModelSetup: () =>
+        chrome.tabs.create({ url: chrome.runtime.getURL("src/local-model-setup.html") }),
       getReviewCount: async () => {
         const [review, feedback] = await Promise.all([
           loadReview(),
@@ -354,8 +357,55 @@ importScripts("settings.js", "storage.js", "calibration.js");
     return operation;
   }
 
+  async function requestModel(credential, options) {
+    if (credential?.provider !== "local")
+      return fetch("https://api.anthropic.com/v1/messages", options);
+    const body = JSON.parse(options.body);
+    const prompt = body.messages
+      .flatMap((message) => message.content)
+      .filter((part) => part.type === "text")
+      .map((part) => part.text)
+      .join("\n");
+    const answer = await self.SmoothSurferLocalClient.prompt(body.system, prompt);
+    const result = JSON.parse(answer);
+    if (!result || typeof result !== "object" || Array.isArray(result))
+      throw new Error("Invalid on-device response.");
+    if (
+      body.system.startsWith("Suggest three") &&
+      (!Array.isArray(result.suggestions) ||
+        !result.suggestions.length ||
+        result.suggestions.length > 3 ||
+        result.suggestions.some(
+          (rule) => typeof rule !== "string" || !rule.trim() || rule.length > 200
+        ))
+    )
+      throw new Error("No valid on-device suggestions were returned.");
+    if (
+      body.system.startsWith("Revise one") &&
+      ((result.rule !== null &&
+        (typeof result.rule !== "string" || !result.rule.trim() || result.rule.length > 500)) ||
+        typeof result.reason !== "string" ||
+        !result.reason.trim() ||
+        !Array.isArray(result.additions) ||
+        result.additions.length > 2 ||
+        result.additions.some(
+          (addition) =>
+            !addition ||
+            typeof addition.rule !== "string" ||
+            !addition.rule.trim() ||
+            addition.rule.length > 500 ||
+            !Number.isInteger(addition.feedbackIndex) ||
+            addition.feedbackIndex < 1 ||
+            typeof addition.instruction !== "string" ||
+            !addition.instruction.trim()
+        ))
+    )
+      throw new Error("No valid on-device rule proposal was returned.");
+    return { ok: true, json: async () => ({ content: [{ type: "text", text: answer }] }) };
+  }
+
   async function proposeRuleRevision(rule, examples, apiKey, context = {}) {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await requestModel(apiKey, {
       method: "POST",
       signal: AbortSignal.timeout(15000),
       headers: {
@@ -416,7 +466,9 @@ importScripts("settings.js", "storage.js", "calibration.js");
 
   async function suggestFilterCriteria(text) {
     const { anthropicApiKey } = await loadSecrets();
-    if (!anthropicApiKey)
+    const settings = await loadSettings();
+    const apiKey = settings.aiProvider === "local" ? { provider: "local" } : anthropicApiKey;
+    if (!apiKey)
       throw new Error(
         "Add an Anthropic key in the popup to get suggestions, or write your own filter."
       );
@@ -424,7 +476,7 @@ importScripts("settings.js", "storage.js", "calibration.js");
       .trim()
       .slice(0, 2000);
     if (!post) throw new Error("This post has no text to suggest a filter from.");
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await requestModel(apiKey, {
       method: "POST",
       signal: AbortSignal.timeout(15000),
       headers: {
@@ -462,14 +514,13 @@ importScripts("settings.js", "storage.js", "calibration.js");
     return { suggestions };
   }
 
-  function openSettingsPopup() {
-    // chrome.action.openPopup() landed in Chrome 127; degrade quietly on older
-    // builds where the keyboard shortcut simply does nothing.
-    if (!chrome.action || typeof chrome.action.openPopup !== "function") {
-      return;
+  async function openSettingsPopup() {
+    try {
+      if (typeof chrome.action?.openPopup !== "function") throw new Error("Popup unavailable");
+      await chrome.action.openPopup();
+    } catch {
+      await chrome.tabs.create({ url: chrome.runtime.getURL("popup.html?view=settings") });
     }
-
-    Promise.resolve(chrome.action.openPopup()).catch(() => {});
   }
 
   async function recordHide(source, reasons) {
@@ -567,9 +618,16 @@ importScripts("settings.js", "storage.js", "calibration.js");
     const normalizedSource = normalizeSource(source);
     const filterSetting = FILTER_SETTING_BY_SOURCE[normalizedSource];
     const normalizedText = normalizeText(text).slice(0, 2000);
-    const images = settings.imageAnalysisEnabled ? normalizeImageUrls(imageUrls) : [];
+    const images =
+      settings.aiProvider !== "local" && settings.imageAnalysisEnabled
+        ? normalizeImageUrls(imageUrls)
+        : [];
 
-    if (!filterSetting || !settings[filterSetting] || !secrets.anthropicApiKey) {
+    if (
+      !filterSetting ||
+      !settings[filterSetting] ||
+      (settings.aiProvider !== "local" && !secrets.anthropicApiKey)
+    ) {
       return {
         blocked: false,
         reasons: [],
@@ -578,7 +636,7 @@ importScripts("settings.js", "storage.js", "calibration.js");
     }
 
     const cacheKey = JSON.stringify({
-      classifier: "claude-haiku",
+      classifier: settings.aiProvider === "local" ? "chrome-nano" : "claude-haiku",
       consumption: Boolean(settings.consumptionFactsEnabled),
       criteria: settings.filterCriteria,
       source: normalizedSource,
@@ -599,9 +657,12 @@ importScripts("settings.js", "storage.js", "calibration.js");
         signature: JSON.stringify([
           settings.filterCriteria,
           Boolean(settings.consumptionFactsEnabled),
-          settings.imageAnalysisEnabled
+          settings.imageAnalysisEnabled,
+          settings.aiProvider
         ]),
         cacheKey,
+        provider: settings.aiProvider,
+        queuedAt: Date.now(),
         priority: Number.isFinite(priority) ? Math.max(0, Math.min(priority, 10000000)) : 0,
         resolve
       });
@@ -618,7 +679,7 @@ importScripts("settings.js", "storage.js", "calibration.js");
 
     if (activeBatches >= MAX_ACTIVE_BATCHES) return;
     batchQueue.sort((a, b) => a.priority - b.priority);
-    const queued = batchQueue.splice(0, MAX_BATCH_SIZE);
+    const queued = batchQueue.splice(0, batchQueue[0]?.provider === "local" ? 2 : MAX_BATCH_SIZE);
 
     if (batchQueue.length > 0) {
       batchTimer = setTimeout(flushBatch, BATCH_DELAY_MS);
@@ -627,6 +688,15 @@ importScripts("settings.js", "storage.js", "calibration.js");
     const entries = new Map();
 
     queued.forEach((item) => {
+      if (item.provider === "local" && Date.now() - item.queuedAt > 60000) {
+        item.resolve({
+          blocked: false,
+          reasons: [],
+          classifier: "error",
+          error: "On-device AI is busy. This post will be retried."
+        });
+        return;
+      }
       const cached = resultCache.get(item.cacheKey);
 
       if (cached) {
@@ -659,20 +729,21 @@ importScripts("settings.js", "storage.js", "calibration.js");
       const signature = JSON.stringify([
         settings.filterCriteria,
         Boolean(settings.consumptionFactsEnabled),
-        settings.imageAnalysisEnabled
+        settings.imageAnalysisEnabled,
+        settings.aiProvider
       ]);
       if (
         items.some(
           (item) => item.signature !== signature || !settings[FILTER_SETTING_BY_SOURCE[item.source]]
         ) ||
-        !secrets.anthropicApiKey
+        (settings.aiProvider !== "local" && !secrets.anthropicApiKey)
       )
         throw new Error("Filter settings changed. Retry with current settings.");
       const results = await classifyBatchWithHaiku(
         items,
         settings.filterCriteria,
         Boolean(settings.consumptionFactsEnabled),
-        secrets.anthropicApiKey
+        settings.aiProvider === "local" ? { provider: "local" } : secrets.anthropicApiKey
       );
 
       Array.from(entries.keys()).forEach((cacheKey, index) => {
@@ -699,7 +770,22 @@ importScripts("settings.js", "storage.js", "calibration.js");
   }
 
   async function classifyBatchWithHaiku(items, criteria, includeTags, apiKey, strict = false) {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    if (apiKey?.provider === "local" && items.length > 2) {
+      const results = [];
+      for (let index = 0; index < items.length; index += 2) {
+        results.push(
+          ...(await classifyBatchWithHaiku(
+            items.slice(index, index + 2),
+            criteria,
+            includeTags,
+            apiKey,
+            true
+          ))
+        );
+      }
+      return results;
+    }
+    const response = await requestModel(apiKey, {
       method: "POST",
       signal: AbortSignal.timeout(10000),
       headers: {
@@ -752,7 +838,15 @@ importScripts("settings.js", "storage.js", "calibration.js");
       .join("\n")
       .trim();
 
-    return parseBatchAnswer(answer, items.length, criteria, strict);
+    const results = parseBatchAnswer(
+      answer,
+      items.length,
+      criteria,
+      strict || apiKey?.provider === "local"
+    );
+    return apiKey?.provider === "local"
+      ? results.map((result) => ({ ...result, classifier: "chrome-nano" }))
+      : results;
   }
 
   function buildClassifierPrompt(items, criteria, includeTags) {

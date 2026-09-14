@@ -65,6 +65,7 @@
     twitterHideQuotes: false,
     twitterHideVideos: false,
     imageAnalysisEnabled: false,
+    aiProvider: "anthropic",
     twitterFilterContent: true,
     twitterHideTrends: true,
     twitterEnforceFollowing: true,
@@ -123,6 +124,7 @@
     const next = { ...DEFAULT_SETTINGS, ...source };
 
     next.enabled = Boolean(next.enabled);
+    next.aiProvider = source.aiProvider === "local" ? "local" : "anthropic";
     next.filterCriteria = normalizeFilterCriteria(
       source.filterCriteria || source.twitterFilterCriteria || DEFAULT_FILTER_CRITERIA
     );
