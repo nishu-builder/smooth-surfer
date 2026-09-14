@@ -6,7 +6,7 @@ Settings are stored with `chrome.storage.sync`. Anthropic API keys are stored wi
 
 When `Filter out content` is enabled and an Anthropic API key is saved, Smooth Surfer may send visible and upcoming feed text to Anthropic for classification. Without that key, AI content filtering stays disabled and no feed text is sent to Anthropic by this feature.
 
-The Review rulings page stores text previews, supported image URLs, post links, author labels, filtering reasons, matching rules, and format labels locally using `chrome.storage.local`. It shows up to 2,000 posts from the last 7 days; older entries are pruned when history is updated. A 6 MB budget may retain fewer exceptionally large entries. Restore choices are stored as up to 4,000 post fingerprints so the original text and image URLs are not needed after its preview expires. History and restore choices are not synced or sent to a Smooth Surfer server. You can clear previews from the review page. New X entries may also retain the author handle, supported avatar URL, post timestamp, text layout, and quoted-post excerpt.
+The Review rulings page stores text previews, supported image URLs, post links, author labels, filtering reasons, matching rules, and format labels locally using `chrome.storage.local`. It keeps up to 2,000 recent and archived posts. Recent entries expire after seven days; archived entries have no time cutoff. A 6 MB budget may retain fewer exceptionally large entries. Restore choices are stored as up to 4,000 post fingerprints so the original text and image URLs are not needed after its preview expires. History and restore choices are not synced or sent to a Smooth Surfer server. Archive unreviewed moves pending rulings to an Archived inbox; they remain available to judge or return to the queue. Returned posts receive seven more days in the queue. Reviewed examples remain visible. New X entries may also retain the author handle, supported avatar URL, post timestamp, text layout, and quoted-post excerpt.
 
 Choosing Suggest filters in Less like this sends that post's text to Anthropic using your saved API key to suggest editable rules. Suggestions run only when requested and are not applied until you choose Add filter. Writing a rule yourself does not request suggestions.
 
@@ -17,3 +17,17 @@ Format filters for reposts, quote posts, and video posts run locally without an 
 Smooth Surfer does not sell data or collect analytics.
 
 Good ruling / Bad ruling judgments and optional explanations are stored locally, separately from review previews, up to 2,000 judgments within 2 MB. They remain when review history is cleared. Recalibrate rules sends selected labeled examples, explanations, and supported image URLs to Anthropic with the saved API key, then tests proposed revisions in separate classification calls. Image examples require Analyze images to be enabled. Changes that pass the replay are applied automatically; the last 30 rule revisions remain locally for undo. Votes alone do not send an API request or change filtering. Format judgments stay local and are not used to rewrite content rules.
+
+X posts default to native embeds, loaded near the viewport in a cross-origin frame with no access to extension data or APIs. Only the public post ID is supplied to the renderer. This contacts X and its media providers; X’s own privacy policy applies. The frame requests do-not-track mode. Choose Saved copies to avoid loading native embeds. Saved copies remain available if X cannot render a post. Feedback records also retain the saved author, post link, display data, and reasons so both good and bad examples remain reviewable after the seven-day history expires, within the feedback count and byte limits.
+
+Undo keeps up to 50 prior judgment receipts locally within 512 KB so a background-worker restart does not disable undo. These receipts are not sent to Anthropic.
+
+Rule suggestions retain the proposed rule, its source rule, the supporting excerpt
+from your explanation, and its pending/added/dismissed status locally. Up to 50
+suggestions are kept within 100 KB so they remain available across review sessions.
+
+Recalibration progress, the latest run's results, and pending update recovery data
+are also kept on this device. Explanation drafts are saved locally as you type;
+unjudged drafts are not sent for recalibration. Jobs resume after Chrome reopens.
+An API request interrupted by browser shutdown may be repeated. These local
+records are removed when extension data is cleared or the extension is uninstalled.

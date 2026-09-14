@@ -1,6 +1,6 @@
 {
   "name": "smooth-surfer",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "private": true,
   "description": "Filter unwanted posts and reduce distractions on the web.",
   "license": "MIT",

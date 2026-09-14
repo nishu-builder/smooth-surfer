@@ -63,21 +63,31 @@ dialog p { color: var(--ss-muted); }
 .review-images { display: flex; flex-wrap: wrap; gap: 8px; }
 .review-images img { max-width: 100%; max-height: 240px; object-fit: contain; margin-bottom: 8px; }
 
-/* Review decisions first; render the saved post underneath with native hierarchy. */
-.review-page main { max-width: 900px; }
+/* Post first, then compact rule judgments in a narrow reading column. */
+.review-page main { max-width: 700px; }
 .review-help { margin: 5px 0; color: var(--ss-muted); font-size: 12px; }
-.review-page .post { padding: 0; overflow: hidden; }
-.rulings { background: var(--ss-gray); border-bottom: 1px solid var(--ss-line); padding: 10px 12px; }
+.review-page .post { padding: 0 0 18px; margin: 0 0 18px; border: 0; border-bottom: 2px solid var(--ss-line); border-radius: 0; }
+.rulings { border-top: 1px solid var(--ss-line); padding: 10px 0 0; }
 .ruling-heading { font: 11px/1.4 var(--ss-mono); color: var(--ss-muted); margin: 0 0 6px; }
-.ruling + .ruling { border-top: 1px solid var(--ss-line); margin-top: 8px; padding-top: 8px; }
-.trigger-rule { margin: 0 0 6px; font-weight: 600; font-size: 13px; overflow-wrap: anywhere; }
+.ruling { padding: 8px 10px; border: 1px solid transparent; border-left-width: 3px; }
+.ruling[data-current="true"] { border-color: var(--ss-action); background: var(--ss-gray); }
+.ruling + .ruling { margin-top: 4px; }
+.trigger-rule { margin: 0 0 6px; font: 12px/1.45 var(--ss-mono); overflow-wrap: anywhere; }
 .judgments { display: inline-flex; gap: 5px; }
 .judgments [aria-pressed="true"] { background: var(--ss-ink); color: white; }
 .feedback-note { margin-top: 6px; font-size: 12px; }
-.feedback-note summary { cursor: pointer; color: var(--ss-muted); }
-.feedback-note textarea { display: block; margin: 6px 0; font-size: 13px; }
+.feedback-note textarea { display: block; min-height: 32px; margin: 6px 0; font-size: 13px; caret-color: var(--ss-ink); }
+.feedback-note textarea:focus, .feedback-note textarea.has-text { min-height: 70px; }
+.feedback-note textarea::placeholder { color: var(--ss-muted); font: 11px/1.6 var(--ss-mono); }
+.note-hint { display: none; margin: 4px 0; color: var(--ss-muted); font: 10px/1.4 var(--ss-mono); }
+.feedback-note:focus-within .note-hint { display: block; }
+.ruling[data-feedback="good"] { border-color: #237044; background: #e7f5ec; }
+.ruling[data-feedback="bad"] { border-color: #a53030; background: #fbeaea; }
+.ruling[data-feedback] .selection-marker { visibility: visible; }
+.ruling[data-feedback="good"] .selection-marker { background: #237044; color: white; }
+.ruling[data-feedback="bad"] .selection-marker { background: #a53030; color: white; }
 .ruling-note, .ruling-reason { font-size: 11px; color: var(--ss-muted); margin: 5px 0; overflow-wrap: anywhere; }
-.tweet-preview { padding: 12px; }
+.tweet-preview { padding: 12px 0; }
 .tweet-author { display: flex; align-items: center; gap: 8px; }
 .avatar { position: relative; width: 36px; height: 36px; flex: 0 0 36px; border-radius: 50%; background: var(--ss-gray); display: grid; place-items: center; overflow: hidden; font-weight: 700; }
 .avatar-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
@@ -98,3 +108,46 @@ dialog p { color: var(--ss-muted); }
 .calibration-result p, .revision p { margin: 4px 0; }
 .revision small { display: block; margin-bottom: 6px; }
 #revision-history summary { cursor: pointer; font: 12px var(--ss-mono); margin: 8px 0; }
+
+.review-controls { position: sticky; top: 0; z-index: 30; background: var(--ss-paper); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--ss-line); }
+#keyboard-help { font: 11px/1.4 var(--ss-mono); margin: 0 auto 0 0; color: var(--ss-muted); }
+.review-controls label { flex-direction: row; align-items: center; }
+.review-controls select { width: auto; font: 11px var(--ss-mono); padding: 5px; }
+.tweet-embed { display: block; width: 100%; height: 0; border: 0; }
+.embed-status { font: 11px/1.4 var(--ss-mono); color: var(--ss-muted); margin: 6px 0; }
+.embedded-post[data-ready="true"] > .tweet-preview, .embed-status:empty { display: none; }
+.embedded-post[data-ready="true"] { padding-bottom: 8px; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+
+.review-page #posts, .review-page .list-heading { max-width: 550px; margin-left: auto; margin-right: auto; }
+
+#keyboard-target { flex-basis: 100%; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11px/1.4 var(--ss-mono); }
+.selection-marker { visibility: hidden; width: fit-content; margin: 0 0 6px; padding: 2px 5px; background: var(--ss-action); color: var(--ss-paper); font: 10px/1.4 var(--ss-mono); }
+.ruling[data-current="true"] .selection-marker { visibility: visible; }
+.review-page .post[data-current="true"] { border-bottom-color: var(--ss-action); }
+@media (min-width: 960px) {
+  .review-page main { max-width: 1120px; }
+  .review-page #posts, .review-page .list-heading { max-width: none; }
+  .review-page .post { display: grid; grid-template-columns: minmax(0, 550px) minmax(0, 1fr); gap: 24px; align-items: start; }
+  .review-page .post > * { min-width: 0; }
+  .rulings { border-top: 0; border-left: 1px solid var(--ss-line); padding: 0 0 0 16px; }
+  .review-page .post > .tweet-preview { padding-top: 0; }
+}
+
+.inboxes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 10px 0 0; }
+.inboxes button { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px; padding: 8px; text-align: left; }
+.inboxes [aria-pressed="true"] { background: var(--ss-action); color: var(--ss-paper); }
+.inbox-count { font: 11px/1.4 var(--ss-mono); }
+
+.return-to-queue { margin-bottom: 6px; }
+@media (max-width: 600px) { .inboxes { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.replay-evidence summary { cursor: pointer; margin-top: 8px; font: 11px var(--ss-mono); }
+.replay-example, .suggested-rule { border-top: 1px solid var(--ss-line); margin-top: 8px; padding-top: 8px; }
+
+#rule-suggestions { border: 1px solid var(--ss-line); padding: 10px; margin: 8px 0; font-size: 12px; }
+.suggested-rule p { margin: 4px 0; }
+.suggested-rule button + button { margin-left: 6px; }
+.suggestion-history summary { cursor: pointer; margin-top: 8px; font: 11px var(--ss-mono); }
+
+.selection-marker:empty { display: none; }

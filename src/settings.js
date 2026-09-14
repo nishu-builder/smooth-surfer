@@ -499,7 +499,10 @@
     const seen = new Set();
     let bytes = 0;
     const feedback = [];
-    for (const item of Array.isArray(data.feedback) ? data.feedback : []) {
+    const newestFeedback = (Array.isArray(data.feedback) ? [...data.feedback] : []).sort(
+      (a, b) => (Number(b?.at) || 0) - (Number(a?.at) || 0)
+    );
+    for (const item of newestFeedback) {
       if (
         !item ||
         typeof item.rule !== "string" ||
@@ -510,12 +513,18 @@
         continue;
       const entry = {
         rule: item.rule.slice(0, 500),
-        postKey: item.postKey.slice(0, 128),
+        postKey:
+          canonicalReviewId(item.source || "twitter", item.url) || item.postKey.slice(0, 128),
         judgment: item.judgment,
         explanation: String(item.explanation || "").slice(0, 800),
         text: String(item.text || "").slice(0, 2000),
         images: normalizeImageUrls(item.images),
         source: String(item.source || "twitter").slice(0, 40),
+        url: safePostUrl(item.url),
+        author: String(item.author || "").slice(0, 160),
+        display: normalizePostDisplay(item.display),
+        reasons: normalizeCriteria(item.reasons || []).slice(0, 3),
+        postAt: Number.isFinite(item.postAt) ? item.postAt : item.at,
         at: Number.isFinite(item.at) ? item.at : Date.now()
       };
       const key = JSON.stringify([entry.rule, entry.postKey]);
@@ -543,13 +552,56 @@
         at: r.at,
         examples: Math.max(0, Number(r.examples) || 0),
         fixed: Math.max(0, Number(r.fixed) || 0),
+        remaining: Math.max(0, Number(r.remaining) || 0),
         undone: Boolean(r.undone)
       }));
     const attempts = (Array.isArray(data.attempts) ? data.attempts : [])
       .filter((item) => item && typeof item.rule === "string" && Number.isFinite(item.at))
       .slice(0, 100)
       .map((item) => ({ rule: item.rule.slice(0, 500), at: item.at }));
-    return { feedback, revisions, attempts };
+    // Undo receipts share the same write as their judgment, so worker restarts
+    // cannot lose them or expose an undo for a vote that did not save.
+    const undo = [];
+    let undoBytes = 0;
+    for (const item of Array.isArray(data.undo) ? data.undo : []) {
+      if (!item || typeof item.token !== "string") continue;
+      const recorded = normalizeCalibration({ feedback: [item.recorded] }).feedback[0];
+      if (!recorded) continue;
+      const entry = {
+        token: item.token.slice(0, 128),
+        recorded,
+        previous: normalizeCalibration({ feedback: item.previous }).feedback.filter(
+          (vote) => vote.postKey === recorded.postKey
+        )
+      };
+      undoBytes += new TextEncoder().encode(JSON.stringify(entry)).length;
+      if (undoBytes > 512 * 1024 || undo.length >= 50) break;
+      undo.push(entry);
+    }
+    const suggestions = [];
+    let suggestionBytes = 0;
+    for (const item of Array.isArray(data.suggestions) ? data.suggestions : []) {
+      if (
+        !item ||
+        typeof item.id !== "string" ||
+        typeof item.rule !== "string" ||
+        !item.rule.trim()
+      )
+        continue;
+      const entry = {
+        id: item.id.slice(0, 100),
+        rule: item.rule.trim().slice(0, 500),
+        instruction: String(item.instruction || "").slice(0, 800),
+        sourceRule: String(item.sourceRule || "").slice(0, 500),
+        status: ["pending", "added", "dismissed"].includes(item.status) ? item.status : "pending",
+        created: Boolean(item.created),
+        at: Number.isFinite(item.at) ? item.at : Date.now()
+      };
+      suggestionBytes += new TextEncoder().encode(JSON.stringify(entry)).length;
+      if (suggestionBytes > 100 * 1024 || suggestions.length >= 50) break;
+      if (!suggestions.some((saved) => saved.id === entry.id)) suggestions.push(entry);
+    }
+    return { feedback, revisions, attempts, undo, suggestions };
   }
   function resolveCalibratedRule(rule, revisions) {
     let current = rule;
@@ -595,9 +647,23 @@
   }
 
   const REVIEW_KEY = "smoothSurferReview";
-  const DEFAULT_REVIEW = { items: [], restored: [] };
+  const DEFAULT_REVIEW = { items: [], restored: [], archived: [] };
 
-  function getReviewPostKey(source, text, images = []) {
+  function canonicalReviewId(source, value) {
+    if (source !== "twitter") return "";
+    try {
+      const url = new URL(safePostUrl(value));
+      if (!/^(?:www\.|mobile\.)?(?:twitter\.com|x\.com)$/.test(url.hostname)) return "";
+      const id = url.pathname.match(/^\/(?:[^/]+|i\/web)\/status\/(\d+)(?:\/|$)/)?.[1];
+      return id ? `twitter:status:${id}` : "";
+    } catch {
+      return "";
+    }
+  }
+
+  function getReviewPostKey(source, text, images = [], url = "") {
+    const canonical = canonicalReviewId(source, url);
+    if (canonical) return canonical;
     const normalized = `${source}|${String(text || "")
       .replace(/\s+/g, " ")
       .trim()
@@ -615,24 +681,42 @@
   function normalizeReview(value) {
     const data = value || {};
     const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    const seen = new Set();
-    const items = (Array.isArray(data.items) ? data.items : [])
-      .filter((item) => {
-        if (
-          !item ||
-          typeof item.id !== "string" ||
-          (!item.text && !normalizeImageUrls(item.images).length) ||
-          !Number.isFinite(item.at) ||
-          item.at < cutoff ||
-          seen.has(item.id)
-        )
-          return false;
-        seen.add(item.id);
-        return true;
-      })
-      .slice(0, REVIEW_LIMIT)
-      .map((item) => ({
-        id: item.id.slice(0, 2050),
+    const archivedIds = new Set(Array.isArray(data.archived) ? data.archived : []);
+    const remappedIds = new Map();
+    const merged = new Map();
+    const candidates = (Array.isArray(data.items) ? [...data.items] : []).sort(
+      (a, b) => (Number(b?.at) || 0) - (Number(a?.at) || 0)
+    );
+    for (const item of candidates) {
+      if (
+        !item ||
+        typeof item.id !== "string" ||
+        (!item.text && !normalizeImageUrls(item.images).length) ||
+        !Number.isFinite(item.at)
+      )
+        continue;
+      const id = canonicalReviewId(item.source, item.url) || item.id.slice(0, 2050);
+      if (
+        Math.max(item.at, Number(item.queuedAt) || 0) < cutoff &&
+        !archivedIds.has(item.id) &&
+        !archivedIds.has(id)
+      )
+        continue;
+      remappedIds.set(item.id, id);
+      const previous = merged.get(id);
+      if (previous) {
+        previous.criteria = normalizeCriteria([
+          ...previous.criteria,
+          ...(Array.isArray(item.criteria) ? item.criteria : [])
+        ]).slice(0, 20);
+        previous.formats = FORMAT_KEYS.filter(
+          (key) => previous.formats.includes(key) || item.formats?.includes(key)
+        );
+        continue;
+      }
+      if (merged.size >= REVIEW_LIMIT) continue;
+      merged.set(id, {
+        id,
         text: String(item.text || "").slice(0, 2000),
         images: normalizeImageUrls(item.images),
         display: normalizePostDisplay(item.display),
@@ -646,24 +730,79 @@
         criteria: normalizeCriteria(item.criteria || [])
           .slice(0, 20)
           .map((rule) => rule.slice(0, 500)),
-        at: item.at
-      }));
+        at: item.at,
+        ...(Number.isFinite(item.queuedAt) ? { queuedAt: item.queuedAt } : {})
+      });
+    }
+    const items = [...merged.values()];
     const restored = [
       ...new Set(
         (Array.isArray(data.restored) ? data.restored : [])
           .filter((id) => typeof id === "string")
-          .map((id) => id.slice(0, 2050))
+          .map((id) => remappedIds.get(id) || id.slice(0, 2050))
       )
     ].slice(-4000);
     const encoder = new TextEncoder();
-    let bytes = encoder.encode(JSON.stringify({ items: [], restored })).length;
+    const archiveCandidates = [
+      ...new Set([...archivedIds].map((id) => remappedIds.get(id) || id))
+    ].filter((id) => merged.has(id));
+    let bytes = encoder.encode(
+      JSON.stringify({ items: [], restored, archived: archiveCandidates })
+    ).length;
     const boundedItems = [];
     for (const item of items) {
       bytes += encoder.encode(JSON.stringify(item)).length + 1;
       if (bytes > REVIEW_BYTE_LIMIT) break;
       boundedItems.push(item);
     }
-    return { items: boundedItems, restored };
+    const retainedIds = new Set(boundedItems.map((item) => item.id));
+    const archived = archiveCandidates.filter((id) => retainedIds.has(id));
+    return { items: boundedItems, restored, archived };
+  }
+
+  // Reviewed examples outlive the rolling feed history. Keep both judgments
+  // visible, and merge their original rules without duplicating recent posts.
+  function reviewItemsWithFeedback(review, calibration) {
+    const items = new Map(
+      review.items.map((item) => [
+        item.id,
+        { ...item, criteria: [...item.criteria], formats: [...item.formats] }
+      ])
+    );
+    for (const vote of calibration.feedback) {
+      let item = items.get(vote.postKey);
+      if (!item) {
+        item = {
+          id: vote.postKey,
+          text: vote.text,
+          images: vote.images,
+          source: vote.source,
+          url: vote.url || "",
+          author: vote.author || "",
+          display: vote.display || {},
+          reasons: vote.reasons || [],
+          criteria: [],
+          formats: [],
+          at: vote.postAt || vote.at,
+          savedExample: true
+        };
+        items.set(item.id, item);
+      }
+      if (vote.rule.startsWith("format:")) {
+        const format = vote.rule.slice(7);
+        if (FORMAT_KEYS.includes(format) && !item.formats.includes(format))
+          item.formats.push(format);
+      } else if (
+        !item.criteria.some(
+          (rule) =>
+            resolveCalibratedRule(rule, calibration.revisions) ===
+            resolveCalibratedRule(vote.rule, calibration.revisions)
+        )
+      ) {
+        item.criteria.push(vote.rule);
+      }
+    }
+    return [...items.values()].sort((a, b) => b.at - a.at);
   }
 
   function safePostUrl(value) {
@@ -687,12 +826,14 @@
     FILTER_SETS_KEY,
     BUILTIN_FILTER_SETS,
     REVIEW_LIMIT,
+    reviewItemsWithFeedback,
     normalizeFilterSet,
     normalizeFilterSets,
     normalizeImageUrls,
     REVIEW_KEY,
     DEFAULT_REVIEW,
     getReviewPostKey,
+    canonicalReviewId,
     normalizeReview,
     safePostUrl,
     CONSUMPTION_KEY,

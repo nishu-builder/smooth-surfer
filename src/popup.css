@@ -1,6 +1,6 @@
 :root {
   color-scheme: light;
-  font-family: var(--ss-sans);
+  font-family: var(--ss-mono);
   width: 320px;
   min-width: 320px;
   overflow-x: hidden;
@@ -42,11 +42,6 @@ section {
   padding: 6px;
 }
 
-section[data-active-site="true"] {
-  border-color: var(--ss-action);
-  border-left: 2px solid var(--ss-focus);
-}
-
 section[data-active-site="true"] h2::after {
   content: "Active";
   display: inline-block;
@@ -80,28 +75,28 @@ h2 {
   font-family: var(--ss-mono);
   color: var(--ss-action);
   font-size: 11px;
-  font-weight: 750;
+  font-weight: 400;
   text-transform: none;
 }
 
 p {
   color: var(--ss-muted);
-  font-size: 11px;
+  font: 11px/1.4 var(--ss-sans);
 }
 
 .switch-row {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 18px;
+  grid-template-columns: minmax(0, 1fr) 16px;
   align-items: center;
   gap: 10px;
   min-width: 0;
-  min-height: 24px;
+  min-height: 28px;
 }
 
 .switch-row.compact {
-  grid-template-columns: auto 18px;
-  min-height: 22px;
+  grid-template-columns: auto 16px;
+  min-height: 28px;
 }
 
 .switch-row span {
@@ -109,7 +104,7 @@ p {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .switch-row[data-description]::after {
@@ -123,10 +118,11 @@ p {
   border: 1px solid var(--ss-line);
   border-radius: var(--ss-radius);
   background: var(--ss-paper);
-  box-shadow: 0 10px 28px rgba(12, 18, 28, 0.16);
+  box-shadow: 0 2px 6px #1717171a;
+  font-family: var(--ss-sans);
   color: var(--ss-ink);
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 400;
   line-height: 1.35;
   padding: 6px;
   white-space: normal;
@@ -145,7 +141,7 @@ p {
 .field-row span {
   color: var(--ss-muted);
   font-size: 11px;
-  font-weight: 750;
+  font-weight: 400;
   text-transform: none;
 }
 
@@ -154,8 +150,8 @@ input[type="checkbox"] {
   appearance: none;
   display: inline-grid;
   place-items: center;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   flex: 0 0 auto;
   margin: 0;
   border: 1px solid var(--ss-control-line);
@@ -170,13 +166,15 @@ input[type="checkbox"]:checked {
   background-image: url("data:image/svg+xml,%3Csvg width='14' height='14' viewBox='0 0 14 14' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11.8 3.4 5.7 9.7 2.2 6.2' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-position: center;
   background-repeat: no-repeat;
-  background-size: 14px 14px;
+  background-size: 12px 12px;
 }
 
 input[type="checkbox"]:focus-visible,
 button:focus-visible,
 input[type="text"]:focus-visible,
 input[type="password"]:focus-visible,
+input[type="time"]:focus-visible,
+a:focus-visible,
 select:focus-visible,
 summary:focus-visible {
   outline: 2px solid var(--ss-focus);
@@ -241,9 +239,8 @@ input:disabled {
   border-radius: var(--ss-radius);
   background: var(--ss-gray);
   color: var(--ss-muted);
-  font-size: 11px;
-  font-weight: 650;
-  padding: 7px;
+  font: 11px/1.4 var(--ss-sans);
+  padding: 6px;
 }
 
 .notice[hidden] {
@@ -436,21 +433,42 @@ input:disabled {
   justify-content: space-between;
   gap: 4px;
   min-width: 0;
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .stats-row span:last-child {
   color: var(--ss-muted);
   flex: 0 0 auto;
-  font-weight: 650;
+  font-weight: 400;
+}
+
+.popup-nav {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  border-top: 1px solid var(--ss-line);
 }
 
 .review-link {
-  grid-column: 1 / -1;
-  border-top: 1px solid var(--ss-line);
-  padding-top: 5px;
+  display: flex;
+  align-items: center;
+  min-height: 28px;
   color: var(--ss-action);
-  font-weight: 600;
+  font: 11px/1.35 var(--ss-mono);
   text-decoration: none;
 }
+
 .review-link:hover { text-decoration: underline; }
+
+section {
+  row-gap: 0;
+}
+
+section > h2 {
+  margin-bottom: 4px;
+}
+
+section > :not(h2):not(.switch-row) {
+  margin-top: 4px;
+}

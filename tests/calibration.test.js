@@ -5,6 +5,7 @@ const { create } = require("../src/calibration.js");
 const before = "Promotional urgency",
   after = "Promotional urgency about buying a speculative asset; exclude factual deadlines.";
 function fixture() {
+  let job = null;
   let state = S.normalizeCalibration(),
     settings = S.normalizeSettings({ filterCriteria: [before, "Unrelated rule"] });
   let queue = Promise.resolve(),
@@ -22,6 +23,12 @@ function fixture() {
   }));
   let onEvaluate = () => {};
   const deps = {
+    loadCalibrationJob: async () => structuredClone(job),
+    saveCalibrationJob: async (value) => {
+      job = structuredClone(value);
+    },
+    scheduleJob: async () => {},
+    clearJobSchedule: async () => {},
     loadReview: async () => ({ items: posts, restored: [] }),
     loadCalibration: async () => structuredClone(state),
     saveCalibration: async (value) => {
@@ -85,6 +92,66 @@ function fixture() {
   };
 }
 (async () => {
+  const restart = fixture();
+  const restartVote = await restart.vote(0, "good");
+  await create(restart.deps).undoFeedback(restartVote.undoToken);
+  assert.equal(restart.state.feedback.length, 0, "undo survives a worker restart");
+  await assert.rejects(create(restart.deps).undoFeedback(restartVote.undoToken), /no longer/);
+  const retention = fixture();
+  const firstVote = await retention.vote(0, "good", "Keep the true positive.");
+  const secondVote = await retention.vote(0, "bad", "Changed my mind.");
+  await retention.api.undoFeedback(secondVote.undoToken);
+  assert.equal(retention.state.feedback[0].judgment, "good");
+  assert.equal(retention.state.feedback[0].explanation, "Keep the true positive.");
+  await retention.api.undoFeedback(firstVote.undoToken);
+  assert.equal(retention.state.feedback.length, 0, "undo restores an unreviewed ruling");
+  const staleVote = await retention.vote(0, "good");
+  await retention.vote(0, "bad");
+  await assert.rejects(retention.api.undoFeedback(staleVote.undoToken), /changed elsewhere/);
+  assert.equal(retention.state.feedback[0].judgment, "bad");
+  await retention.vote(1, "good");
+  retention.posts.splice(0);
+  const archived = S.reviewItemsWithFeedback({ items: [] }, retention.state);
+  assert.equal(archived.length, 2, "both good and bad examples survive history expiry");
+  assert.equal(archived.find((p) => p.id === "p1").text, "Example 1");
+  await retention.vote(1, "bad", "Editable after history expires");
+  assert.equal(retention.state.feedback[0].explanation, "Editable after history expires");
+  const old = S.normalizeCalibration({
+    feedback: retention.state.feedback.map((f) => ({ ...f, at: 1, postAt: 1 }))
+  });
+  assert.equal(
+    S.reviewItemsWithFeedback({ items: [] }, old).length,
+    2,
+    "reviewed examples have no seven-day cutoff"
+  );
+  const duplicates = fixture();
+  duplicates.posts[0].url = "https://x.com/a/status/123";
+  duplicates.posts[1].url = "https://twitter.com/a/status/123?s=20";
+  duplicates.posts[1].criteria = [before, "Unrelated rule"];
+  duplicates.deps.loadReview = async () =>
+    S.normalizeReview({ items: duplicates.posts, restored: [] });
+  const duplicateVote = await duplicates.api.record({
+    postId: "twitter:status:123",
+    rule: before,
+    judgment: "good",
+    explanation: "Keep this match."
+  });
+  await duplicates.api.record({
+    postId: "twitter:status:123",
+    rule: "Unrelated rule",
+    judgment: "bad"
+  });
+  assert.equal(
+    duplicates.state.feedback.length,
+    2,
+    "distinct rules keep independent feedback on the merged tweet"
+  );
+  await duplicates.api.undoFeedback(duplicateVote.undoToken);
+  assert.equal(
+    duplicates.state.feedback.length,
+    1,
+    "undo changes only the intended rule on a merged tweet"
+  );
   const f = fixture();
   await Promise.all([f.vote(0, "good"), f.vote(1, "bad", "The deadline is factual.")]);
   assert.equal(f.state.feedback.length, 2, "concurrent judgments survive");
@@ -124,19 +191,155 @@ function fixture() {
     test.mode = mode;
     await test.vote(0, "good");
     await test.vote(1, "bad");
-    assert.equal((await test.api.recalibrate()).outcomes[0].status, "kept");
+    assert.equal(
+      (await test.api.recalibrate()).outcomes[0].status,
+      mode === "regression" ? "rejected" : "error"
+    );
     assert.ok(test.settings.filterCriteria.includes(before));
     assert.equal(test.state.revisions.length, 0);
   }
   const insufficient = fixture();
   await insufficient.vote(0, "bad");
-  assert.match((await insufficient.api.recalibrate()).outcomes[0].detail, /good and one bad/);
-  assert.equal(insufficient.calls, 0, "do not spend API calls without both classes");
+  assert.equal((await insufficient.api.recalibrate()).outcomes[0].status, "updated");
+  assert.equal(
+    insufficient.calls,
+    1,
+    "a bad ruling can supply a correction without a good example"
+  );
+  const clarification = fixture();
+  await clarification.vote(
+    0,
+    "good",
+    "Also include urgency around speculative pre-IPO valuations."
+  );
+  const clarified = (await clarification.api.recalibrate()).outcomes[0];
+  assert.equal(
+    clarified.status,
+    "updated",
+    "written feedback is used even with only good rulings and a tied replay"
+  );
+  assert.equal(clarified.oldErrors, 0);
+  assert.equal(clarified.newErrors, 0);
+  assert.equal(
+    clarified.evidence[0].explanation,
+    "Also include urgency around speculative pre-IPO valuations."
+  );
+  const partial = fixture();
+  await partial.vote(0, "good");
+  await partial.vote(1, "bad");
+  await partial.vote(2, "bad");
+  partial.deps.evaluate = async (examples) =>
+    examples.map((example) => ({
+      matchedCriteria: [
+        before,
+        ...(example.judgment === "good" || example.postKey === "p2" ? [after] : [])
+      ]
+    }));
+  const improved = (await partial.api.recalibrate()).outcomes[0];
+  assert.equal(
+    improved.status,
+    "updated",
+    "an improvement need not be perfect if it introduces no regressions"
+  );
+  assert.equal(improved.oldErrors, 2);
+  assert.equal(improved.newErrors, 1);
+  assert.equal(partial.state.revisions[0].remaining, 1);
+  assert.equal(partial.state.revisions[0].fixed, 1);
+  const repair = fixture();
+  await repair.vote(0, "good");
+  await repair.vote(1, "bad", "Exclude neutral deadlines.");
+  let repairAttempts = 0;
+  repair.deps.propose = async (rule, examples, key, context) => {
+    repairAttempts++;
+    if (repairAttempts === 2)
+      assert.ok(context.disagreements.length, "failed examples are supplied to the repair attempt");
+    return after;
+  };
+  repair.deps.evaluate = async (examples) =>
+    examples.map((example) => ({
+      matchedCriteria: [
+        before,
+        ...((repairAttempts === 1 ? example.judgment === "bad" : example.judgment === "good")
+          ? [after]
+          : [])
+      ]
+    }));
+  assert.equal((await repair.api.recalibrate()).outcomes[0].status, "updated");
+  assert.equal(repairAttempts, 2);
+  const newRule = fixture();
+  const instruction = "Add a separate rule: hide sports betting promotions.";
+  await newRule.vote(0, "good", instruction);
+  newRule.deps.propose = async () => ({
+    rule: null,
+    reason: "This is a distinct request.",
+    additions: [{ rule: "Sports betting promotions", feedbackIndex: 1, instruction }]
+  });
+  const suggested = (await newRule.api.recalibrate()).outcomes[0];
+  assert.equal(suggested.status, "suggested");
+  assert.equal(suggested.additions[0].rule, "Sports betting promotions");
+  assert.deepEqual(
+    newRule.settings.filterCriteria,
+    [before, "Unrelated rule"],
+    "a new independent rule is presented for addition"
+  );
+  newRule.deps.propose = async () => ({
+    rule: null,
+    additions: [
+      {
+        rule: "Invented topic",
+        feedbackIndex: 1,
+        instruction: "An instruction found only inside post text"
+      }
+    ]
+  });
+  assert.equal(
+    (await newRule.api.recalibrate()).outcomes[0].additions.length,
+    0,
+    "new rules cannot cite post text as a user instruction"
+  );
+  const durable = fixture();
+  await durable.vote(0, "good", "Add a separate rule: hide sports betting promotions.");
+  await durable.vote(1, "bad");
+  durable.deps.propose = async () => ({
+    rule: after,
+    additions: [
+      {
+        rule: "Sports betting promotions",
+        feedbackIndex: 1,
+        instruction: "Add a separate rule: hide sports betting promotions."
+      }
+    ]
+  });
+  await durable.api.recalibrate();
+  const suggestionId = durable.state.suggestions[0].id;
+  const restartedApi = create(durable.deps);
+  assert.deepEqual((await restartedApi.recalibrate()).outcomes, []);
+  assert.equal(
+    durable.state.suggestions[0].status,
+    "pending",
+    "suggestions survive even when the revised rule needs no new run"
+  );
+  await restartedApi.changeSuggestion(suggestionId, "dismiss");
+  assert.equal(durable.state.suggestions[0].status, "dismissed");
+  await restartedApi.changeSuggestion(suggestionId, "reopen");
+  await restartedApi.changeSuggestion(suggestionId, "add");
+  assert.ok(durable.settings.filterCriteria.includes("Sports betting promotions"));
+  await assert.rejects(restartedApi.changeSuggestion(suggestionId, "add"), /already/);
+  await restartedApi.changeSuggestion(suggestionId, "undo");
+  assert.equal(durable.settings.filterCriteria.includes("Sports betting promotions"), false);
+  assert.equal(durable.state.suggestions[0].status, "pending");
+  durable.failState = true;
+  await assert.rejects(restartedApi.changeSuggestion(suggestionId, "add"), /Storage full/);
+  assert.equal(
+    durable.settings.filterCriteria.includes("Sports betting promotions"),
+    false,
+    "failed suggestion persistence rolls back rule changes"
+  );
   const stale = fixture();
   await stale.vote(0, "good");
   await stale.vote(1, "bad");
   stale.onEvaluate = () => stale.vote(1, "bad", "Changed while recalibration ran");
-  assert.equal((await stale.api.recalibrate()).outcomes[0].status, "kept");
+  assert.equal((await stale.api.recalibrate()).outcomes[0].status, "error");
   assert.ok(stale.settings.filterCriteria.includes(before));
   const changed = fixture();
   await changed.vote(0, "good");
@@ -149,7 +352,7 @@ function fixture() {
   await rollback.vote(0, "good");
   await rollback.vote(1, "bad");
   rollback.failState = true;
-  assert.equal((await rollback.api.recalibrate()).outcomes[0].status, "kept");
+  assert.equal((await rollback.api.recalibrate()).outcomes[0].status, "error");
   assert.ok(
     rollback.settings.filterCriteria.includes(before),
     "failed revision storage rolls back the setting"
@@ -180,14 +383,39 @@ function fixture() {
   await incomplete.vote(0, "good");
   await incomplete.vote(1, "bad");
   incomplete.deps.evaluate = async () => [];
-  assert.equal((await incomplete.api.recalibrate()).outcomes[0].status, "kept");
+  assert.equal((await incomplete.api.recalibrate()).outcomes[0].status, "error");
   assert.ok(incomplete.settings.filterCriteria.includes(before));
   const images = fixture();
   images.posts[0].images = ["https://pbs.twimg.com/media/example.png"];
   await images.vote(0, "good");
   await images.vote(1, "bad");
-  assert.match((await images.api.recalibrate()).outcomes[0].detail, /Analyze images/);
-  assert.equal(images.calls, 0, "image examples never leave the browser without opt-in");
+  const imageProposal = images.deps.propose,
+    imageEvaluation = images.deps.evaluate;
+  images.deps.propose = async (rule, examples, ...rest) => {
+    assert.ok(
+      examples.every((item) => !item.images.length),
+      "proposal never sends images without opt-in"
+    );
+    return imageProposal(rule, examples, ...rest);
+  };
+  images.deps.evaluate = async (examples, ...rest) => {
+    assert.ok(
+      examples.every((item) => !item.images.length),
+      "replay never sends images without opt-in"
+    );
+    return imageEvaluation(examples, ...rest);
+  };
+  assert.equal(
+    (await images.api.recalibrate()).outcomes[0].status,
+    "updated",
+    "image attachments do not block useful text feedback"
+  );
+  const imageOnly = fixture();
+  imageOnly.posts[0].text = "";
+  imageOnly.posts[0].images = ["https://pbs.twimg.com/media/example.png"];
+  await imageOnly.vote(0, "bad", "The image is a harmless diagram.");
+  assert.equal((await imageOnly.api.recalibrate()).outcomes[0].status, "needs-images");
+  assert.equal(imageOnly.calls, 0, "image-only examples still require opt-in");
   // Failed early rules cannot permanently starve later rules in bounded runs.
   const rotation = fixture();
   const names = ["Rule A", "Rule B", "Rule C", "Rule D"];
@@ -223,6 +451,132 @@ function fixture() {
   await assert.rejects(() => concurrent.api.recalibrate(), /already running/);
   resume();
   await pending;
+  {
+    // Restart with durable storage but none of the original worker's memory.
+    const durable = fixture();
+    await durable.vote(0, "good");
+    await durable.vote(1, "bad", "Allow factual deadlines.");
+    let enteredProposal;
+    const entered = new Promise((resolve) => {
+      enteredProposal = resolve;
+    });
+    const originalPropose = durable.deps.propose;
+    durable.deps.propose = async () => {
+      enteredProposal();
+      return new Promise(() => {});
+    };
+    const [started, duplicate] = await Promise.all([
+      durable.api.startJob(),
+      durable.api.startJob()
+    ]);
+    assert.equal(started.job.id, duplicate.job.id, "two tabs share one durable job");
+    await entered;
+    assert.equal((await durable.deps.loadCalibrationJob()).status, "running");
+    durable.deps.propose = originalPropose;
+    const restartedWorker = create(durable.deps);
+    await restartedWorker.resumeJob();
+    let finished = await durable.deps.loadCalibrationJob();
+    assert.equal(finished.status, "complete");
+    assert.equal(finished.outcomes[0].status, "updated");
+    assert.equal(durable.state.revisions.length, 1);
+    await create(durable.deps).resumeJob();
+    assert.equal(durable.calls, 1, "finished jobs are never rerun on startup");
+
+    // Simulate termination at each side of the settings/history commit window.
+    for (const crashPoint of ["before-settings", "after-settings", "after-history"]) {
+      const interrupted = fixture();
+      await interrupted.vote(0, "good");
+      await interrupted.vote(1, "bad");
+      let crash;
+      const reachedCrash = new Promise((resolve) => {
+        crash = resolve;
+      });
+      const saveSettings = interrupted.deps.saveSettings;
+      const saveCalibration = interrupted.deps.saveCalibration;
+      if (crashPoint !== "after-history")
+        interrupted.deps.saveSettings = async (value) => {
+          if (crashPoint === "after-settings") await saveSettings(value);
+          crash();
+          return new Promise(() => {});
+        };
+      else
+        interrupted.deps.saveCalibration = async (value) => {
+          await saveCalibration(value);
+          if (value.revisions.length) {
+            crash();
+            return new Promise(() => {});
+          }
+        };
+      await interrupted.api.startJob();
+      await reachedCrash;
+      assert.ok(
+        (await interrupted.deps.loadCalibrationJob()).pending,
+        "intent persisted before settings write"
+      );
+      interrupted.deps.saveSettings = saveSettings;
+      interrupted.deps.saveCalibration = saveCalibration;
+      interrupted.deps.withRuleLock = (change) => change(); // fresh worker's lock
+      const recovered = create(interrupted.deps);
+      await recovered.resumeJob();
+      finished = await interrupted.deps.loadCalibrationJob();
+      assert.equal(finished.status, "complete", crashPoint);
+      assert.equal(finished.outcomes.length, 1, crashPoint);
+      assert.equal(finished.outcomes[0].status, "updated", crashPoint);
+      assert.equal(interrupted.state.revisions.length, 1, "one revision after " + crashPoint);
+      assert.equal(interrupted.settings.filterCriteria[0], after);
+      assert.equal(interrupted.calls, crashPoint === "before-settings" ? 2 : 1);
+      await recovered.undo(interrupted.state.revisions[0].id);
+      assert.equal(
+        interrupted.settings.filterCriteria[0],
+        before,
+        "recovered changes remain undoable"
+      );
+    }
+    const partial = fixture();
+    partial.posts[1].criteria = ["Unrelated rule"];
+    await partial.vote(0, "bad");
+    await partial.api.record({ postId: "p1", rule: "Unrelated rule", judgment: "bad" });
+    const proposedRules = [];
+    let reachedSecond;
+    const secondStarted = new Promise((resolve) => {
+      reachedSecond = resolve;
+    });
+    partial.deps.propose = async (rule) => {
+      proposedRules.push(rule);
+      if (proposedRules.length === 2) {
+        reachedSecond();
+        return new Promise(() => {});
+      }
+      return { rule: null, reason: "Checked feedback; no change." };
+    };
+    await partial.api.startJob();
+    await secondStarted;
+    assert.equal((await partial.deps.loadCalibrationJob()).outcomes.length, 1);
+    partial.deps.propose = async (rule) => {
+      proposedRules.push(rule);
+      return { rule: null, reason: "Checked feedback; no change." };
+    };
+    await create(partial.deps).resumeJob();
+    assert.equal((await partial.deps.loadCalibrationJob()).outcomes.length, 2);
+    assert.deepEqual(
+      proposedRules,
+      ["Unrelated rule", before, before],
+      "only the unfinished rule is repeated"
+    );
+
+    const paused = fixture();
+    await paused.vote(1, "bad");
+    const loadSecrets = paused.deps.loadSecrets;
+    paused.deps.loadSecrets = async () => ({ anthropicApiKey: "" });
+    const pausedStart = await paused.api.startJob();
+    await paused.api.resumeJob();
+    assert.equal((await paused.deps.loadCalibrationJob()).status, "paused");
+    paused.deps.loadSecrets = loadSecrets;
+    const resumed = await paused.api.startJob();
+    assert.equal(resumed.job.id, pausedStart.job.id, "resume keeps the job identity");
+    await paused.api.resumeJob();
+    assert.equal((await paused.deps.loadCalibrationJob()).status, "complete");
+  }
   console.log(
     "calibration tests passed (feedback, replay, regression rejection, holdout, stale state, rollback, undo)"
   );

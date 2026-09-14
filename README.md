@@ -20,20 +20,32 @@ posts remain visible and retries are spaced out.
 
 Open **Review rulings** at the top of the popup to judge each triggering rule in
 a full tab. Mark **Good ruling** or **Bad ruling**, optionally explaining why.
-The rule appears first, followed by the post with author details, images, and
-quoted text when available. Votes save your judgment; they do not restore the
-post or change a rule immediately.
+The post appears first, with its rulings underneath and dividers between posts.
+X posts use native embeds; saved copies remain available when an embed cannot load.
+Use Left for Bad, Right for Good, Up/Down to move between rulings, and Cmd/Ctrl+Z
+to undo. Start typing to add an explanation to the selected ruling; Enter returns
+to navigation. A brief green or red confirmation fades before the ruling leaves
+its inbox. Votes save your judgment; they do not restore the post or change a
+rule immediately.
 
 **Recalibrate rules** uses your API key to propose revisions and replay saved
-examples. Each rule needs at least one good and one bad example. A revision
-applies only if it improves the original and passes every selected example.
-Otherwise the rule stays as it is. The last 30 revisions support undo. This is
+examples. Corrections and written explanations can be used without both label
+classes. Revisions must improve the replay without introducing regressions;
+written feedback can also justify clearer wording when both versions pass.
+Results show the proposed wording, per-example decisions, and any additional
+rules suggested by your instructions. Suggestions stay available across sessions,
+with controls to add, dismiss, reconsider, or undo an addition.
+Enter saves edited explanations; starting
+recalibration saves remaining drafts on judged rulings. The last 30 revisions support undo. This is
 calibration against your examples, not a guarantee of future accuracy. See
 [the algorithm](docs/CALIBRATION.md).
 
-Review keeps up to 2,000 posts from seven days within 6 MB. Feedback is retained
-separately, up to 2,000 judgments within 2 MB, so clearing history does not erase
-what you taught the filter. Media loads lazily from its original host.
+Review keeps up to 2,000 recent and archived posts within 6 MB. Recent posts expire
+after seven days; archived posts have no time cutoff. **Archive unreviewed** moves
+pending rulings to **Archived**, where you can judge them or return them to the queue. Feedback is retained
+separately, up to 2,000 judgments within 2 MB, so archiving does not erase
+what you taught the filter. Both good and bad examples remain visible after the
+seven-day history expires. X embeds and media load lazily from their original hosts.
 
 On X, the **Less like this** button beside a post's actions opens a rule editor.
 Write your own rule or choose **Suggest filters** to ask Claude for suggestions.
@@ -122,3 +134,11 @@ hand-formatted.
 ## Product design
 
 Follow the [product style guide](docs/STYLE_GUIDE.md) for interface copy and interactions.
+
+Review has three inboxes: Uncategorized, Good rulings, and Bad rulings. Categorizing a ruling moves it out of the current queue; other uncategorized rules on the same post remain. Counts refer to rulings. Undo restores the prior category and selects that ruling.
+
+Recalibration runs in the background and saves its progress. You can refresh or
+close the review page once it says **Safe to refresh**. Closing Chrome pauses work;
+it resumes when Chrome reopens. Explanation drafts and the latest results survive
+reloads. The judgment buttons mirror the keyboard: **← Bad ruling** and
+**Good ruling →**.

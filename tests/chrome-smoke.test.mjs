@@ -849,12 +849,90 @@ async function verifyExtensionPopupOpens() {
     popupClient.close();
     const extensionOrigin = worker.url.replace("/src/background.js", "");
     const workerClient = await CdpClient.connect(worker.webSocketDebuggerUrl);
+    // Reproduce loading the popup with a large retained history.
+    await evaluate(
+      workerClient,
+      `(async()=>{
+      const at=Date.now();
+      await SmoothSurferStorage.saveReview({items:Array.from({length:2000},(_,i)=>({id:'bulk-'+i,text:'Example post '.repeat(80),criteria:['Example rule'],source:'twitter',at})),restored:[]});
+      await SmoothSurferStorage.saveCalibration({feedback:Array.from({length:2000},(_,i)=>({postKey:i<1000?'bulk-'+i:'archived-'+i,rule:'Example rule',text:'Reviewed example '.repeat(15),source:'twitter',judgment:i%2?'good':'bad',at}))});
+      return true;
+    })()`
+    );
+    const startupProbe = await client.send("Page.addScriptToEvaluateOnNewDocument", {
+      source: `
+      window.popupBulkReads = 0;
+      Object.defineProperty(window,'SmoothSurferStorage',{configurable:true,set(storage){
+        for(const name of ['loadReview','loadCalibration']){
+          const original=storage[name];
+          storage[name]=(...args)=>{window.popupBulkReads++;return original(...args)};
+        }
+        Object.defineProperty(window,'SmoothSurferStorage',{value:storage,configurable:true,writable:true});
+      }});
+      const originalSend=chrome.runtime.sendMessage.bind(chrome.runtime);
+      chrome.runtime.sendMessage=(message,...args)=>{
+        if(message.type==='getReviewCount') {
+          window.countRequestedAt=performance.now();
+          setTimeout(()=>originalSend(message,...args),600);
+          return;
+        }
+        return originalSend(message,...args);
+      };
+    `
+    });
+    await navigate(client, extensionOrigin + "/popup.html");
+    await waitForExpression(
+      client,
+      `document.querySelector('[data-setting="enabled"]')?.checked && Boolean(window.countRequestedAt)`
+    );
+    assert.equal(
+      await evaluate(client, `document.querySelector('[data-review-link]').textContent`),
+      "Review rulings",
+      "settings are usable while the count is still pending"
+    );
+    assert.equal(
+      await evaluate(client, `window.popupBulkReads`),
+      0,
+      "popup never loads review bodies or calibration history"
+    );
+    const popupReadyMs = await evaluate(client, `Math.round(performance.now())`);
+    await evaluate(
+      client,
+      `document.querySelector('[data-setting="youtubeHideComments"]').click()`
+    );
+    await waitForExpression(
+      client,
+      `document.querySelector('[data-status]').textContent==='Saved'`
+    );
+    await waitForExpression(
+      client,
+      `document.querySelector('[data-review-link]').textContent==='Review rulings (3000)'`
+    );
+    assert.equal(
+      await evaluate(client, `window.popupBulkReads`),
+      0,
+      "count updates stay off the popup rendering thread"
+    );
+    console.log(
+      `Popup with large history: controls ready in ${popupReadyMs} ms with 2,000 recent posts and 2,000 judgments; no bulk history reads in popup.`
+    );
+    await client.send("Page.removeScriptToEvaluateOnNewDocument", {
+      identifier: startupProbe.identifier
+    });
+    await evaluate(
+      workerClient,
+      `(async()=>{await SmoothSurferStorage.saveCalibration({});await SmoothSurferStorage.saveReview({items:[],restored:[]})})()`
+    );
+    await waitForExpression(
+      client,
+      `document.querySelector('[data-review-link]').textContent==='Review rulings (0)'`
+    );
     await evaluate(
       workerClient,
       `(async () => {
       await SmoothSurferStorage.saveSettings(SmoothSurferSettings.normalizeSettings({filterCriteria: ['Engagement bait', 'Unsubstantiated predictions']}));
       const posts = [
-        {source:'twitter',author:'River Chen · @river',display:{name:'River Chen',handle:'@river',text:'Repost this thread and follow for a chance to win a new setup.\\n\\nWinners announced tomorrow.',postedAt:new Date().toISOString(),quoted:{name:'Gear desk',handle:'@gear',text:'A new setup for this month.'}},text:'Repost this thread and follow for a chance to win a new setup. Winners announced tomorrow.',reasons:['Asks for reposts in exchange for a prize'],criteria:['Engagement bait'],url:'https://x.com/river/status/123'},
+        {source:'twitter',author:'River Chen · @river',display:{name:'River Chen',handle:'@river',text:'Repost this thread and follow for a chance to win a new setup.\\n\\nWinners announced tomorrow.',postedAt:new Date().toISOString(),quoted:{name:'Gear desk',handle:'@gear',text:'A new setup for this month.'}},text:'Repost this thread and follow for a chance to win a new setup. Winners announced tomorrow.',reasons:['Asks for reposts in exchange for a prize'],criteria:['Engagement bait'],url:'https://x.com/jack/status/20'},
         {source:'reddit',author:'',text:'This changes everything. One chart proves the next big market move is guaranteed.',reasons:['Presents an uncertain prediction as a guarantee'],criteria:['Unsubstantiated predictions'],url:'https://www.reddit.com/r/example/comments/123/example/'},
         {source:'twitter',author:'Casey Park · @casey',text:'Only a few people will understand this. Like and share if you are one of them.',reasons:['Solicits engagement through an exclusivity claim'],criteria:['Engagement bait'],url:'https://x.com/casey/status/456'}
       ];
@@ -927,26 +1005,340 @@ async function verifyExtensionPopupOpens() {
     );
     assert.equal(
       await evaluate(client, `document.querySelector('.post').firstElementChild.className`),
-      "rulings",
-      "triggering rules appear above the post"
+      "embedded-post",
+      "the tweet appears before its rulings"
     );
-    await evaluate(client, `document.querySelector('.post [data-judgment="good"]').click()`);
-    await waitForExpression(
+    // The isolated renderer must run under MV3 CSP. A network failure should
+    // produce a saved-copy fallback, never an indefinitely empty frame.
+    const embedHealth = await evaluate(
       client,
-      `document.querySelector('.post [data-judgment="good"]').getAttribute('aria-pressed') === 'true'`
+      `(async()=>{
+      const host=document.querySelector('.embedded-post');
+      const deadline=Date.now()+18000;
+      while (!host.dataset.ready && Date.now()<deadline) await new Promise(r=>setTimeout(r,100));
+      return {state:host.dataset.ready||'stuck', message:host.querySelector('.embed-status').textContent};
+    })()`
     );
+    assert.notEqual(
+      embedHealth.state,
+      "stuck",
+      "hosted renderer reports ready or unavailable under extension CSP"
+    );
+    console.log(
+      "X embed renderer:",
+      embedHealth.state === "true" ? "native post ready" : embedHealth.message
+    );
+    await client.send("Emulation.setDeviceMetricsOverride", {
+      width: 1100,
+      height: 1000,
+      deviceScaleFactor: 1,
+      mobile: false
+    });
+    assert.equal(
+      await evaluate(
+        client,
+        `(()=>{const card=document.querySelector('.post');const post=card.firstElementChild.getBoundingClientRect();const rules=card.querySelector('.rulings').getBoundingClientRect();return rules.left >= post.right && Math.abs(rules.top-post.top)<2;})()`
+      ),
+      true,
+      "wide review places rulings beside the post"
+    );
+    assert.equal(
+      await evaluate(client, `document.querySelectorAll('.ruling[aria-current="true"]').length`),
+      1,
+      "one ruling is selected"
+    );
+    assert.match(
+      await evaluate(client, `document.getElementById('keyboard-target').textContent`),
+      /^Post 1 · Ruling 1 of 1:/
+    );
+    const nativeDesktop = await client.send("Page.captureScreenshot", { format: "png" });
+    await writeFile(
+      path.join(cacheDir, "review-native-desktop.png"),
+      Buffer.from(nativeDesktop.data, "base64")
+    );
+    await client.send("Emulation.setDeviceMetricsOverride", {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 1,
+      mobile: true
+    });
+    assert.equal(
+      await evaluate(client, `document.documentElement.scrollWidth <= innerWidth`),
+      true,
+      "native embed fits narrow screens"
+    );
+    assert.equal(
+      await evaluate(
+        client,
+        `(()=>{const card=document.querySelector('.post');return card.querySelector('.rulings').getBoundingClientRect().top >= card.firstElementChild.getBoundingClientRect().bottom;})()`
+      ),
+      true,
+      "narrow review stacks rulings below the post"
+    );
+    const nativeMobile = await client.send("Page.captureScreenshot", { format: "png" });
+    await writeFile(
+      path.join(cacheDir, "review-native-mobile.png"),
+      Buffer.from(nativeMobile.data, "base64")
+    );
+    const pressReviewKey = (key, modifiers = {}) =>
+      evaluate(
+        client,
+        `document.body.dispatchEvent(new KeyboardEvent('keydown',${JSON.stringify({ key, bubbles: true, cancelable: true, ...modifiers })}))`
+      );
+    const chooseInbox = (name) =>
+      evaluate(client, `document.querySelector('[data-inbox="${name}"]').click()`);
+    await pressReviewKey("ArrowDown");
+    assert.match(
+      await evaluate(client, `document.getElementById('keyboard-target').textContent`),
+      /^Post 2 · Ruling 1 of 1:/
+    );
+    await pressReviewKey("ArrowUp");
+    assert.match(
+      await evaluate(client, `document.getElementById('keyboard-target').textContent`),
+      /^Post 1 · Ruling 1 of 1:/,
+      "up navigates to the previous ruling"
+    );
+    assert.equal(
+      await evaluate(
+        workerClient,
+        `(async()=> (await SmoothSurferStorage.loadCalibration()).feedback.length)()`
+      ),
+      0,
+      "navigation does not judge or undo"
+    );
+    await client.send("Emulation.setFocusEmulationEnabled", { enabled: true });
     await evaluate(
       client,
-      `document.querySelectorAll('.post')[2].querySelector('textarea').value='Allow ordinary requests to share; filter giveaway incentives.'; document.querySelectorAll('.post')[2].querySelector('[data-judgment="bad"]').click()`
+      `document.querySelectorAll('.post')[2].querySelector('[data-judgment="good"]').focus()`
     );
-    await waitForExpression(
-      client,
-      `document.querySelectorAll('.post')[2].querySelector('[data-judgment="bad"]').getAttribute('aria-pressed') === 'true'`
+    assert.match(
+      await evaluate(client, `document.getElementById('keyboard-target').textContent`),
+      /^Post 3 · Ruling 1 of 1:/,
+      "focus selects the keyboard target"
+    );
+    await pressReviewKey("ArrowUp");
+    await pressReviewKey("ArrowUp");
+    assert.equal(
+      await evaluate(client, `document.querySelectorAll('.feedback-note summary').length`),
+      0,
+      "explanations are directly visible without a disclosure"
+    );
+    await client.send("Input.dispatchKeyEvent", {
+      type: "keyDown",
+      key: "A",
+      text: "A",
+      modifiers: 8
+    });
+    await client.send("Input.dispatchKeyEvent", { type: "keyUp", key: "A", modifiers: 8 });
+    await client.send("Input.insertText", { text: " giveaway asks for engagement." });
+    assert.equal(
+      await evaluate(client, `document.activeElement.value`),
+      "A giveaway asks for engagement.",
+      "typing starts the selected explanation without losing or doubling the first character"
+    );
+    assert.equal(
+      await evaluate(
+        client,
+        `document.activeElement === document.querySelector('.ruling[aria-current="true"] textarea')`
+      ),
+      true,
+      "typing focuses the selected ruling's explanation"
+    );
+    assert.deepEqual(
+      await evaluate(
+        client,
+        `Array.from(document.querySelector('.ruling .judgments').children).map(node=>node.textContent)`
+      ),
+      ["← Bad ruling", "Good ruling →"],
+      "button order matches keyboard directions"
     );
     await navigate(client, extensionOrigin + "/review.html");
     await waitForExpression(
       client,
-      `document.querySelectorAll('.post').length === 3 && document.querySelector('.post [data-judgment="good"]').getAttribute('aria-pressed') === 'true'`
+      `document.querySelector('.ruling textarea')?.value === 'A giveaway asks for engagement.'`
+    );
+    assert.match(
+      await evaluate(client, `document.getElementById('save-status').textContent`),
+      /Safe to refresh/
+    );
+    await evaluate(
+      client,
+      `(()=>{const input=document.querySelector('.ruling textarea');input.focus();input.setSelectionRange(input.value.length,input.value.length);})()`
+    );
+    await client.send("Input.dispatchKeyEvent", {
+      type: "keyDown",
+      key: "Enter",
+      text: "\r",
+      modifiers: 8
+    });
+    await client.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", modifiers: 8 });
+    assert.equal(
+      await evaluate(client, `document.activeElement.tagName`),
+      "TEXTAREA",
+      "Shift+Enter stays in the explanation"
+    );
+    assert.equal(
+      await evaluate(client, `document.activeElement.value.endsWith('\\n')`),
+      true,
+      "Shift+Enter inserts a new line"
+    );
+    await client.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter" });
+    await client.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter" });
+    assert.equal(
+      await evaluate(client, `document.activeElement.matches('.ruling[aria-current="true"]')`),
+      true,
+      "Enter returns to ruling navigation"
+    );
+    await pressReviewKey("ArrowDown");
+    await pressReviewKey("ArrowUp");
+    assert.equal(
+      await evaluate(
+        client,
+        `document.querySelector('.ruling[aria-current="true"] textarea').value`
+      ),
+      "A giveaway asks for engagement.\n",
+      "navigation preserves the explanation draft"
+    );
+    await pressReviewKey("ArrowRight");
+    await waitForExpression(
+      client,
+      `Boolean(document.querySelector('.ruling[data-feedback="good"]'))`
+    );
+    assert.equal(
+      await evaluate(client, `document.querySelectorAll('.post').length`),
+      3,
+      "the saved ruling remains visible for its confirmation before leaving"
+    );
+    assert.equal(
+      await evaluate(
+        client,
+        `getComputedStyle(document.querySelector('.ruling[data-feedback="good"]')).backgroundColor`
+      ),
+      "rgb(231, 245, 236)",
+      "Good confirmation is green"
+    );
+    await waitForExpression(
+      client,
+      `document.querySelectorAll('.post').length===2 && document.querySelector('[data-inbox="good"] .inbox-count').textContent==='1'`
+    );
+    assert.equal(
+      await evaluate(
+        client,
+        `document.querySelector('[data-inbox="unreviewed"] .inbox-count').textContent`
+      ),
+      "2",
+      "judged ruling leaves the queue"
+    );
+    assert.equal(
+      await evaluate(client, `document.querySelectorAll('.ruling[aria-current="true"]').length`),
+      1,
+      "categorization keeps the next ruling visibly selected"
+    );
+    await pressReviewKey("z", { metaKey: true });
+    await waitForExpression(
+      client,
+      `document.querySelectorAll('.post').length===3 && document.querySelector('[data-inbox="good"] .inbox-count').textContent==='0'`
+    );
+    assert.match(
+      await evaluate(client, `document.getElementById('keyboard-target').textContent`),
+      /^Post 1 · Ruling 1 of 1:/,
+      "undo selects the returned ruling"
+    );
+    // Undo can also be clicked during the visible confirmation.
+    await pressReviewKey("ArrowRight");
+    await waitForExpression(
+      client,
+      `Boolean(document.querySelector('.ruling[data-feedback="good"]'))`
+    );
+    await evaluate(client, `document.getElementById('undo-feedback').click()`);
+    await waitForExpression(
+      client,
+      `document.getElementById('status').textContent==='Judgment undone.' && document.querySelectorAll('.post').length===3`
+    );
+    // Undo pressed in the same turn as a save must be queued, not dropped.
+    await evaluate(
+      client,
+      `document.getElementById('status').textContent='Waiting';document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'z',metaKey:true,bubbles:true,cancelable:true}))`
+    );
+    await waitForExpression(
+      client,
+      `document.getElementById('status').textContent==='Judgment undone.' && document.querySelectorAll('.post').length===3`
+    );
+    assert.equal(
+      await evaluate(
+        workerClient,
+        `(async()=> (await SmoothSurferStorage.loadCalibration()).feedback.length)()`
+      ),
+      0,
+      "rapid undo reverses the newly saved judgment"
+    );
+    await pressReviewKey("ArrowRight");
+    await waitForExpression(client, `document.querySelectorAll('.post').length===2`);
+    await chooseInbox("good");
+    assert.equal(
+      await evaluate(client, `document.querySelectorAll('.post').length`),
+      1,
+      "good inbox retains its post"
+    );
+    await pressReviewKey("z", { ctrlKey: true });
+    await waitForExpression(
+      client,
+      `document.querySelector('[data-inbox="unreviewed"]').getAttribute('aria-pressed')==='true' && document.querySelectorAll('.post').length===3`
+    );
+    await pressReviewKey("ArrowRight");
+    await waitForExpression(client, `document.querySelectorAll('.post').length===2`);
+    await evaluate(
+      client,
+      `const post=document.querySelectorAll('.post')[1];post.querySelector('textarea').value='Allow ordinary requests to share; filter giveaway incentives.';post.querySelector('[data-judgment="bad"]').click()`
+    );
+    await waitForExpression(
+      client,
+      `Boolean(document.querySelector('.ruling[data-feedback="bad"]'))`
+    );
+    assert.equal(
+      await evaluate(
+        client,
+        `getComputedStyle(document.querySelector('.ruling[data-feedback="bad"]')).backgroundColor`
+      ),
+      "rgb(251, 234, 234)",
+      "Bad confirmation is red"
+    );
+    await waitForExpression(
+      client,
+      `document.querySelectorAll('.post').length===1 && document.querySelector('[data-inbox="bad"] .inbox-count').textContent==='1'`
+    );
+    await navigate(client, extensionOrigin + "/review.html");
+    await waitForExpression(client, `document.querySelectorAll('.post').length===1`);
+    await chooseInbox("bad");
+    assert.equal(await evaluate(client, `document.querySelectorAll('.ruling').length`), 1);
+    assert.equal(
+      await evaluate(client, `document.querySelector('textarea').value`),
+      "Allow ordinary requests to share; filter giveaway incentives."
+    );
+    const feedbackBeforeTyping = await evaluate(
+      workerClient,
+      `(async()=>JSON.stringify((await SmoothSurferStorage.loadCalibration()).feedback))()`
+    );
+    await evaluate(
+      client,
+      `document.querySelector('textarea').dispatchEvent(new KeyboardEvent('keydown',{key:'z',metaKey:true,bubbles:true,cancelable:true}))`
+    );
+    assert.equal(
+      await evaluate(
+        workerClient,
+        `(async()=>JSON.stringify((await SmoothSurferStorage.loadCalibration()).feedback))()`
+      ),
+      feedbackBeforeTyping,
+      "Cmd+Z in an explanation leaves judgments alone"
+    );
+    await chooseInbox("good");
+    assert.equal(
+      await evaluate(
+        client,
+        `document.querySelectorAll('[data-judgment="good"][aria-pressed="true"]').length`
+      ),
+      1,
+      "good rulings survive reload"
     );
     assert.equal(
       await evaluate(
@@ -954,15 +1346,31 @@ async function verifyExtensionPopupOpens() {
         `(async()=> (await SmoothSurferStorage.loadReview()).restored.length)()`
       ),
       0,
-      "judgments do not silently restore posts"
+      "judgments do not restore feed posts"
+    );
+    await chooseInbox("unreviewed");
+    await chooseInbox("bad");
+    await evaluate(
+      client,
+      `(()=>{const note=document.querySelector('textarea');note.value='Allow ordinary requests to share. Add a separate rule: hide sports betting promotions.';note.dispatchEvent(new Event('input',{bubbles:true}));note.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));})()`
+    );
+    await waitForExpression(
+      client,
+      `!document.getElementById('recalibrate').disabled && document.getElementById('status').textContent.includes('Bad ruling saved')`
     );
     assert.equal(
       await evaluate(
         workerClient,
-        `(async()=> (await SmoothSurferStorage.loadCalibration()).feedback.find(f=>f.judgment==='bad').explanation)()`
+        `(async()=> (await SmoothSurferStorage.loadCalibration()).feedback.find(item=>item.judgment==='bad').explanation)()`
       ),
-      "Allow ordinary requests to share; filter giveaway incentives."
+      "Allow ordinary requests to share. Add a separate rule: hide sports betting promotions.",
+      "Enter saves an explanation on an already judged ruling"
     );
+    await evaluate(
+      client,
+      `(()=>{const note=document.querySelector('textarea');note.value+=' This is an independent preference.';note.dispatchEvent(new Event('input',{bubbles:true}));})()`
+    );
+    await chooseInbox("unreviewed");
     // Stub only the external API in this isolated extension worker. Exercise
     // real message routing, rule updates, local feedback, replay, and undo.
     await evaluate(
@@ -970,12 +1378,15 @@ async function verifyExtensionPopupOpens() {
       `(async()=>{
       await SmoothSurferStorage.saveSecrets({anthropicApiKey:'fixture-not-a-real-key'});
       globalThis.calibrationCalls=[];
+      globalThis.calibrationGate=new Promise(resolve=>{globalThis.releaseCalibration=resolve;});
       globalThis.fetch=async(url,options)=>{
         const body=JSON.parse(options.body);calibrationCalls.push(body);
         const proposal=body.system.startsWith('Revise one');
+        if(proposal) await calibrationGate;
         const prompt=body.messages[0].content[0].text;
         const rows=proposal ? [] : prompt.split('Items:')[1].trim().split(/\\n\\n/);
-        const value=proposal ? {rule:'Giveaway engagement bait'} : {results:rows.map((row,index)=>({i:index+1,blocked:true,matches:row.includes('chance to win') ? [1,2] : [1],reasons:[]}))};
+        const revised=!proposal && prompt.includes('1. Giveaway engagement bait');
+        const value=proposal ? {rule:'Giveaway engagement bait',reason:'Exclude ordinary requests; keep giveaway incentives.',additions:[{rule:'Sports betting promotions',feedbackIndex:JSON.parse(prompt).examples.findIndex(item=>item.explanation.includes('Add a separate rule'))+1,instruction:'Add a separate rule: hide sports betting promotions.'}]} : {results:rows.map((row,index)=>({i:index+1,blocked:!revised || row.includes('chance to win'),matches:revised ? (row.includes('chance to win') ? [1] : []) : [1],reasons:[]}))};
         return {ok:true,json:async()=>({stop_reason:'end_turn',content:[{type:'text',text:JSON.stringify(value)}]})};
       };
     })()`
@@ -983,7 +1394,30 @@ async function verifyExtensionPopupOpens() {
     await evaluate(client, `document.getElementById('recalibrate').click()`);
     await waitForExpression(
       client,
-      `document.getElementById('status').textContent === '1 rule updated.'`
+      `document.getElementById('calibration-progress').textContent.includes('Proposing revision') && document.getElementById('save-status').textContent.includes('Safe to refresh')`
+    );
+    const runningJobId = await evaluate(
+      workerClient,
+      `(async()=> (await SmoothSurferStorage.loadCalibrationJob()).id)()`
+    );
+    await navigate(client, "about:blank");
+    await navigate(client, extensionOrigin + "/review.html");
+    await waitForExpression(
+      client,
+      `document.getElementById('recalibrate').disabled && document.getElementById('calibration-progress').textContent.includes('Proposing revision')`
+    );
+    assert.equal(
+      await evaluate(
+        workerClient,
+        `(async()=> (await SmoothSurferStorage.loadCalibrationJob()).id)()`
+      ),
+      runningJobId,
+      "reopened review attaches to the same background job"
+    );
+    await evaluate(workerClient, `releaseCalibration()`);
+    await waitForExpression(
+      client,
+      `document.getElementById('status').textContent === '1 rule updated. 1 additional rule suggested.'`
     );
     const recalibrated = await evaluate(
       workerClient,
@@ -992,9 +1426,99 @@ async function verifyExtensionPopupOpens() {
     assert.deepEqual(recalibrated, ["Giveaway engagement bait", "Unsubstantiated predictions"]);
     assert.equal(
       await evaluate(workerClient, `calibrationCalls.length`),
-      2,
-      "one proposal plus one independent replay call"
+      3,
+      "proposal, baseline and candidate use independent calls"
     );
+    assert.equal(
+      await evaluate(
+        workerClient,
+        `JSON.parse(calibrationCalls[0].messages[0].content[0].text).examples.some(item=>item.explanation.endsWith('This is an independent preference.'))`
+      ),
+      true,
+      "recalibration saves and includes an explanation draft from another inbox"
+    );
+    assert.equal(
+      await evaluate(client, `document.querySelectorAll('.suggested-rule').length`),
+      1,
+      "explicit requests for a new rule remain visible"
+    );
+    assert.equal(
+      await evaluate(client, `document.querySelectorAll('.replay-example').length`),
+      2,
+      "recalibration exposes per-example replay decisions"
+    );
+    await navigate(client, extensionOrigin + "/review.html");
+    await waitForExpression(
+      client,
+      `document.getElementById('calibration-progress').textContent.includes('Results saved') && document.querySelectorAll('.replay-example').length===2`
+    );
+    await client.send("Emulation.setDeviceMetricsOverride", {
+      width: 1100,
+      height: 1000,
+      deviceScaleFactor: 1,
+      mobile: false
+    });
+    await evaluate(
+      client,
+      `document.getElementById('calibration-results').scrollIntoView({block:'start'})`
+    );
+    const calibrationScreenshot = await client.send("Page.captureScreenshot", { format: "png" });
+    await writeFile(
+      path.join(cacheDir, "recalibration-results.png"),
+      Buffer.from(calibrationScreenshot.data, "base64")
+    );
+    await client.send("Emulation.setDeviceMetricsOverride", {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 1,
+      mobile: true
+    });
+    await navigate(client, extensionOrigin + "/review.html");
+    await waitForExpression(
+      client,
+      `Boolean(document.querySelector('.suggested-rule[data-state="pending"]'))`
+    );
+    await evaluate(
+      client,
+      `document.querySelector('.suggested-rule[data-state="pending"] button').click()`
+    );
+    await waitForExpression(
+      client,
+      `Boolean(document.querySelector('.suggested-rule[data-state="added"]'))`
+    );
+    await evaluate(
+      client,
+      `document.querySelector('.suggestion-history').open=true;document.querySelector('.suggested-rule[data-state="added"] button').click()`
+    );
+    await waitForExpression(
+      client,
+      `Boolean(document.querySelector('.suggested-rule[data-state="pending"]'))`
+    );
+    assert.equal(
+      await evaluate(
+        workerClient,
+        `(async()=> (await SmoothSurferStorage.loadSettings()).filterCriteria.includes('Sports betting promotions'))()`
+      ),
+      false,
+      "a rule addition can be undone after reload"
+    );
+    await evaluate(
+      client,
+      `document.querySelector('.suggested-rule[data-state="pending"] button').click()`
+    );
+    await waitForExpression(
+      client,
+      `Boolean(document.querySelector('.suggested-rule[data-state="added"]'))`
+    );
+    assert.equal(
+      await evaluate(
+        workerClient,
+        `(async()=> (await SmoothSurferStorage.loadSettings()).filterCriteria.includes('Sports betting promotions'))()`
+      ),
+      true,
+      "a suggested independent rule can be added"
+    );
+
     await evaluate(
       client,
       `document.getElementById('revision-history').open=true;document.querySelector('#revisions button').click()`
@@ -1016,14 +1540,171 @@ async function verifyExtensionPopupOpens() {
     );
     assert.equal(await evaluate(client, `document.querySelectorAll('.post').length`), 1);
     await evaluate(client, `document.getElementById('clear').click()`);
-    await waitForExpression(client, `document.querySelectorAll('.post').length === 0`);
+    await waitForExpression(
+      client,
+      `document.querySelector('[data-inbox="archived"]').getAttribute('aria-pressed')==='true' && document.querySelectorAll('.post').length===1`
+    );
+    await evaluate(client, `document.querySelector('.return-to-queue').click()`);
+    await waitForExpression(client, `document.querySelectorAll('.post').length===0`);
+    await chooseInbox("unreviewed");
+    assert.equal(
+      await evaluate(client, `document.querySelectorAll('.post').length`),
+      1,
+      "archived post can return to the queue"
+    );
+    await evaluate(client, `document.getElementById('clear').click()`);
+    await waitForExpression(
+      client,
+      `document.querySelector('[data-inbox="archived"]').getAttribute('aria-pressed')==='true' && document.querySelectorAll('.post').length===1`
+    );
+    await pressReviewKey("ArrowRight");
+    await waitForExpression(client, `document.querySelectorAll('.post').length===0`);
+    await pressReviewKey("z", { metaKey: true });
+    await waitForExpression(client, `document.querySelectorAll('.post').length===1`);
+    assert.equal(
+      await evaluate(
+        client,
+        `document.querySelector('[data-inbox="archived"]').getAttribute('aria-pressed')`
+      ),
+      "true",
+      "undo returns an archived judgment to Archived"
+    );
     assert.equal(
       await evaluate(
         workerClient,
         `(async()=> (await SmoothSurferStorage.loadCalibration()).feedback.length)()`
       ),
       2,
-      "clearing review keeps learning examples"
+      "archiving keeps learning examples"
+    );
+    await evaluate(
+      client,
+      `document.getElementById('search').value='';document.getElementById('search').dispatchEvent(new Event('input'))`
+    );
+    await chooseInbox("unreviewed");
+    assert.equal(
+      await evaluate(client, `document.querySelectorAll('.post').length`),
+      0,
+      "archived posts leave the unreviewed queue"
+    );
+    await chooseInbox("good");
+    assert.equal(
+      await evaluate(client, `document.querySelectorAll('.post').length`),
+      1,
+      "good example survives archiving"
+    );
+    await chooseInbox("bad");
+    assert.equal(
+      await evaluate(client, `document.querySelectorAll('.post').length`),
+      1,
+      "bad example survives archiving"
+    );
+    await navigate(client, extensionOrigin + "/review.html");
+    await waitForExpression(
+      client,
+      `document.querySelector('[data-inbox="good"] .inbox-count').textContent==='1'`
+    );
+    await chooseInbox("good");
+    assert.equal(
+      await evaluate(
+        client,
+        `document.querySelectorAll('[data-judgment="good"][aria-pressed="true"]').length`
+      ),
+      1
+    );
+    await navigate(client, extensionOrigin + "/popup.html");
+    await waitForExpression(
+      client,
+      `document.querySelector('[data-review-link]').textContent === 'Review rulings (3)'`
+    );
+    // Categorize one rule at a time while retaining the post for remaining rules.
+    await evaluate(
+      workerClient,
+      `(async()=>{await SmoothSurferStorage.saveReview({items:[{id:'multi-rule',source:'twitter',text:'Multi-rule example',url:'https://x.com/jack/status/21',criteria:['Engagement bait','Unsubstantiated predictions'],images:[],formats:[],at:Date.now()}],restored:[]})})()`
+    );
+    await navigate(client, extensionOrigin + "/review.html");
+    await waitForExpression(client, `document.querySelectorAll('.ruling').length===2`);
+    await evaluate(client, `window.multiRuleFrame=document.querySelector('.tweet-embed')`);
+    await pressReviewKey("ArrowRight");
+    await waitForExpression(
+      client,
+      `document.querySelectorAll('.post').length===1 && document.querySelectorAll('.ruling').length===1`
+    );
+    assert.equal(
+      await evaluate(
+        client,
+        `window.multiRuleFrame===document.querySelector('.tweet-embed') && window.multiRuleFrame.isConnected`
+      ),
+      true,
+      "categorizing one rule preserves the remaining post and iframe"
+    );
+    assert.equal(
+      await evaluate(client, `document.querySelector('.trigger-rule').textContent`),
+      "Unsubstantiated predictions"
+    );
+    await client.send("Emulation.setEmulatedMedia", {
+      features: [{ name: "prefers-reduced-motion", value: "reduce" }]
+    });
+    await pressReviewKey("ArrowLeft");
+    await waitForExpression(client, `document.querySelectorAll('.post').length===0`);
+    await client.send("Emulation.setEmulatedMedia", { features: [] });
+    await pressReviewKey("z", { metaKey: true });
+    await waitForExpression(client, `document.querySelectorAll('.ruling').length===1`);
+    assert.equal(
+      await evaluate(client, `document.querySelector('.trigger-rule').textContent`),
+      "Unsubstantiated predictions",
+      "undo restores only the last categorization"
+    );
+    // Legacy duplicates with changing poll text and old hash IDs merge on read.
+    await evaluate(
+      workerClient,
+      `(async()=>{
+      const at=Date.now();
+      const post={source:'twitter',text:'Which option? 10 votes',url:'https://x.com/jack/status/20',criteria:['Polls','FOMO'],at};
+      await chrome.storage.local.set({
+        [SmoothSurferSettings.REVIEW_KEY]:{items:[{...post,id:'old-snapshot'},{...post,id:'new-snapshot',url:'https://twitter.com/jack/status/20?s=20',text:'Which option? 11 votes',criteria:['Polls'],at:at+1},{...post,id:'different-post',url:'https://x.com/another/status/456',criteria:['Polls']}],restored:[]},
+        [SmoothSurferSettings.CALIBRATION_KEY]:{feedback:[{...post,postKey:'old-snapshot',rule:'Polls',judgment:'good',at},{...post,postKey:'new-snapshot',rule:'Polls',judgment:'bad',explanation:'This ordinary poll is fine.',at:at+2}]}
+      });
+    })()`
+    );
+    await navigate(client, extensionOrigin + "/review.html");
+    await waitForExpression(client, `document.querySelectorAll('.post').length===2`);
+    assert.equal(
+      await evaluate(
+        client,
+        `document.querySelectorAll('.post[data-post-id="twitter:status:20"]').length`
+      ),
+      1,
+      "legacy snapshots render one tweet"
+    );
+    assert.equal(
+      await evaluate(
+        client,
+        `document.querySelector('.post[data-post-id="twitter:status:20"] .trigger-rule').textContent`
+      ),
+      "FOMO",
+      "already judged rule stays out of the duplicate's queue"
+    );
+    await chooseInbox("bad");
+    assert.equal(await evaluate(client, `document.querySelectorAll('.post').length`), 1);
+    assert.equal(
+      await evaluate(client, `document.querySelector('textarea').value`),
+      "This ordinary poll is fine.",
+      "latest feedback survives legacy deduplication"
+    );
+    await pressReviewKey("ArrowRight");
+    await waitForExpression(client, `document.querySelectorAll('.post').length===0`);
+    await pressReviewKey("z", { metaKey: true });
+    await waitForExpression(client, `document.querySelectorAll('.post').length===1`);
+    assert.equal(
+      await evaluate(client, `document.querySelector('textarea').value`),
+      "This ordinary poll is fine.",
+      "undo restores feedback on a merged tweet"
+    );
+    await navigate(client, extensionOrigin + "/popup.html");
+    await waitForExpression(
+      client,
+      `document.querySelector('[data-review-link]').textContent==='Review rulings (2)'`
     );
     // Filter sets are previewed before applying; unchecked rules never import.
     await navigate(client, extensionOrigin + "/filters.html");
@@ -1258,6 +1939,8 @@ async function waitForExpression(client, expression) {
     `({
     url: location.href,
     title: document.title,
+    status: document.getElementById('status')?.textContent,
+    outcomes: document.getElementById('calibration-results')?.textContent.slice(0,1200),
     text: document.body ? document.body.innerText.slice(0, 300) : ""
   })`
   );

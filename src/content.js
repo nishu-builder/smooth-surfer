@@ -450,7 +450,7 @@
       window.SmoothSurferFeedback.install(article, () => getTweetText(article));
     const images = getPostImages(article);
     const text = getTweetText(article);
-    if (restoredPosts.has(reviewKey(text, images))) {
+    if (isReviewPostRestored(container, text, images)) {
       restoreElement(container);
       return;
     }
@@ -996,7 +996,7 @@
       return;
     }
 
-    if (restoredPosts.has(reviewKey(normalizedText, reviewImages))) {
+    if (isReviewPostRestored(container, normalizedText, reviewImages)) {
       pendingClassifications.delete(container);
       delete container.dataset.smoothSurferPendingKey;
       restoreContentElement(container, kind);
@@ -1112,7 +1112,7 @@
     images,
     immediate = false
   ) {
-    if (classification.blocked && !restoredPosts.has(reviewKey(text, images))) {
+    if (classification.blocked && !isReviewPostRestored(container, text, images)) {
       recordReviewPost(container, text, classification, images);
       hideContentElement(container, classification.reasons || [], kind, immediate);
     } else {
@@ -1121,8 +1121,15 @@
     }
   }
 
-  function reviewKey(text, images = []) {
-    return window.SmoothSurferSettings.getReviewPostKey(platform, text, images);
+  function reviewKey(text, images = [], url = "") {
+    return window.SmoothSurferSettings.getReviewPostKey(platform, text, images, url);
+  }
+
+  function isReviewPostRestored(container, text, images = []) {
+    if (restoredPosts.has(reviewKey(text, images))) return true;
+    const article = platform === "twitter" ? getTweetArticle(container) : container;
+    const url = article?.querySelector('a[href*="/status/"] time')?.closest("a")?.href;
+    return Boolean(url && restoredPosts.has(reviewKey(text, images, url)));
   }
 
   function classificationPriority(container) {
@@ -1133,19 +1140,19 @@
   }
 
   function recordReviewPost(container, text, classification, images = []) {
-    const id = reviewKey(text, images);
-    const recordKey = JSON.stringify([
-      id,
-      classification.matchedCriteria || [],
-      classification.formats || []
-    ]);
-    if (recordedReviewKeys.has(recordKey) || !hasChromeRuntime()) return;
     const article = platform === "twitter" ? getTweetArticle(container) : container;
     if (!article) return;
     let link = article.querySelector("time")?.closest("a");
     if (!link && platform === "reddit") link = article.querySelector('a[href*="/comments/"]');
     if (!link && platform === "hacker-news") link = article.querySelector('a[href^="item?id="]');
     if (!link && platform === "substack") link = article.querySelector('a[href*="/p/"]');
+    const id = reviewKey(text, images, link?.href || "");
+    const recordKey = JSON.stringify([
+      id,
+      classification.matchedCriteria || [],
+      classification.formats || []
+    ]);
+    if (recordedReviewKeys.has(recordKey) || !hasChromeRuntime()) return;
     const author = article.querySelector('[data-testid="User-Name"]')?.textContent || "";
     recordedReviewKeys.add(recordKey);
     try {
