@@ -156,3 +156,9 @@ any page from the popup, then switch sections without opening more tabs. Stats
 shows hidden-item totals for today and the past seven days, broken down by site
 and recorded reason, with consumption facts below. Settings share the same
 controls and saved values as the toolbar popup.
+
+## Cross-window pinned tabs
+
+In Settings, enable **Share pins across windows** and allow tab access. Existing and newly pinned HTTP/HTTPS pages appear as inactive pinned copies in every regular Chrome window, including windows opened later. Pins persist after closing a window or restarting Chrome. Each copy navigates independently; the shared URL is the URL when the page was pinned. Unpinning or closing a pin removes it from the shared list and unpins other copies without closing those pages. Disabling sharing leaves existing tabs alone. Private windows are excluded.
+
+Future work is tracked in [TODO.md](TODO.md).

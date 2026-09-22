@@ -36,5 +36,6 @@
       "js": ["src/feedback.js", "src/content.js"],
       "run_at": "document_idle"
     }
-  ]
+  ],
+  "optional_permissions": ["tabs"]
 }

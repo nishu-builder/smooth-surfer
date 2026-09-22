@@ -35,3 +35,5 @@ are also kept on this device. Explanation drafts are saved locally as you type;
 unjudged drafts are not sent for recalibration. Jobs resume after Chrome reopens.
 An API request interrupted by browser shutdown may be repeated. These local
 records are removed when extension data is cleared or the extension is uninstalled.
+
+Cross-window pinned tabs are off by default and request optional tab access when enabled. Only the URLs of pinned HTTP/HTTPS pages are saved in `chrome.storage.local`; tab IDs and their saved URLs are kept in `chrome.storage.session` while Chrome runs. These URLs stay on this device and are not synced or sent to a Smooth Surfer server. Opening a copy in another window contacts the website normally. Private windows are excluded. Disabling sharing clears the saved pin list without closing existing tabs.

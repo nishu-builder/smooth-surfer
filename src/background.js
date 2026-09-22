@@ -1,4 +1,10 @@
-importScripts("settings.js", "storage.js", "calibration.js", "local-model-client.js");
+importScripts(
+  "settings.js",
+  "storage.js",
+  "calibration.js",
+  "local-model-client.js",
+  "pinned-tabs.js"
+);
 
 (function installSmoothSurferBackground() {
   "use strict";
