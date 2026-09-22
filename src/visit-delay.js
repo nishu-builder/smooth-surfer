@@ -35,7 +35,7 @@
     .meta { font-size: 12px; color: var(--ss-muted, #616161); }
     .time { font-size: 56px; line-height: 1; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
     .bar { height: 4px; background: var(--ss-gray, #f2f2f2); }
-    .fill { height: 100%; width: 0; background: var(--ss-action, #111111); transition: width 250ms linear; }
+    .fill { height: 100%; width: 100%; background: var(--ss-action, #111111); transform: scaleX(0); transform-origin: left; }
     .note { margin: 0; color: var(--ss-muted, #616161); }
     .actions { display: flex; flex-wrap: wrap; gap: 8px; }
     button {
@@ -46,7 +46,6 @@
     button:hover { background: var(--ss-hover, #f2f2f2); }
     button:disabled { cursor: not-allowed; opacity: 0.55; }
     button:focus-visible, .card:focus-visible { outline: 2px solid var(--ss-focus, #111111); outline-offset: 2px; }
-    @media (prefers-reduced-motion: reduce) { .fill { transition: none; } }
   `;
 
   let settings = null;
@@ -60,11 +59,21 @@
     evaluate();
   }, noop);
   storage.watchSettings((next) => {
+    const previousDomain = listedDomain();
     settings = next;
+    const domain = listedDomain();
 
-    if (attempt && !listedDomain()) {
+    if (attempt && attempt.domain !== domain) {
       // The site was unlisted or the extension paused while waiting.
+      abandon();
       teardown();
+    }
+    if (domain !== previousDomain) {
+      // Adding a rule must cover an already-open page, without a reload.
+      // Removing/re-enabling a rule starts fresh instead of retaining a pass.
+      clearPass();
+      passedDomain = "";
+      evaluate();
     }
   });
   document.addEventListener("visibilitychange", onVisibilityChange);
@@ -124,6 +133,7 @@
       elapsedMs: 0,
       lastTick: 0,
       timer: 0,
+      frame: 0,
       ready: false,
       reported: false
     };
@@ -156,6 +166,7 @@
     attempt.lastTick = Date.now();
     attempt.timer = window.setInterval(tick, TICK_MS);
     tick();
+    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) animateProgress();
   }
 
   function pause() {
@@ -165,7 +176,22 @@
 
     attempt.elapsedMs += Date.now() - attempt.lastTick;
     window.clearInterval(attempt.timer);
+    window.cancelAnimationFrame(attempt.frame);
     attempt.timer = 0;
+    attempt.frame = 0;
+  }
+
+  function animateProgress() {
+    if (!attempt || !attempt.timer) return;
+    renderProgress(attempt.elapsedMs + Date.now() - attempt.lastTick);
+    attempt.frame = window.requestAnimationFrame(animateProgress);
+  }
+
+  function renderProgress(elapsedMs) {
+    if (!overlay || !attempt) return;
+    const fraction =
+      attempt.ready && attempt.waitMs ? Math.min(1, Math.max(0, elapsedMs / attempt.waitMs)) : 0;
+    overlay.fill.style.transform = `scaleX(${fraction})`;
   }
 
   function tick() {
@@ -320,10 +346,7 @@
       ? `Visit ${attempt.step + 1} today · each finished wait grows the next by ${shared.VISIT_DELAY_GROWTH}× · count resets at ${String(shared.VISIT_DELAY_RESET_HOUR).padStart(2, "0")}:00`
       : "Checking today's count…";
     overlay.time.textContent = attempt.ready ? formatTime(remaining) : "–:––";
-    overlay.fill.style.width =
-      attempt.ready && attempt.waitMs
-        ? `${Math.min(100, (attempt.elapsedMs / attempt.waitMs) * 100)}%`
-        : "0%";
+    renderProgress(attempt.elapsedMs);
     overlay.reset.disabled = !attempt.ready || attempt.step === 0;
     overlay.note.textContent = document.hidden
       ? "Paused while this tab is hidden."

@@ -69,6 +69,10 @@
           <span>Hide comments</span>
           <input type="checkbox" data-setting="youtubeHideComments">
         </label>
+        <label class="switch-row" data-description="Shows a countdown before visiting this site. Uses the same domain list and duration as Visit delay below.">
+          <span>Loading delay</span>
+          <input type="checkbox" data-visit-delay-toggle="youtube.com">
+        </label>
       </section>
 
       <section data-site-section="twitter">
@@ -98,6 +102,10 @@
           <span>Prefer Following</span>
           <input type="checkbox" data-setting="twitterEnforceFollowing">
         </label>
+        <label class="switch-row" data-description="Shows a countdown before visiting this site. Uses the same domain list and duration as Visit delay below.">
+          <span>Loading delay</span>
+          <input type="checkbox" data-visit-delay-toggle="x.com">
+        </label>
       </section>
 
       <section data-site-section="reddit">
@@ -118,6 +126,10 @@
           <span>Hide comments</span>
           <input type="checkbox" data-setting="redditHideComments">
         </label>
+        <label class="switch-row" data-description="Shows a countdown before visiting this site. Uses the same domain list and duration as Visit delay below.">
+          <span>Loading delay</span>
+          <input type="checkbox" data-visit-delay-toggle="reddit.com">
+        </label>
       </section>
 
       <section data-site-section="substack">
@@ -130,6 +142,10 @@
           <span>Filter out content</span>
           <input type="checkbox" data-setting="substackFilterContent">
         </label>
+        <label class="switch-row" data-description="Shows a countdown before visiting this site. Uses the same domain list and duration as Visit delay below.">
+          <span>Loading delay</span>
+          <input type="checkbox" data-visit-delay-toggle="substack.com">
+        </label>
       </section>
 
       <section data-site-section="hacker-news">
@@ -141,6 +157,10 @@
         <label class="switch-row" data-description="Hides Hacker News story scores.">
           <span>Hide scores</span>
           <input type="checkbox" data-setting="hackerNewsHideScores">
+        </label>
+        <label class="switch-row" data-description="Shows a countdown before visiting this site. Uses the same domain list and duration as Visit delay below.">
+          <span>Loading delay</span>
+          <input type="checkbox" data-visit-delay-toggle="news.ycombinator.com">
         </label>
       </section>
 
@@ -223,7 +243,7 @@
 
       <section data-visit-delay-panel>
         <h2>Visit delay</h2>
-        <p>Listed sites open behind a countdown. Each finished wait today makes the next one 1.5× longer; leaving early adds nothing. Counts reset at 03:00.</p>
+        <p>Listed sites open behind a countdown. Each finished wait today makes the next one 1.5× longer; leaving early adds nothing. Counts reset at 03:00. Twitter and X are covered by either twitter.com or x.com.</p>
         <label class="field-row">
           <span>First wait (seconds)</span>
           <input type="number" min="1" max="300" step="1" inputmode="numeric" data-setting="visitDelaySeconds">

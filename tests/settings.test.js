@@ -382,6 +382,13 @@ assert.equal(
   );
   assert.equal(S.matchVisitDomain("old.reddit.com", ["reddit.com"]), "reddit.com");
   assert.equal(S.matchVisitDomain("www.x.com", ["x.com"]), "x.com");
+  assert.equal(S.matchVisitDomain("x.com", ["twitter.com"]), "twitter.com");
+  assert.equal(S.matchVisitDomain("mobile.x.com", ["twitter.com"]), "twitter.com");
+  assert.equal(S.matchVisitDomain("twitter.com", ["x.com"]), "x.com");
+  assert.equal(S.matchVisitDomain("mobile.twitter.com", ["x.com"]), "x.com");
+  assert.equal(S.matchVisitDomain("x.com", ["twitter.com", "x.com"]), "x.com");
+  assert.equal(S.matchVisitDomain("notx.com", ["twitter.com"]), "");
+  assert.equal(S.matchVisitDomain("x.com.evil.test", ["twitter.com"]), "");
   assert.equal(S.matchVisitDomain("notreddit.com", ["reddit.com"]), "", "no suffix matches");
   assert.equal(
     S.matchVisitDomain("old.reddit.com", ["reddit.com", "old.reddit.com"]),
