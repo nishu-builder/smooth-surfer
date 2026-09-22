@@ -42,6 +42,10 @@ section {
   padding: 6px;
 }
 
+section[hidden] {
+  display: none;
+}
+
 section[data-active-site="true"] h2::after {
   content: "Active";
   display: inline-block;
@@ -178,6 +182,7 @@ input[type="checkbox"]:checked {
 input[type="checkbox"]:focus-visible,
 button:focus-visible,
 input[type="text"]:focus-visible,
+input[type="number"]:focus-visible,
 input[type="password"]:focus-visible,
 input[type="time"]:focus-visible,
 a:focus-visible,
@@ -200,6 +205,7 @@ input[type="text"] {
 
 input[type="password"],
 input[type="time"],
+input[type="number"],
 select {
   min-width: 0;
   width: 100%;
@@ -477,4 +483,136 @@ section > h2 {
 
 section > :not(h2):not(.switch-row) {
   margin-top: 4px;
+}
+
+/* Visit delay: plain domain pills and a small monochrome hour chart. */
+.pill-plain {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22px;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 5px 4px 8px;
+}
+
+[data-add-current-domain] {
+  justify-self: start;
+  background: var(--ss-paper);
+  color: var(--ss-ink);
+}
+
+[data-add-current-domain][hidden] {
+  display: none;
+}
+
+.stats-row button {
+  min-height: 22px;
+  padding: 0 6px;
+  background: var(--ss-paper);
+  color: var(--ss-ink);
+  font-size: 11px;
+}
+
+.chart-heading {
+  margin: 8px 0 0;
+  font: 11px var(--ss-mono);
+  color: var(--ss-action);
+}
+
+.visit-table {
+  width: 100%;
+  border-collapse: collapse;
+  font: 11px/1.4 var(--ss-mono);
+}
+
+.visit-table th,
+.visit-table td {
+  padding: 4px 6px 4px 0;
+  border-bottom: 1px solid var(--ss-line);
+  text-align: right;
+  white-space: nowrap;
+  font-weight: 400;
+  color: var(--ss-ink);
+}
+
+.visit-table th {
+  color: var(--ss-muted);
+}
+
+.visit-table th:first-child,
+.visit-table td:first-child {
+  text-align: left;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.hour-chart {
+  display: grid;
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  gap: 0 2px;
+  align-items: end;
+  height: 112px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--ss-line);
+  position: relative;
+}
+
+.hour-bar {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 96px;
+  min-width: 0;
+  outline: none;
+}
+
+.hour-bar-fill {
+  width: 100%;
+  max-width: 24px;
+  min-height: 1px;
+  border-radius: 4px 4px 0 0;
+  background: var(--ss-action);
+}
+
+.hour-bar[data-empty] .hour-bar-fill {
+  background: var(--ss-line);
+}
+
+.hour-bar:hover .hour-bar-fill,
+.hour-bar:focus-visible .hour-bar-fill {
+  background: var(--ss-action-hover);
+}
+
+.hour-bar:focus-visible {
+  outline: 2px solid var(--ss-focus);
+  outline-offset: 2px;
+}
+
+.hour-bar-tip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  padding: 3px 6px;
+  border: 1px solid var(--ss-line);
+  border-radius: var(--ss-radius);
+  background: var(--ss-paper);
+  color: var(--ss-ink);
+  font: 11px var(--ss-mono);
+  white-space: nowrap;
+}
+
+.hour-bar:hover .hour-bar-tip,
+.hour-bar:focus-visible .hour-bar-tip {
+  display: block;
+}
+
+.hour-label {
+  position: absolute;
+  top: 100px;
+  font: 10px var(--ss-mono);
+  color: var(--ss-muted);
+  pointer-events: none;
 }

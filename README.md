@@ -73,6 +73,7 @@ The popup also includes:
 - Comment hiding for YouTube and Reddit.
 - Video speed keys on any site: `Alt+]` faster, `Alt+[` slower, `Alt+\` reset. The modifier is configurable (Alt/Ctrl/Shift/Cmd, or no modifier) in the popup.
 - A settings shortcut: press `Cmd+Shift+S` (`Ctrl+Shift+S` on Windows/Linux) twice quickly to open the popup.
+- A visit delay for sites you list by domain: the site opens behind a countdown, and each finished wait today makes the next visit's wait 1.5× longer (first wait configurable, capped at 20 minutes). The countdown runs only while the tab is visible; closing or leaving the tab before it ends adds no step. The delay screen offers **Reset count** and **Close tab**, counts reset at 03:00 each day, and a tab that stays on the site keeps its pass until it has been in the background for 30 minutes. The Stats page shows loads, finished waits, early exits, resets, and time waited per site, plus a visits-by-hour chart for the past 7 days.
 - A focus schedule that runs effects only during chosen hours.
 - A stats panel counting what was hidden per site today and this week.
 - Settings export/import as JSON (the API key is never exported).

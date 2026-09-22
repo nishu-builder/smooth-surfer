@@ -85,8 +85,23 @@
     settingsHotkeyEnabled: true,
     focusScheduleEnabled: false,
     focusScheduleStart: "09:00",
-    focusScheduleEnd: "17:00"
+    focusScheduleEnd: "17:00",
+    visitDelaySeconds: 10,
+    visitDelayDomains: []
   };
+  // Visit delay: listed sites open behind a countdown. Each finished wait makes
+  // the next one 1.5× longer; leaving early adds nothing. Steps and stats live
+  // under a day key that rolls over at 03:00 local time.
+  const VISIT_DELAY_KEY = "smoothSurferVisitDelay";
+  const VISIT_DELAY_GROWTH = 1.5;
+  const VISIT_DELAY_RESET_HOUR = 3;
+  const VISIT_DELAY_MIN_SECONDS = 1;
+  const VISIT_DELAY_MAX_SECONDS = 300;
+  const VISIT_DELAY_CAP_SECONDS = 20 * 60;
+  const VISIT_DELAY_DOMAIN_LIMIT = 50;
+  const VISIT_DELAY_RETENTION_DAYS = 30;
+  const VISIT_DELAY_EVENTS = ["load", "start", "finish", "abandon", "reset"];
+  const DEFAULT_VISIT_DELAY = { days: {} };
   const DEFAULT_SECRETS = {
     anthropicApiKey: ""
   };
@@ -166,6 +181,8 @@
       DEFAULT_SETTINGS.focusScheduleStart
     );
     next.focusScheduleEnd = normalizeTime(next.focusScheduleEnd, DEFAULT_SETTINGS.focusScheduleEnd);
+    next.visitDelaySeconds = normalizeVisitDelaySeconds(next.visitDelaySeconds);
+    next.visitDelayDomains = normalizeVisitDomains(next.visitDelayDomains);
     delete next.twitterClassifierMode;
     delete next.twitterFilterCriteria;
 
@@ -220,6 +237,227 @@
     }
 
     return nowMinutes >= startMinutes || nowMinutes < endMinutes;
+  }
+
+  function normalizeVisitDelaySeconds(value) {
+    const seconds = Math.round(Number(value));
+
+    if (!Number.isFinite(seconds)) {
+      return DEFAULT_SETTINGS.visitDelaySeconds;
+    }
+
+    return Math.min(VISIT_DELAY_MAX_SECONDS, Math.max(VISIT_DELAY_MIN_SECONDS, seconds));
+  }
+
+  // Accepts a bare host, a URL, or a *.host pattern and returns the registrable
+  // host it covers (subdomains included), or "" when it is not a usable domain.
+  function normalizeVisitDomain(value) {
+    let text = String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/^\*\./, "");
+
+    if (!text) {
+      return "";
+    }
+
+    if (!/^[a-z][a-z0-9+.-]*:\/\//.test(text)) {
+      text = `https://${text}`;
+    }
+
+    let host;
+
+    try {
+      host = new URL(text).hostname.replace(/^www\./, "").replace(/\.$/, "");
+    } catch {
+      return "";
+    }
+
+    return host.length <= 253 &&
+      /^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(host)
+      ? host
+      : "";
+  }
+
+  function normalizeVisitDomains(value) {
+    const items = Array.isArray(value) ? value : String(value || "").split(/[\s,]+/);
+    const seen = new Set();
+    const domains = [];
+
+    items.forEach((item) => {
+      const domain = normalizeVisitDomain(item);
+
+      if (domain && !seen.has(domain) && domains.length < VISIT_DELAY_DOMAIN_LIMIT) {
+        seen.add(domain);
+        domains.push(domain);
+      }
+    });
+
+    return domains;
+  }
+
+  // The most specific listed domain covering this host, or "".
+  function matchVisitDomain(hostname, domains) {
+    const host = normalizeHost(hostname).replace(/\.$/, "");
+
+    return (
+      (Array.isArray(domains) ? [...domains] : [])
+        .sort((a, b) => b.length - a.length)
+        .find((domain) => host === domain || host.endsWith(`.${domain}`)) || ""
+    );
+  }
+
+  function getLocalDayKey(date) {
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${date.getFullYear()}-${month}-${day}`;
+  }
+
+  // Days roll over at 03:00 local time, so a late night stays with its evening.
+  function getVisitDelayDayKey(value) {
+    const at = value instanceof Date ? new Date(value.getTime()) : new Date(value ?? Date.now());
+
+    at.setHours(at.getHours() - VISIT_DELAY_RESET_HOUR);
+
+    return getLocalDayKey(at);
+  }
+
+  function getVisitDelayMs(step, baseSeconds) {
+    const base = normalizeVisitDelaySeconds(baseSeconds);
+    const count = Math.max(0, Math.floor(Number(step)) || 0);
+    const seconds = Math.min(VISIT_DELAY_CAP_SECONDS, base * VISIT_DELAY_GROWTH ** count);
+
+    return Math.round(seconds) * 1000;
+  }
+
+  function emptyVisitEntry() {
+    return {
+      step: 0,
+      loads: 0,
+      starts: 0,
+      completed: 0,
+      abandoned: 0,
+      resets: 0,
+      waitedMs: 0,
+      hours: Array(24).fill(0)
+    };
+  }
+
+  function toCount(value) {
+    return Math.max(0, Math.floor(Number(value)) || 0);
+  }
+
+  function normalizeVisitDelay(value) {
+    const source = value && typeof value === "object" ? value : {};
+    const sourceDays = source.days && typeof source.days === "object" ? source.days : {};
+    const days = {};
+
+    Object.keys(sourceDays)
+      .filter((day) => /^\d{4}-\d{2}-\d{2}$/.test(day))
+      .sort()
+      .slice(-VISIT_DELAY_RETENTION_DAYS)
+      .forEach((day) => {
+        const sourceDomains = sourceDays[day];
+
+        if (!sourceDomains || typeof sourceDomains !== "object") {
+          return;
+        }
+
+        const domains = {};
+
+        Object.keys(sourceDomains).forEach((name) => {
+          const domain = normalizeVisitDomain(name);
+          const raw = sourceDomains[name];
+
+          if (!domain || !raw || typeof raw !== "object" || domains[domain]) {
+            return;
+          }
+
+          const entry = emptyVisitEntry();
+
+          for (const key of ["step", "loads", "starts", "completed", "abandoned", "resets"]) {
+            entry[key] = toCount(raw[key]);
+          }
+
+          entry.waitedMs = toCount(raw.waitedMs);
+          entry.hours = entry.hours.map((_, hour) =>
+            Array.isArray(raw.hours) ? toCount(raw.hours[hour]) : 0
+          );
+
+          const used =
+            entry.step ||
+            entry.loads ||
+            entry.starts ||
+            entry.completed ||
+            entry.abandoned ||
+            entry.resets ||
+            entry.waitedMs;
+
+          if (used) {
+            domains[domain] = entry;
+          }
+        });
+
+        if (Object.keys(domains).length > 0) {
+          days[day] = domains;
+        }
+      });
+
+    return { days };
+  }
+
+  // Applies one visit event and returns the next state. "finish" is the only
+  // event that advances the step, so leaving early never lengthens the next wait.
+  function recordVisitDelayEvent(state, event) {
+    const domain = normalizeVisitDomain(event && event.domain);
+    const kind = event && event.event;
+
+    if (!domain || !VISIT_DELAY_EVENTS.includes(kind)) {
+      throw new Error("Unknown visit event.");
+    }
+
+    const at = Number.isFinite(event.at) ? new Date(event.at) : new Date();
+    const next = normalizeVisitDelay(state);
+    const dayKey = getVisitDelayDayKey(at);
+    const day = next.days[dayKey] || (next.days[dayKey] = {});
+    const entry = day[domain] || (day[domain] = emptyVisitEntry());
+    const waited = Math.min(toCount(event.waitedMs), 24 * 60 * 60 * 1000);
+
+    if (kind === "load") {
+      entry.loads += 1;
+    } else if (kind === "start") {
+      entry.starts += 1;
+      entry.hours[at.getHours()] += 1;
+    } else if (kind === "finish") {
+      entry.completed += 1;
+      entry.step += 1;
+      entry.waitedMs += waited;
+    } else if (kind === "abandon") {
+      entry.abandoned += 1;
+      entry.waitedMs += waited;
+    } else {
+      entry.step = 0;
+      entry.resets += 1;
+    }
+
+    return normalizeVisitDelay(next);
+  }
+
+  function getVisitDelayStatus(state, domain, baseSeconds, at) {
+    const dayKey = getVisitDelayDayKey(at);
+    const entry =
+      (state && state.days && state.days[dayKey] && state.days[dayKey][domain]) ||
+      emptyVisitEntry();
+
+    return {
+      domain,
+      dayKey,
+      step: entry.step,
+      waitMs: getVisitDelayMs(entry.step, baseSeconds),
+      completed: entry.completed,
+      waitedMs: entry.waitedMs
+    };
   }
 
   function normalizeStats(value) {
@@ -852,6 +1090,20 @@
     STATS_KEY,
     STORAGE_KEY,
     VIDEO_SPEED_MODIFIERS,
+    VISIT_DELAY_KEY,
+    VISIT_DELAY_EVENTS,
+    VISIT_DELAY_GROWTH,
+    VISIT_DELAY_RESET_HOUR,
+    VISIT_DELAY_CAP_SECONDS,
+    DEFAULT_VISIT_DELAY,
+    normalizeVisitDomain,
+    normalizeVisitDomains,
+    matchVisitDomain,
+    normalizeVisitDelay,
+    recordVisitDelayEvent,
+    getVisitDelayStatus,
+    getVisitDelayMs,
+    getVisitDelayDayKey,
     getPlatformForHost,
     getPlatformForUrl,
     isWithinFocusWindow,
