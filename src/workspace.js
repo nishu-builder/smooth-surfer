@@ -46,6 +46,7 @@
   const sections = [...main.querySelectorAll(":scope > section")];
   const stats = main.querySelector("[data-stats-panel]");
   const facts = main.querySelector("[data-consumption-panel]");
+  const visits = main.querySelector("[data-visit-delay-stats]");
   if (page === "settings") {
     stats.hidden = true;
     facts.hidden = true;
@@ -57,7 +58,8 @@
     );
     return;
   }
-  for (const section of sections) section.hidden = section !== stats && section !== facts;
+  for (const section of sections)
+    section.hidden = section !== stats && section !== facts && section !== visits;
   main.querySelector("header .switch-row").hidden = true;
   stats.querySelector("h2").textContent = "By site";
   main.insertBefore(stats, main.querySelector("header").nextSibling);
@@ -72,6 +74,7 @@
   reasons.innerHTML =
     '<h2>Why items were hidden</h2><p class="notice">Past 7 days. Each action uses its first recorded reason.</p><div data-stats-reasons></div>';
   stats.after(reasons);
+  reasons.after(visits);
   const note = document.createElement("p");
   note.className = "workspace-stats-note";
   note.textContent =

@@ -178,3 +178,16 @@ html.smooth-surfer-hacker-news-hide-scores .score {
 .smooth-surfer-less-like:hover { color: var(--ss-action) !important; background: var(--ss-hover) !important; }
 .smooth-surfer-less-like:focus-visible { outline: 2px solid var(--ss-focus) !important; }
 .smooth-surfer-less-like svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.6; }
+
+/* Visit delay: the countdown lives in a shadow root on this host so page CSS
+   cannot restyle it. Keep the page from scrolling underneath. */
+html.smooth-surfer-visit-waiting,
+html.smooth-surfer-visit-waiting body {
+  overflow: hidden !important;
+}
+
+.smooth-surfer-visit-wait {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483647 !important;
+}

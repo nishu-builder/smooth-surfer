@@ -5,6 +5,7 @@ release is a `v*` tag; see [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Unreleased
 
+- Add a per-domain visit delay: listed sites open behind a countdown that grows 1.5× with each finished wait, pauses while the tab is hidden, adds nothing when you leave early, offers a reset, and resets daily at 03:00. Show loads, waits, early exits, resets, time waited, and a visits-by-hour chart on the Stats page.
 - Default to Gemini Nano on desktop when no AI provider has been chosen; preserve explicit choices and keep Safari defaulting to Claude. Model download still requires setup, with no cloud fallback.
 
 - Add desktop on-device text processing with Chrome's built-in Gemini Nano, explicit setup and availability, and no automatic cloud fallback.

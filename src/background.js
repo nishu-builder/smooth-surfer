@@ -27,6 +27,9 @@ importScripts("settings.js", "storage.js", "calibration.js", "local-model-client
   };
   const { loadFilterSets, saveFilterSets, loadReview, saveReview, saveSettings } =
     self.SmoothSurferStorage;
+  const { applyVisitDelayEvent } = self.SmoothSurferStorage;
+  const { normalizeVisitDomain, VISIT_DELAY_EVENTS } = self.SmoothSurferSettings;
+  let visitDelayWrites = Promise.resolve();
   const { getReviewPostKey, normalizeReview, normalizeCriteria, safePostUrl } =
     self.SmoothSurferSettings;
   const { normalizeFilterSet, normalizeImageUrls, FORMAT_KEYS } = self.SmoothSurferSettings;
@@ -131,7 +134,8 @@ importScripts("settings.js", "storage.js", "calibration.js", "local-model-client
         }),
       editFilterCriterion: () => editFilterCriterion(message.previous, message.next),
       addFilterCriterion: () => editFilterCriterion(null, message.criterion),
-      suggestFilterCriteria: () => suggestFilterCriteria(message.text)
+      suggestFilterCriteria: () => suggestFilterCriteria(message.text),
+      visitDelayEvent: () => handleVisitDelayEvent(message, sender)
     };
     if (Object.hasOwn(reviewActions, message.type)) {
       Promise.resolve()
@@ -175,6 +179,28 @@ importScripts("settings.js", "storage.js", "calibration.js", "local-model-client
 
     return true;
   });
+
+  // One writer for visit counts, so two tabs finishing at once both count.
+  function handleVisitDelayEvent(message, sender) {
+    const domain = normalizeVisitDomain(message.domain);
+    if (!domain) throw new Error("Unknown site.");
+    if (message.event === "close") {
+      const tabId = sender && sender.tab && sender.tab.id;
+      if (typeof tabId !== "number") throw new Error("No tab to close.");
+      return chrome.tabs.remove(tabId).then(() => ({}));
+    }
+    if (!VISIT_DELAY_EVENTS.includes(message.event)) throw new Error("Unknown visit event.");
+    const operation = visitDelayWrites.then(() =>
+      applyVisitDelayEvent({
+        domain,
+        event: message.event,
+        waitedMs: Number(message.waitedMs) || 0,
+        at: Date.now()
+      })
+    );
+    visitDelayWrites = operation.catch(() => {});
+    return operation;
+  }
 
   function archiveUnreviewed() {
     return mutateReview(async (review) => {

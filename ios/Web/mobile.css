@@ -11,6 +11,7 @@
   }
   .feedback-note textarea { min-height: 44px; }
   .pill summary { grid-template-columns: 10px minmax(0, 1fr) 44px; }
+  .pill-plain { grid-template-columns: minmax(0, 1fr) 44px; }
   .pill button { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
   .switch-row, .switch-row.compact { grid-template-columns: minmax(0, 1fr) 24px; }
   input[type="checkbox"] { width: 24px; height: 24px; }

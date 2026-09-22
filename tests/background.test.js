@@ -22,6 +22,7 @@ global.chrome = {
 };
 
 let reviewState = { items: [], restored: [] };
+global.visitDelayState = { days: {} };
 let settingsState = null;
 let filterSetsState = [];
 let activeQueueCalls = 0;
@@ -136,6 +137,12 @@ global.importScripts = (...files) => {
         loadConsumption: async () => ({ days: {} }),
         saveConsumption: async (consumption) => {
           self.savedConsumption = consumption;
+        },
+        applyVisitDelayEvent: async (event) => {
+          const S = self.SmoothSurferSettings;
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          self.visitDelayState = S.recordVisitDelayEvent(self.visitDelayState, event);
+          return S.getVisitDelayStatus(self.visitDelayState, event.domain, 10);
         }
       };
     }
@@ -257,6 +264,59 @@ function classify(text, source, priority = 0) {
   assert.deepEqual(consumptionDay.reddit.tags, { humor: 1 });
 
   const message = (payload) => new Promise((resolve) => messageListener(payload, {}, resolve));
+
+  // Visit delay events are serialized through one writer and answer with the
+  // site's current step and wait; only a finished wait advances the step.
+  {
+    const visit = (event, extra = {}) =>
+      message({ type: "visitDelayEvent", domain: "x.com", event, ...extra });
+    const [first, second] = await Promise.all([visit("start"), visit("start")]);
+    assert.equal(first.ok, true);
+    assert.equal(first.step, 0);
+    assert.equal(first.waitMs, 10000);
+    assert.equal(second.step, 0);
+    assert.equal(
+      self.visitDelayState.days[Object.keys(self.visitDelayState.days)[0]]["x.com"].starts,
+      2
+    );
+    assert.equal((await visit("abandon", { waitedMs: 3000 })).step, 0);
+    const finished = await visit("finish", { waitedMs: 10000 });
+    assert.equal(finished.step, 1);
+    assert.equal(finished.waitMs, 15000);
+    const [a, b] = await Promise.all([
+      visit("finish", { waitedMs: 15000 }),
+      visit("finish", { waitedMs: 15000 })
+    ]);
+    assert.deepEqual([a.step, b.step], [2, 3], "concurrent finishes both count");
+    const reset = await visit("reset");
+    assert.equal(reset.step, 0);
+    assert.equal(reset.waitMs, 10000);
+    assert.equal((await visit("bogus")).ok, false);
+    assert.equal(
+      (await message({ type: "visitDelayEvent", domain: "not a host", event: "load" })).ok,
+      false
+    );
+    let removed = null;
+    global.chrome.tabs = {
+      remove: async (id) => {
+        removed = id;
+      }
+    };
+    const closed = await new Promise((resolve) =>
+      messageListener(
+        { type: "visitDelayEvent", domain: "x.com", event: "close" },
+        { tab: { id: 42 } },
+        resolve
+      )
+    );
+    assert.equal(closed.ok, true);
+    assert.equal(removed, 42, "close removes the sender's tab");
+    assert.equal(
+      (await message({ type: "visitDelayEvent", domain: "x.com", event: "close" })).ok,
+      false,
+      "close without a tab is refused"
+    );
+  }
   const post = (text) => ({
     source: "twitter",
     text,

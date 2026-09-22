@@ -28,7 +28,12 @@
     {
       "matches": ["<all_urls>"],
       "css": ["src/theme.css", "src/styles.css"],
-      "js": ["src/settings.js", "src/storage.js", "src/feedback.js", "src/content.js"],
+      "js": ["src/settings.js", "src/storage.js", "src/visit-delay.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/feedback.js", "src/content.js"],
       "run_at": "document_idle"
     }
   ]

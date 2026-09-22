@@ -17,11 +17,39 @@
     SECRETS_KEY,
     STATS_KEY,
     STORAGE_KEY,
+    VISIT_DELAY_KEY,
+    DEFAULT_VISIT_DELAY,
     normalizeConsumption,
     normalizeSecrets,
     normalizeSettings,
-    normalizeStats
+    normalizeStats,
+    normalizeVisitDelay,
+    recordVisitDelayEvent,
+    getVisitDelayStatus
   } = root.SmoothSurferSettings;
+
+  function loadVisitDelay() {
+    return read("local", VISIT_DELAY_KEY, DEFAULT_VISIT_DELAY, normalizeVisitDelay);
+  }
+  function saveVisitDelay(value) {
+    return write("local", VISIT_DELAY_KEY, normalizeVisitDelay(value));
+  }
+  function watchVisitDelay(callback) {
+    watchStorage("local", VISIT_DELAY_KEY, normalizeVisitDelay, callback);
+  }
+  // Records one visit event and answers with that site's current step and wait.
+  // Calls are serialized so a load and a start from one page both count.
+  let visitDelayWrites = Promise.resolve();
+  function applyVisitDelayEvent(event) {
+    const operation = visitDelayWrites.then(async () => {
+      const [state, settings] = await Promise.all([loadVisitDelay(), loadSettings()]);
+      const next = recordVisitDelayEvent(state, event);
+      await saveVisitDelay(next);
+      return getVisitDelayStatus(next, event.domain, settings.visitDelaySeconds);
+    });
+    visitDelayWrites = operation.catch(() => {});
+    return operation;
+  }
 
   const JOB_KEY = "smoothSurferCalibrationJob";
   const normalizeJob = (value) => (value?.version === 1 ? value : null);
@@ -195,6 +223,10 @@
   }
 
   root.SmoothSurferStorage = {
+    loadVisitDelay,
+    saveVisitDelay,
+    watchVisitDelay,
+    applyVisitDelayEvent,
     loadCalibrationJob,
     saveCalibrationJob,
     watchCalibrationJob,

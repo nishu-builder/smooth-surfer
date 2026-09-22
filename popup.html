@@ -211,6 +211,34 @@
         </div>
       </section>
 
+      <section data-visit-delay-panel>
+        <h2>Visit delay</h2>
+        <p>Listed sites open behind a countdown. Each finished wait today makes the next one 1.5× longer; leaving early adds nothing. Counts reset at 03:00.</p>
+        <label class="field-row">
+          <span>First wait (seconds)</span>
+          <input type="number" min="1" max="300" step="1" inputmode="numeric" data-setting="visitDelaySeconds">
+        </label>
+        <form class="phrase-form" data-domain-form>
+          <input type="text" data-domain-input placeholder="example.com" autocomplete="off" spellcheck="false">
+          <button type="submit">Add</button>
+        </form>
+        <button type="button" data-add-current-domain hidden></button>
+        <div class="pills" data-domain-list aria-live="polite"></div>
+        <div class="stats" data-visit-today aria-live="polite"></div>
+      </section>
+
+      <section data-visit-delay-stats hidden>
+        <h2>Visit delay</h2>
+        <p class="notice">Listed sites, today · past 7 days. Visits are finished waits; left early counts waits abandoned before the countdown ended.</p>
+        <div data-visit-delay-table></div>
+        <h3 class="chart-heading">Visits by hour, past 7 days</h3>
+        <div class="hour-chart" data-visit-delay-hours role="img"></div>
+        <details>
+          <summary>Hour table</summary>
+          <div data-visit-delay-hour-table></div>
+        </details>
+      </section>
+
       <section data-consumption-panel>
         <h2>Consumption facts</h2>
         <label class="switch-row" data-description="Labels posts you actually see with their emotional ingredients, using the selected AI model.">
