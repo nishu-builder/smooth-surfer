@@ -359,11 +359,11 @@ assert.equal(
 // Visit delay: domains, growth, the 03:00 day boundary, and event accounting.
 {
   const S = require("../src/settings.js");
-  assert.equal(defaults.visitDelaySeconds, 10);
+  assert.equal(defaults.visitDelaySeconds, 1);
   assert.deepEqual(defaults.visitDelayDomains, []);
   assert.equal(S.normalizeSettings({ visitDelaySeconds: "0" }).visitDelaySeconds, 1);
   assert.equal(S.normalizeSettings({ visitDelaySeconds: 900 }).visitDelaySeconds, 300);
-  assert.equal(S.normalizeSettings({ visitDelaySeconds: "abc" }).visitDelaySeconds, 10);
+  assert.equal(S.normalizeSettings({ visitDelaySeconds: "abc" }).visitDelaySeconds, 1);
   assert.equal(S.normalizeVisitDomain("https://www.X.com/home?x=1"), "x.com");
   assert.equal(S.normalizeVisitDomain("*.reddit.com"), "reddit.com");
   assert.equal(S.normalizeVisitDomain("x.com:443"), "x.com");
@@ -401,7 +401,7 @@ assert.equal(
     "waits grow by 1.5× and round to whole seconds"
   );
   assert.equal(S.getVisitDelayMs(40, 10), S.VISIT_DELAY_CAP_SECONDS * 1000, "waits are capped");
-  assert.equal(S.getVisitDelayMs(-1, "bogus"), 10000);
+  assert.equal(S.getVisitDelayMs(-1, "bogus"), 1000);
   assert.equal(S.getVisitDelayDayKey(new Date(2026, 5, 10, 2, 59)), "2026-06-09");
   assert.equal(S.getVisitDelayDayKey(new Date(2026, 5, 10, 3, 0)), "2026-06-10");
   assert.equal(S.getVisitDelayDayKey(new Date(2026, 5, 10, 23, 30)), "2026-06-10");

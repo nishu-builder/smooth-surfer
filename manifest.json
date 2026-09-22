@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Smooth Surfer",
-  "version": "0.2.8",
-  "description": "Filter unwanted posts and reduce distractions on the web.",
+  "version": "0.2.9",
+  "description": "Filter distracting feeds, add loading delays to habitual sites, and share pinned tabs across Chrome windows.",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",

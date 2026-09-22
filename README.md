@@ -5,7 +5,9 @@
 
 <img src="icons/icon1024.png" alt="Smooth Surfer icon" width="420">
 
-Smooth Surfer is a browser extension for browsing with less feed noise. It hides or softens selected YouTube, X/Twitter, Reddit, Substack, Hacker News, and generic feed distractions from the toolbar popup. The source also includes an iPhone Safari extension package.
+Smooth Surfer reduces feed noise and habitual site checking. Clean up YouTube, X/Twitter, Reddit, Substack, and Hacker News; add a loading delay before distracting sites; and keep pinned pages available across Chrome windows. The source also includes an iPhone Safari extension package.
+
+Loading delays, shared pinned tabs, and the basic cleanup switches run locally without an API key. Start with **Loading delay** under a site’s settings or **Share pins across windows** in the Pinned tabs section.
 
 Choose Claude Haiku 4.5 with an Anthropic key or on-device processing with Chrome's built-in Gemini Nano. Both filter X/Twitter, Reddit, Substack, and Hacker News against your criteria. Claude is the default on desktop and Safari; explicit saved provider choices are preserved. Gemini Nano is an experimental opt-in. On-device processing requires a supported desktop Chrome installation and model setup; it does not silently fall back to Claude. Local mode processes text and supplied image descriptions. Image analysis is available with Claude.
 
@@ -73,10 +75,48 @@ The popup also includes:
 - Comment hiding for YouTube and Reddit.
 - Video speed keys on any site: `Alt+]` faster, `Alt+[` slower, `Alt+\` reset. The modifier is configurable (Alt/Ctrl/Shift/Cmd, or no modifier) in the popup.
 - A settings shortcut: press `Cmd+Shift+S` (`Ctrl+Shift+S` on Windows/Linux) twice quickly to open the popup.
-- A visit delay for sites you list by domain: the site opens behind a countdown, and each finished wait today makes the next visit's wait 1.5× longer (first wait configurable, capped at 20 minutes). The countdown runs only while the tab is visible; closing or leaving the tab before it ends adds no step. The delay screen offers **Reset count** and **Close tab**, counts reset at 03:00 each day, and a tab that stays on the site keeps its pass until it has been in the background for 30 minutes. The Stats page shows loads, finished waits, early exits, resets, and time waited per site, plus a visits-by-hour chart for the past 7 days.
+- [Loading delays](#loading-delays) with a one-second starting default, per-site checkboxes, a smooth countdown, and visit statistics.
+- [Shared pinned tabs](#cross-window-pinned-tabs) across regular Chrome windows, including new windows.
 - A focus schedule that runs effects only during chosen hours.
 - A stats panel counting what was hidden per site today and this week.
 - Settings export/import as JSON (the API key is never exported).
+
+## Loading delays
+
+Turn on **Loading delay** alongside the other controls for YouTube, X/Twitter,
+Reddit, Substack, or Hacker News. These checkboxes and the **Visit delay** domain
+list stay in sync. Add any other domain in that list. Either `twitter.com` or
+`x.com` covers both names, including redirects. New rules apply to tabs that are
+already open.
+
+The first wait defaults to **1 second**, configurable from 1 to 300 seconds.
+Existing saved durations are preserved. Each completed wait increases the next
+wait that day by 1.5×, rounded to whole seconds, up to 20 minutes. The smooth
+progress bar and countdown pause while the tab is hidden. Leaving early records
+an abandoned attempt without advancing the next wait.
+
+A tab that finishes keeps its pass across reloads. It waits again after spending
+30 minutes in the background; a new tab starts a fresh visit. **Reset count**
+returns to the first wait, and counts reset at 03:00 local time. Stats shows page
+loads, completed waits, early exits, resets, time waited, and visits by hour.
+
+## Cross-window pinned tabs
+
+Enable **Share pins across windows** in Settings and allow the optional tab
+permission. Pin a web page using Chrome’s normal **Pin** tab-menu action. Existing
+and newly pinned HTTP/HTTPS pages appear as inactive pinned copies in every
+regular Chrome window, including windows opened later. Each copy navigates
+independently, so reading an email in one window does not navigate the others.
+
+Reorder pinned tabs by dragging them in any regular window. New windows use the
+last order you arranged; existing windows keep their own current arrangement.
+The saved order survives a browser restart.
+
+Closing a window keeps the saved pins. Unpinning or closing an individual pin
+removes it from the shared list and unpins its other copies without closing their
+pages. Disabling sharing leaves existing tabs alone. Private windows are excluded;
+the saved URLs stay on this device. Pinned tabs appear as small icons at the far
+left of Chrome’s tab bar.
 
 ## Install
 
@@ -157,8 +197,4 @@ shows hidden-item totals for today and the past seven days, broken down by site
 and recorded reason, with consumption facts below. Settings share the same
 controls and saved values as the toolbar popup.
 
-## Cross-window pinned tabs
-
-In Settings, enable **Share pins across windows** and allow tab access. Existing and newly pinned HTTP/HTTPS pages appear as inactive pinned copies in every regular Chrome window, including windows opened later. Pins persist after closing a window or restarting Chrome. Each copy navigates independently; the shared URL is the URL when the page was pinned. Unpinning or closing a pin removes it from the shared list and unpins other copies without closing those pages. Disabling sharing leaves existing tabs alone. Private windows are excluded.
-
-Future work is tracked in [TODO.md](TODO.md).
+Future work is tracked in [TODO.md](TODO.md). The Gmail inbox queue is planned and is not part of this release.
