@@ -10,6 +10,7 @@
     normalizeSettings,
     normalizeVisitDomain,
     normalizeVisitDomains,
+    matchVisitDomain,
     getVisitDelayDayKey,
     getVisitDelayStatus,
     REVIEW_KEY,
@@ -75,6 +76,7 @@
 
   const status = document.querySelector("[data-status]");
   const settingInputs = Array.from(document.querySelectorAll("[data-setting]"));
+  const visitDelayInputs = Array.from(document.querySelectorAll("[data-visit-delay-toggle]"));
   const secretInputs = Array.from(document.querySelectorAll("[data-secret]"));
   const apiKeyRow = document.querySelector("[data-api-key-row]");
   const filterKeyStatus = document.querySelector("[data-filter-key-status]");
@@ -253,6 +255,21 @@
         }
       }
       saveSettings({ [input.dataset.setting]: value });
+    });
+  });
+
+  visitDelayInputs.forEach((input) => {
+    input.addEventListener("change", () => {
+      const domain = input.dataset.visitDelayToggle;
+      if (input.checked) {
+        addVisitDomain(domain);
+      } else {
+        saveSettings({
+          visitDelayDomains: settings.visitDelayDomains.filter(
+            (listed) => !matchVisitDomain(domain, [listed])
+          )
+        });
+      }
     });
   });
 
@@ -465,6 +482,10 @@
 
   function renderVisitDelay() {
     const domains = settings.visitDelayDomains;
+    visitDelayInputs.forEach((input) => {
+      input.checked = Boolean(matchVisitDomain(input.dataset.visitDelayToggle, domains));
+      input.disabled = !settings.enabled;
+    });
     const usable = settings.enabled;
 
     domainInput.disabled = !usable;

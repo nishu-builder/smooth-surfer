@@ -301,12 +301,16 @@
   // The most specific listed domain covering this host, or "".
   function matchVisitDomain(hostname, domains) {
     const host = normalizeHost(hostname).replace(/\.$/, "");
-
-    return (
-      (Array.isArray(domains) ? [...domains] : [])
-        .sort((a, b) => b.length - a.length)
-        .find((domain) => host === domain || host.endsWith(`.${domain}`)) || ""
-    );
+    const listed = (Array.isArray(domains) ? [...domains] : []).sort((a, b) => b.length - a.length);
+    const direct = listed.find((domain) => host === domain || host.endsWith(`.${domain}`));
+    if (direct) return direct;
+    // Twitter redirects to X. Keep the listed name as the statistics/pass key,
+    // while covering both domains without changing the user's saved settings.
+    if (host === "x.com" || host.endsWith(".x.com"))
+      return listed.includes("twitter.com") ? "twitter.com" : "";
+    if (host === "twitter.com" || host.endsWith(".twitter.com"))
+      return listed.includes("x.com") ? "x.com" : "";
+    return "";
   }
 
   function getLocalDayKey(date) {

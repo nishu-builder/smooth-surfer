@@ -295,6 +295,13 @@ try {
   );
   assert.deepEqual(visitPanel.pills, ["reddit.com"]);
   assert.deepEqual(visitPanel.domains, ["reddit.com"]);
+  assert.equal(
+    await evaluate(
+      client,
+      `document.querySelector('[data-visit-delay-toggle="reddit.com"]').checked`
+    ),
+    true
+  );
   assert.equal(visitPanel.seconds, 20);
   assert.match(visitPanel.today, /reddit\.com0 today · 0s waited · next 20s/);
   assert.match(visitPanel.status, /Enter a site like example\.com/);
@@ -316,6 +323,42 @@ try {
     ),
     []
   );
+
+  assert.equal(
+    await evaluate(
+      client,
+      `document.querySelector('[data-visit-delay-toggle="reddit.com"]').checked`
+    ),
+    false
+  );
+  const siteDelaySync = await evaluate(
+    client,
+    `(async()=>{
+    const results=[];
+    for(const input of document.querySelectorAll('[data-visit-delay-toggle]')) {
+      input.click();
+      await new Promise(resolve=>setTimeout(resolve,30));
+      const domains=JSON.parse(localStorage.getItem('smoothSurferSettings')).visitDelayDomains;
+      document.querySelector('[data-remove-domain]').click();
+      results.push({domain:input.dataset.visitDelayToggle,domains,checkedAfterRemoval:input.checked});
+    }
+    const input=document.querySelector('[data-domain-input]');
+    input.value='twitter.com';
+    document.querySelector('[data-domain-form]').requestSubmit();
+    const twitter=document.querySelector('[data-visit-delay-toggle="x.com"]');
+    const aliasChecked=twitter.checked;
+    twitter.click();
+    await new Promise(resolve=>setTimeout(resolve,30));
+    return {results,aliasChecked,remaining:JSON.parse(localStorage.getItem('smoothSurferSettings')).visitDelayDomains};
+  })()`
+  );
+  assert.equal(siteDelaySync.results.length, 5);
+  for (const result of siteDelaySync.results) {
+    assert.deepEqual(result.domains, [result.domain], "site toggle updates the shared list");
+    assert.equal(result.checkedAfterRemoval, false, "removing a domain clears its site toggle");
+  }
+  assert.equal(siteDelaySync.aliasChecked, true, "Twitter alias checks the X site toggle");
+  assert.deepEqual(siteDelaySync.remaining, [], "disabling X removes the Twitter alias too");
 
   await evaluate(
     client,
@@ -912,6 +955,11 @@ async function verifyExtensionPopupOpens() {
   const debugPort = Number(process.env.CHROME_DEBUG_PORT) || (await getFreePort());
   const barePort = Number(process.env.FIXTURE_PORT) || (await getFreePort());
   const bareServer = http.createServer((request, response) => {
+    if (request.url === "/twitter-redirect") {
+      response.writeHead(302, { Location: `http://x.com.test:${barePort}/bare-video.html` });
+      response.end();
+      return;
+    }
     sendHtml(
       response,
       `<!doctype html><html><head><meta charset="utf-8"></head>
@@ -931,6 +979,7 @@ async function verifyExtensionPopupOpens() {
     "--no-first-run",
     "--no-default-browser-check",
     "--remote-allow-origins=*",
+    "--host-resolver-rules=MAP twitter.com.test 127.0.0.1,MAP x.com.test 127.0.0.1",
     `--load-extension=${root}`,
     `--disable-extensions-except=${root}`,
     "about:blank"
@@ -2210,6 +2259,50 @@ async function verifyExtensionPopupOpens() {
     assert.equal(await evaluate(client, `document.querySelector('.workspace-sidebar')`), null);
     console.log(
       "Workspace passed (navigation, shared settings, stats totals, empty states, responsive layout, compact popup)."
+    );
+    // Real extension storage changes must apply to existing tabs. A Twitter
+    // rule must also survive a redirect to X before content scripts execute.
+    await evaluate(
+      workerClient,
+      `(async()=>{
+        const settings=await SmoothSurferStorage.loadSettings();
+        await SmoothSurferStorage.saveSettings({...settings,enabled:true,focusScheduleEnabled:false,visitDelayDomains:[],visitDelaySeconds:2});
+        await SmoothSurferStorage.saveVisitDelay({days:{}});
+      })()`
+    );
+    await navigate(client, `http://x.com.test:${barePort}/bare-video.html`);
+    await waitForExpression(client, `!!document.querySelector('video')`);
+    assert.equal(
+      await evaluate(client, `!!document.querySelector('.smooth-surfer-visit-wait')`),
+      false
+    );
+    await evaluate(
+      workerClient,
+      `(async()=>{const settings=await SmoothSurferStorage.loadSettings();await SmoothSurferStorage.saveSettings({...settings,visitDelayDomains:['twitter.com']});})()`
+    );
+    await waitForExpression(
+      client,
+      `document.querySelector('.smooth-surfer-visit-wait')?.shadowRoot.querySelector('[data-domain]')?.textContent==='twitter.com'`
+    );
+    assert.equal(await evaluate(client, `document.body.inert`), true);
+    await waitForExpression(client, `!document.querySelector('.smooth-surfer-visit-wait')`);
+    await waitForExpression(
+      workerClient,
+      `(async()=>Object.values((await SmoothSurferStorage.loadVisitDelay()).days)[0]?.['twitter.com']?.completed===1)()`
+    );
+    await evaluate(client, `sessionStorage.clear()`);
+    await navigate(client, `http://twitter.com.test:${barePort}/twitter-redirect`);
+    await waitForExpression(
+      client,
+      `location.hostname==='x.com.test' && document.querySelector('.smooth-surfer-visit-wait')?.shadowRoot.querySelector('[data-meta]')?.textContent.startsWith('Visit 2 today')`
+    );
+    await waitForExpression(client, `!document.querySelector('.smooth-surfer-visit-wait')`);
+    await waitForExpression(
+      workerClient,
+      `(async()=>Object.values((await SmoothSurferStorage.loadVisitDelay()).days)[0]?.['twitter.com']?.completed===2)()`
+    );
+    console.log(
+      "Visit delay extension passed (live settings, Twitter-to-X redirect, completion accounting)."
     );
     workerClient.close();
     client.close();
