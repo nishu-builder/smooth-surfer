@@ -123,6 +123,13 @@ try {
       );
     return result.result.value;
   }
+  // The worker target can appear before Chrome installs extension bindings
+  // and the background script finishes loading. Wait for both before testing.
+  await until(() =>
+    evaluate(
+      `typeof chrome !== 'undefined' && Boolean(chrome.tabs?.onUpdated) && typeof SmoothSurferStorage !== 'undefined'`
+    )
+  );
   const snapshot = () => evaluate(`chrome.windows.getAll({populate:true,windowTypes:['normal']})`);
   diagnostic = () =>
     evaluate(
