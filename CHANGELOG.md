@@ -3,6 +3,11 @@
 Notable changes per released version. Versions match `manifest.json`, and a
 release is a `v*` tag; see [docs/RELEASING.md](docs/RELEASING.md).
 
+## 0.2.10
+
+- Prevent filtered X/Twitter posts from flashing back into view when the page replaces their CSS classes, including during fades.
+- Preserve row height when a late filtering decision affects a post partly above the viewport, preventing a jump in the reading position.
+
 ## 0.2.9
 
 - Add loading delays for habitual sites, with a one-second starting default, a configurable first wait, 1.5× growth after completed waits, a 20-minute cap, and a daily reset at 03:00.

@@ -76,6 +76,7 @@
   const pendingClassifications = new WeakMap();
   const tweetIdentities = new WeakMap();
   const tweetFadeTimers = new WeakMap();
+  const tweetPresentations = new WeakMap();
   let classificationEpoch = 0;
   const recordedStatKeys = new Set();
   const recordedConsumptionKeys = new Set();
@@ -258,8 +259,19 @@
     observer = new MutationObserver((mutations) => {
       // React can replace a tweet or mutate its text in an existing cell.
       // Reconcile those cells before paint, including cached blocked posts.
-      fastProcessAddedNodes(mutations);
-      scheduleScan();
+      const relevant = mutations.filter((mutation) => {
+        if (mutation.type !== "attributes" || mutation.attributeName !== "class") return true;
+        // React can replace className on an existing row. Reapply our current
+        // presentation before paint, without rescanning for our own class writes.
+        const presentation = tweetPresentations.get(mutation.target);
+        if (!presentation || mutation.target.classList.contains(presentation)) return false;
+        mutation.target.classList.add(presentation);
+        return true;
+      });
+      if (relevant.length) {
+        fastProcessAddedNodes(relevant);
+        scheduleScan();
+      }
     });
     observer.observe(document.body, {
       childList: true,
@@ -267,7 +279,9 @@
       characterData: platform === "twitter",
       attributes: platform === "twitter",
       attributeFilter:
-        platform === "twitter" ? ["href", "data-testid", "alt", "src", "srcset"] : undefined
+        platform === "twitter"
+          ? ["href", "data-testid", "alt", "src", "srcset", "class"]
+          : undefined
     });
 
     window.setInterval(scheduleScan, 2000);
@@ -1571,8 +1585,8 @@
     const deferred = element.classList.contains("smooth-surfer-tweet-deferred");
     // Keep measured space above the reading position. Collapse only when the
     // user returns far enough for this row to be below that position again.
-    if (rect.bottom <= 0 || (deferred && rect.top < 100 && window.scrollY > 0)) {
-      element.classList.add("smooth-surfer-tweet-deferred");
+    if (rect.top < 0 || (deferred && rect.top < 100 && window.scrollY > 0)) {
+      setTweetPresentation(element, "smooth-surfer-tweet-deferred");
       return;
     }
     element.classList.remove("smooth-surfer-tweet-deferred");
@@ -1582,16 +1596,17 @@
       rect.top >= window.innerHeight ||
       window.matchMedia("(prefers-reduced-motion: reduce)").matches
     ) {
-      element.classList.add("smooth-surfer-hidden");
+      setTweetPresentation(element, "smooth-surfer-hidden");
       return;
     }
     const identity = getTweetIdentity(getTweetArticle(element));
     const epoch = classificationEpoch;
-    element.classList.add("smooth-surfer-tweet-fading");
+    setTweetPresentation(element, "smooth-surfer-tweet-fading");
     tweetFadeTimers.set(
       element,
       window.setTimeout(() => {
         tweetFadeTimers.delete(element);
+        tweetPresentations.delete(element);
         element.classList.remove("smooth-surfer-tweet-fading");
         if (
           !element.isConnected ||
@@ -1602,6 +1617,11 @@
         hideTweetWithoutScrollJump(element, true);
       }, TWEET_FADE_MS)
     );
+  }
+
+  function setTweetPresentation(element, className) {
+    tweetPresentations.set(element, className);
+    element.classList.add(className);
   }
 
   function recordHideStat(element, reasons, kind) {
@@ -1624,6 +1644,7 @@
   }
 
   function restoreElement(element) {
+    tweetPresentations.delete(element);
     pendingClassifications.delete(element);
     window.clearTimeout(tweetFadeTimers.get(element));
     tweetFadeTimers.delete(element);
