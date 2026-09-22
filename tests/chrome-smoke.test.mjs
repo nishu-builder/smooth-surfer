@@ -2027,6 +2027,7 @@ async function verifyExtensionPopupOpens() {
       "Filter sets passed (save, preview, selective import, validation, responsive layout)."
     );
     // All full-page destinations share one navigation and the real settings store.
+    // Navigation polls can see the new document before its body is parsed.
     await client.send("Emulation.setDeviceMetricsOverride", {
       width: 1280,
       height: 900,
@@ -2046,7 +2047,7 @@ async function verifyExtensionPopupOpens() {
     );
     await waitForExpression(
       client,
-      `document.body.dataset.workspace==='settings' && document.querySelector('[data-setting="enabled"]')?.checked`
+      `document.body?.dataset.workspace==='settings' && document.querySelector('[data-setting="enabled"]')?.checked`
     );
     assert.equal(await evaluate(client, `document.querySelector('h1').textContent`), "Settings");
     assert.equal(
@@ -2185,7 +2186,7 @@ async function verifyExtensionPopupOpens() {
     );
     await waitForExpression(
       client,
-      `document.body.dataset.workspace==='settings' && document.querySelector('[data-setting="twitterHideTrends"]')?.checked===${!beforeToggle}`
+      `document.body?.dataset.workspace==='settings' && document.querySelector('[data-setting="twitterHideTrends"]')?.checked===${!beforeToggle}`
     );
     assert.equal(
       await evaluate(client, `document.documentElement.scrollWidth <= innerWidth`),
@@ -2327,7 +2328,11 @@ async function evaluate(client, expression) {
   });
 
   if (result.exceptionDetails) {
-    throw new Error(result.exceptionDetails.text || "Runtime evaluation failed");
+    throw new Error(
+      result.exceptionDetails.exception?.description ||
+        result.exceptionDetails.text ||
+        "Runtime evaluation failed"
+    );
   }
 
   return result.result.value;
