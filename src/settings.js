@@ -87,7 +87,7 @@
     focusScheduleEnabled: false,
     focusScheduleStart: "09:00",
     focusScheduleEnd: "17:00",
-    visitDelaySeconds: 10,
+    visitDelaySeconds: 1,
     visitDelayDomains: []
   };
   // Visit delay: listed sites open behind a countdown. Each finished wait makes

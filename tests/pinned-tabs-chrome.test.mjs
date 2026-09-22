@@ -209,8 +209,40 @@ try {
       .length,
     0
   );
+  // Dragging a pinned tab changes the saved order for subsequently opened windows.
+  const orderFirst = await evaluate(
+    `chrome.tabs.create({windowId:${secondWindow.id},url:'https://order-first.example.test/',pinned:true,active:false})`
+  );
+  const orderSecond = await evaluate(
+    `chrome.tabs.create({windowId:${secondWindow.id},url:'https://order-second.example.test/',pinned:true,active:false})`
+  );
+  await until(async () =>
+    (await snapshot()).every((window) => window.tabs.filter((tab) => tab.pinned).length === 2)
+  );
+  await evaluate(`chrome.tabs.move(${orderSecond.id},{index:0})`);
+  await until(
+    async () =>
+      (await evaluate(`chrome.storage.local.get('smoothSurferPinnedTabs')`))
+        .smoothSurferPinnedTabs[0] === "https://order-second.example.test/"
+  );
+  const orderedWindow = await evaluate(`chrome.windows.create({url:'about:blank',focused:false})`);
+  await until(
+    async () =>
+      (await snapshot())
+        .find((window) => window.id === orderedWindow.id)
+        ?.tabs.filter((tab) => tab.pinned).length === 2
+  );
+  assert.deepEqual(
+    (await snapshot())
+      .find((window) => window.id === orderedWindow.id)
+      .tabs.filter((tab) => tab.pinned)
+      .map((tab) => tab.pendingUrl || tab.url),
+    ["https://order-second.example.test/", "https://order-first.example.test/"]
+  );
+  assert.equal((await evaluate(`chrome.tabs.get(${orderFirst.id})`)).pinned, true);
+
   console.log(
-    "Pinned tabs Chrome passed (real extension, existing/new windows, navigation, unpin, close tab, close window)."
+    "Pinned tabs Chrome passed (real extension, existing/new windows, navigation, unpin, close tab, close window, saved ordering)."
   );
 } finally {
   socket?.close();

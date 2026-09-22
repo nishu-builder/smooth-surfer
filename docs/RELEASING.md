@@ -61,21 +61,24 @@ are GitHub dashboard toggles only a maintainer can set:
 ## Every release (automatable)
 
 1. Land changes on `main`.
-2. Bump `version` in `manifest.json` and `package.json` (keep them equal —
-   the release workflow refuses mismatched tags), and move the pending
+2. Bump `version` in `manifest.json`, `package.json`, and `package-lock.json`
+   (keep them equal; the workflow checks the tag against the manifest), and move the pending
    entries in [CHANGELOG.md](../CHANGELOG.md) under that version.
 3. `npm run check`
 4. If the UI or site styling changed, refresh screenshots:
    `node scripts/capture-store-assets.mjs`
    (needs ffmpeg; downloads Chrome for Testing into `.cache/` on Linux if no
    `CHROME_BIN` is set — plain Chrome 137+ ignores `--load-extension`).
-5. Tag and push: `git tag v<version> && git push origin v<version>`.
+5. Apply updated description, privacy answers, and screenshots from
+   [store-listing.md](store-listing.md) in the developer dashboard. The package
+   upload API does not update these listing fields.
+6. Tag and push: `git tag v<version> && git push origin v<version>`.
 
-The `Release` workflow then verifies the tag matches the manifest, runs
-checks, builds the zip, and stores it as a build artifact. With auto-publish
-enabled, it pauses for a maintainer to approve the deployment, then uploads to
-the Web Store. New versions of an approved extension are usually reviewed much
-faster than the first submission.
+The `Release` workflow first waits for a maintainer to approve the deployment.
+It then verifies the tag matches the manifest, runs checks, builds the zip,
+and stores it as a build artifact. With auto-publish enabled, it uploads and
+submits the package to the Web Store. A successful publish request is a review
+submission; verify the public listing separately before reporting a version as live.
 
 If auto-publish is ever turned off, the fallback is manual: download the zip
 from the workflow artifact (or run `npm run package`) and upload it in the

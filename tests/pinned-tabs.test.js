@@ -68,6 +68,7 @@ function harness(saved = {}) {
       onUpdated: event(),
       onRemoved: event(),
       onAttached: event(),
+      onMoved: event(),
       query: async () => structuredClone(windows.flatMap((w) => w.tabs)),
       create: async (options) => {
         const w = windows.find((item) => item.id === options.windowId);
@@ -213,6 +214,48 @@ const pins = (h, id) => h.windows.find((w) => w.id === id).tabs.filter((tab) => 
     "a queued load event must not recreate a just-closed pin"
   );
   assert.equal(race.local.smoothSurferPinnedTabs.length, 0);
+
+  const ordering = harness();
+  await ordering.settle();
+  await ordering.api.tabs.create({ windowId: 1, url: "https://second.example/", pinned: true });
+  await ordering.settle();
+  const sourceWindow = ordering.windows.find((window) => window.id === 1);
+  sourceWindow.tabs.reverse();
+  sourceWindow.tabs.forEach((tab, index) => {
+    tab.index = index;
+  });
+  ordering.api.tabs.onMoved.emit(sourceWindow.tabs[0].id, {
+    windowId: 1,
+    fromIndex: 1,
+    toIndex: 0
+  });
+  await ordering.settle();
+  assert.deepEqual(ordering.local.smoothSurferPinnedTabs, [
+    "https://second.example/",
+    "https://mail.google.com/mail/u/0/#inbox"
+  ]);
+  const remembered = harness({
+    local: ordering.local,
+    session: ordering.session,
+    windows: ordering.windows
+  });
+  await remembered.settle();
+  remembered.windows.push({ id: 8, type: "normal", incognito: false, tabs: [] });
+  remembered.api.windows.onCreated.emit({ id: 8, type: "normal" });
+  await remembered.settle();
+  assert.deepEqual(
+    pins(remembered, 8).map((tab) => tab.url),
+    ordering.local.smoothSurferPinnedTabs,
+    "new windows use the saved order after a worker restart"
+  );
+  remembered.api.tabs.onMoved.emit(2, { windowId: 2, fromIndex: 1, toIndex: 2 });
+  remembered.api.tabs.onMoved.emit(3, { windowId: 3, fromIndex: 1, toIndex: 0 });
+  await remembered.settle();
+  assert.deepEqual(
+    remembered.local.smoothSurferPinnedTabs,
+    ordering.local.smoothSurferPinnedTabs,
+    "regular and private tab moves cannot change the saved pin order"
+  );
 
   const reboot = harness({
     local: { smoothSurferPinnedTabs: ["https://saved.example/"] },

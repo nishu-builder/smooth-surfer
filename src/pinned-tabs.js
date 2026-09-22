@@ -97,6 +97,30 @@
         if (!urls.includes(url)) urls.push(url);
         bindings[tab.id] = url;
       }
+      // Remember the last user-arranged pinned order for future windows.
+      // Ignore ordinary-tab moves, private windows, and shutdown unpins.
+      const reorder = changes
+        .slice()
+        .reverse()
+        .find(
+          (event) =>
+            event.orderWindowId !== undefined &&
+            live.get(event.tabId)?.pinned &&
+            windows.some((window) => window.id === event.orderWindowId)
+        );
+      if (reorder) {
+        const source = windows.find((window) => window.id === reorder.orderWindowId);
+        const ordered = [
+          ...new Set(
+            source.tabs
+              .filter((tab) => tab.pinned)
+              .sort((a, b) => a.index - b.index)
+              .map((tab) => bindings[tab.id])
+              .filter(Boolean)
+          )
+        ];
+        urls = [...ordered, ...urls.filter((url) => !ordered.includes(url))];
+      }
       // Persist the desired list before creating tabs so worker interruption
       // can be repaired by the next event without forgetting a shared pin.
       await save();
@@ -135,7 +159,8 @@
     }
 
     const schedule = (event) => {
-      if (event?.removed || event?.unpinned) pendingChanges.push(event);
+      if (event?.removed || event?.unpinned || event?.orderWindowId !== undefined)
+        pendingChanges.push(event);
       void enqueue(() => reconcile());
     };
     api.tabs.onCreated.addListener((tab) => {
@@ -150,6 +175,9 @@
     });
     api.tabs.onRemoved.addListener((tabId, info) =>
       schedule({ tabId, removed: true, windowClosing: info.isWindowClosing })
+    );
+    api.tabs.onMoved.addListener((tabId, info) =>
+      schedule({ tabId, orderWindowId: info.windowId })
     );
     api.tabs.onAttached.addListener(() => schedule());
     api.windows.onCreated.addListener((window) => {
