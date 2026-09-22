@@ -49,6 +49,7 @@
   ];
   const DEFAULT_SETTINGS = {
     enabled: true,
+    crossWindowPinsEnabled: false,
     filterCriteria: [...DEFAULT_FILTER_CRITERIA],
     youtubeGrayscaleThumbnails: true,
     youtubeHideRecommendations: true,
@@ -175,6 +176,7 @@
     next.videoSpeedHotkeys = Boolean(next.videoSpeedHotkeys);
     next.videoSpeedModifier = normalizeModifier(next.videoSpeedModifier);
     next.settingsHotkeyEnabled = Boolean(next.settingsHotkeyEnabled);
+    next.crossWindowPinsEnabled = Boolean(next.crossWindowPinsEnabled);
     next.focusScheduleEnabled = Boolean(next.focusScheduleEnabled);
     next.focusScheduleStart = normalizeTime(
       next.focusScheduleStart,

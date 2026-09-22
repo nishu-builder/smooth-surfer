@@ -233,8 +233,25 @@
   });
 
   settingInputs.forEach((input) => {
-    input.addEventListener("change", () => {
+    input.addEventListener("change", async () => {
       const value = input.type === "checkbox" ? input.checked : input.value;
+      if (input.dataset.setting === "crossWindowPinsEnabled" && value) {
+        try {
+          if (
+            typeof chrome === "undefined" ||
+            !chrome.permissions?.request ||
+            !(await chrome.permissions.request({ permissions: ["tabs"] }))
+          ) {
+            input.checked = false;
+            setStatus("Allow tab access to share pinned pages across windows.");
+            return;
+          }
+        } catch (error) {
+          input.checked = false;
+          setStatus(error.message);
+          return;
+        }
+      }
       saveSettings({ [input.dataset.setting]: value });
     });
   });
