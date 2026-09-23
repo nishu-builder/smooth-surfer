@@ -16,6 +16,8 @@ Analyze images is off by default and applies only to Claude mode. When enabled a
 
 Format filters for reposts, quote posts, and video posts run locally without an API key. Named filter sets are stored locally, up to 20 sets. Exported sets contain only a name, content rules, and enabled X format filters. API keys, image-analysis consent, and unrelated settings are excluded. Importing previews a set; only your selected rules and formats are added when you apply it.
 
+The visit delay stores the domains you list with your settings and keeps per-day counts for those domains locally with `chrome.storage.local`: page loads, countdowns started, finished, and abandoned, resets, time waited, and the hour of day each countdown started. It keeps 30 days and records no URLs, page titles, or content. A tab that finished its wait keeps a pass in that tab's session storage.
+
 Smooth Surfer does not sell data or collect analytics.
 
 Good ruling / Bad ruling judgments and optional explanations are stored locally, separately from review previews, up to 2,000 judgments within 2 MB. They remain when review history is cleared. Recalibrate rules processes selected labeled examples and explanations with the selected model, then tests proposed revisions in separate classification calls. In Claude mode this sends the examples to Anthropic with the saved API key; supported image URLs may be included when Analyze images is enabled. On-device mode uses text only. Changes that pass the replay are applied automatically; the last 30 rule revisions remain locally for undo. Votes alone do not send an API request or change filtering. Format judgments stay local and are not used to rewrite content rules.
@@ -33,3 +35,5 @@ are also kept on this device. Explanation drafts are saved locally as you type;
 unjudged drafts are not sent for recalibration. Jobs resume after Chrome reopens.
 An API request interrupted by browser shutdown may be repeated. These local
 records are removed when extension data is cleared or the extension is uninstalled.
+
+Cross-window pinned tabs are off by default and request optional tab access when enabled. Only the URLs of pinned HTTP/HTTPS pages are saved in `chrome.storage.local`; tab IDs and their saved URLs are kept in `chrome.storage.session` while Chrome runs. These URLs stay on this device and are not synced or sent to a Smooth Surfer server. Opening a copy in another window contacts the website normally. Private windows are excluded. Disabling sharing clears the saved pin list without closing existing tabs.

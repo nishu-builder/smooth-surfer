@@ -292,6 +292,71 @@ export async function verifyTwitterFeed({
   await wait(`document.querySelector('#cell-0').classList.contains('smooth-surfer-hidden')`);
   await wait(`document.querySelector('#cell-1').getBoundingClientRect().top === 0`);
 
+  // A row straddling the viewport top still contributes to the reading anchor.
+  await open();
+  await run(`window.scrollTo(0, 450)`);
+  const partialAnchor = await run(`document.querySelector('#cell-3').getBoundingClientRect().top`);
+  await run(`resolvePost(2, true)`);
+  await wait(`document.querySelector('#cell-2').dataset.smoothSurferHidden === 'true'`);
+  await run(`new Promise(resolve => setTimeout(resolve, 250))`);
+  assert.equal(
+    await run(`document.querySelector('#cell-2').getBoundingClientRect().height`),
+    180,
+    "partially scrolled-past blocks retain their measured height"
+  );
+  assert.equal(
+    await run(`document.querySelector('#cell-3').getBoundingClientRect().top`),
+    partialAnchor,
+    "a late verdict must not move the current reading position"
+  );
+
+  const deferredRewrite = await run(`(async () => {
+    const cell = document.querySelector('#cell-2');
+    cell.className = 'react-deferred-row';
+    await new Promise(requestAnimationFrame);
+    return {height: cell.getBoundingClientRect().height, visibility: getComputedStyle(cell).visibility};
+  })()`);
+  assert.deepEqual(deferredRewrite, { height: 180, visibility: "hidden" });
+
+  // React may replace className without replacing the tweet. Check the next
+  // frame, not eventual convergence after the 120ms scan or 2s fallback.
+  await open();
+  await run(`resolvePost(0, true)`);
+  await wait(`document.querySelector('#cell-0').classList.contains('smooth-surfer-hidden')`);
+  const rewrittenFrames = await run(`(async () => {
+    const cell = document.querySelector('#cell-0');
+    const heights = [];
+    for (let i = 0; i < 4; i++) {
+      cell.className = 'react-row-' + i;
+      await new Promise(requestAnimationFrame);
+      heights.push(cell.getBoundingClientRect().height);
+    }
+    return heights;
+  })()`);
+  assert.deepEqual(rewrittenFrames, [0, 0, 0, 0], "rewritten classes never reveal blocked posts");
+  assert.equal(await run(`requests.length`), 8, "class rewrites reuse the verdict");
+
+  // A rewritten class during the fade must not reveal the post or restart it.
+  await run(`resolvePost(1, true)`);
+  await wait(`document.querySelector('#cell-1').classList.contains('smooth-surfer-tweet-fading')`);
+  const fadingRewrite = await run(`(async () => {
+    const cell = document.querySelector('#cell-1');
+    cell.className = 'react-fading-row';
+    await new Promise(requestAnimationFrame);
+    return cell.classList.contains('smooth-surfer-tweet-fading') || cell.classList.contains('smooth-surfer-hidden');
+  })()`);
+  assert.equal(fadingRewrite, true, "the active fade survives class rewrites");
+  await wait(`document.querySelector('#cell-1').classList.contains('smooth-surfer-hidden')`);
+
+  // Class repair must still release a recycled row and respect disabling.
+  await run(`document.querySelector('#cell-0').className = 'react-recycled-row';
+    document.querySelector('#text-0').textContent = 'Recycled allowed post'`);
+  await wait(`requests.length === 9`);
+  assert.equal(await run(`document.querySelector('#cell-0').getBoundingClientRect().height`), 180);
+  await run(`resolvePost(8, false); updateSettings({enabled:false})`);
+  await wait(`!document.querySelector('[data-smooth-surfer-hidden-kind="tweet"]')`);
+  assert.equal(await run(`document.querySelector('#cell-1').getBoundingClientRect().height`), 180);
+
   // Restoring a blocked post persists across rescans and overrides late verdicts.
   await open();
   await run(`resolvePost(0,true)`);

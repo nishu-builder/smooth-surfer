@@ -5,9 +5,25 @@ release is a `v*` tag; see [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Unreleased
 
-- Default to Gemini Nano on desktop when no AI provider has been chosen; preserve explicit choices and keep Safari defaulting to Claude. Model download still requires setup, with no cloud fallback.
+- Stop Reddit posts from flickering between hidden and visible. A hide decision now stays with the post until settings change, even when hiding it removes the recommendation label or changes which image size Reddit loads.
 
-- Add desktop on-device text processing with Chrome's built-in Gemini Nano, explicit setup and availability, and no automatic cloud fallback.
+## 0.2.10
+
+- Prevent filtered X/Twitter posts from flashing back into view when the page replaces their CSS classes, including during fades.
+- Preserve row height when a late filtering decision affects a post partly above the viewport, preventing a jump in the reading position.
+
+## 0.2.9
+
+- Add loading delays for habitual sites, with a one-second starting default, a configurable first wait, 1.5× growth after completed waits, a 20-minute cap, and a daily reset at 03:00.
+- Add Loading delay checkboxes to each supported site's settings, synchronized with the domain list. Apply new rules to already-open tabs and cover both twitter.com and x.com with either rule.
+- Animate countdown progress smoothly, pause while the tab is hidden, and record visits, early exits, resets, waited time, and visits by hour.
+- Add optional shared pinned tabs across regular Chrome windows. Preserve pins when a window closes; unpin copies without closing their pages when an individual pin is removed. Keep URLs local and exclude private windows.
+- Remember the last pinned-tab order arranged in a regular window and use it when opening new windows.
+- Refresh the README, store listing, permission explanations, and screenshots. Record the Gmail inbox queue as future work only.
+
+## 0.2.8
+
+- Add desktop on-device text processing with Chrome's built-in Gemini Nano, explicit setup and availability, and no automatic cloud fallback. Claude remains the default; explicit provider choices are preserved.
 - Use the selected model for feed decisions, filter suggestions, and feedback recalibration.
 - Add an iPhone Safari extension package with native setup instructions and a reproducible build from shared web sources.
 - Add a shared sidebar for review, settings, stats, and filter sets; keep tooltips clear of controls and expose Share ruleset.

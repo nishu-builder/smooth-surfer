@@ -1,8 +1,8 @@
 {
   "name": "smooth-surfer",
-  "version": "0.2.8",
+  "version": "0.2.10",
   "private": true,
-  "description": "Filter unwanted posts and reduce distractions on the web.",
+  "description": "Filter distracting feeds, add loading delays to habitual sites, and share pinned tabs across Chrome windows.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -13,7 +13,7 @@
   },
   "homepage": "https://github.com/nishu-builder/smooth-surfer#readme",
   "scripts": {
-    "check": "node --check src/calibration.js && node --check src/settings.js && node --check src/storage.js && node --check src/background.js && node --check src/content.js && node --check src/popup.js && node --check src/filters.js && node --check src/review.js && node --check src/feedback.js && node tests/settings.test.js && node tests/calibration.test.js && node tests/manifest.test.js && node tests/background.test.js && node tests/ios-package.test.mjs && node tests/local-model.test.js && node tests/chrome-smoke.test.mjs && node tests/local-model-chrome.test.mjs",
+    "check": "node --check src/calibration.js && node --check src/settings.js && node --check src/storage.js && node --check src/pinned-tabs.js && node --check src/background.js && node --check src/content.js && node --check src/visit-delay.js && node --check src/popup.js && node --check src/filters.js && node --check src/review.js && node --check src/feedback.js && node tests/settings.test.js && node tests/calibration.test.js && node tests/manifest.test.js && node tests/pinned-tabs.test.js && node tests/background.test.js && node tests/ios-package.test.mjs && node tests/local-model.test.js && node tests/chrome-smoke.test.mjs && node tests/local-model-chrome.test.mjs && node tests/pinned-tabs-chrome.test.mjs",
     "test": "npm run check",
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{js,mjs,json}\"",

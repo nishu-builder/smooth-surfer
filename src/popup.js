@@ -8,6 +8,11 @@
     normalizeCriteria,
     normalizeSecrets,
     normalizeSettings,
+    normalizeVisitDomain,
+    normalizeVisitDomains,
+    matchVisitDomain,
+    getVisitDelayDayKey,
+    getVisitDelayStatus,
     REVIEW_KEY,
     CALIBRATION_KEY
   } = window.SmoothSurferSettings;
@@ -17,12 +22,15 @@
     loadSecrets,
     loadSettings,
     loadStats,
+    loadVisitDelay,
+    applyVisitDelayEvent,
     saveConsumption: writeConsumption,
     saveSecrets: writeSecrets,
     saveSettings: writeSettings,
     saveStats: writeStats,
     watchConsumption,
-    watchStats
+    watchStats,
+    watchVisitDelay
   } = window.SmoothSurferStorage;
   const STATS_SITE_LABELS = {
     youtube: "YouTube",
@@ -63,9 +71,12 @@
   let secrets = { ...DEFAULT_SECRETS };
   let stats = { days: {} };
   let consumption = { days: {} };
+  let visitDelay = { days: {} };
+  let activeHost = "";
 
   const status = document.querySelector("[data-status]");
   const settingInputs = Array.from(document.querySelectorAll("[data-setting]"));
+  const visitDelayInputs = Array.from(document.querySelectorAll("[data-visit-delay-toggle]"));
   const secretInputs = Array.from(document.querySelectorAll("[data-secret]"));
   const apiKeyRow = document.querySelector("[data-api-key-row]");
   const filterKeyStatus = document.querySelector("[data-filter-key-status]");
@@ -95,6 +106,14 @@
   const clearStatsButton = document.querySelector("[data-clear-stats]");
   const factsLabel = document.querySelector("[data-facts-label]");
   const clearFactsButton = document.querySelector("[data-clear-facts]");
+  const domainForm = document.querySelector("[data-domain-form]");
+  const domainInput = document.querySelector("[data-domain-input]");
+  const domainList = document.querySelector("[data-domain-list]");
+  const addCurrentDomainButton = document.querySelector("[data-add-current-domain]");
+  const visitToday = document.querySelector("[data-visit-today]");
+  const visitTable = document.querySelector("[data-visit-delay-table]");
+  const visitHours = document.querySelector("[data-visit-delay-hours]");
+  const visitHourTable = document.querySelector("[data-visit-delay-hour-table]");
   const exportButton = document.querySelector("[data-export-settings]");
   const importButton = document.querySelector("[data-import-settings]");
   const importFile = document.querySelector("[data-import-file]");
@@ -120,6 +139,14 @@
   watchConsumption((nextConsumption) => {
     consumption = nextConsumption;
     renderFacts();
+  });
+  loadVisitDelay().then((loaded) => {
+    visitDelay = loaded;
+    renderVisitDelay();
+  });
+  watchVisitDelay((next) => {
+    visitDelay = next;
+    renderVisitDelay();
   });
   // Keep multi-megabyte review records out of the popup's rendering thread.
   // The worker returns only a count; navigation and settings never wait for it.
@@ -162,15 +189,87 @@
     settings = next;
     render();
   });
-  detectActivePlatform().then((platform) => {
+  detectActiveTab().then(({ platform, host }) => {
     activePlatform = platform;
+    activeHost = host;
     renderActiveSection();
+    renderVisitDelay();
+  });
+
+  domainForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    addVisitDomain(domainInput.value);
+  });
+
+  addCurrentDomainButton.addEventListener("click", () => {
+    addVisitDomain(activeHost);
+  });
+
+  domainList.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-remove-domain]");
+
+    if (!button) {
+      return;
+    }
+
+    event.preventDefault();
+    saveSettings({
+      visitDelayDomains: settings.visitDelayDomains.filter(
+        (domain) => domain !== button.dataset.removeDomain
+      )
+    });
+  });
+
+  visitToday.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-reset-domain]");
+
+    if (!button) {
+      return;
+    }
+
+    button.disabled = true;
+    visitDelayCommand(button.dataset.resetDomain, "reset").then(
+      () => setStatus("Count reset"),
+      () => setStatus("Not saved")
+    );
   });
 
   settingInputs.forEach((input) => {
-    input.addEventListener("change", () => {
+    input.addEventListener("change", async () => {
       const value = input.type === "checkbox" ? input.checked : input.value;
+      if (input.dataset.setting === "crossWindowPinsEnabled" && value) {
+        try {
+          if (
+            typeof chrome === "undefined" ||
+            !chrome.permissions?.request ||
+            !(await chrome.permissions.request({ permissions: ["tabs"] }))
+          ) {
+            input.checked = false;
+            setStatus("Allow tab access to share pinned pages across windows.");
+            return;
+          }
+        } catch (error) {
+          input.checked = false;
+          setStatus(error.message);
+          return;
+        }
+      }
       saveSettings({ [input.dataset.setting]: value });
+    });
+  });
+
+  visitDelayInputs.forEach((input) => {
+    input.addEventListener("change", () => {
+      const domain = input.dataset.visitDelayToggle;
+      if (input.checked) {
+        addVisitDomain(domain);
+      } else {
+        saveSettings({
+          visitDelayDomains: settings.visitDelayDomains.filter(
+            (listed) => !matchVisitDomain(domain, [listed])
+          )
+        });
+      }
     });
   });
 
@@ -343,6 +442,231 @@
     phraseForm.querySelector("button").disabled = phraseInput.disabled;
     renderActiveSection();
     renderPhrases();
+    renderVisitDelay();
+  }
+
+  function addVisitDomain(value) {
+    const domain = normalizeVisitDomain(value);
+
+    if (!domain) {
+      setStatus("Enter a site like example.com");
+      return;
+    }
+
+    saveSettings({
+      visitDelayDomains: normalizeVisitDomains([...settings.visitDelayDomains, domain])
+    });
+    domainInput.value = "";
+  }
+
+  // The worker owns visit counts; extension-less previews apply the same rules locally.
+  function visitDelayCommand(domain, event) {
+    if (typeof chrome !== "undefined" && chrome.runtime?.sendMessage) {
+      return new Promise((resolve, reject) =>
+        chrome.runtime.sendMessage({ type: "visitDelayEvent", domain, event }, (response) => {
+          if (chrome.runtime.lastError || !response?.ok)
+            reject(new Error(response?.error || "Not saved"));
+          else resolve(response);
+        })
+      );
+    }
+
+    return applyVisitDelayEvent({ domain, event }).then((status) => {
+      loadVisitDelay().then((next) => {
+        visitDelay = next;
+        renderVisitDelay();
+      });
+      return status;
+    });
+  }
+
+  function renderVisitDelay() {
+    const domains = settings.visitDelayDomains;
+    visitDelayInputs.forEach((input) => {
+      input.checked = Boolean(matchVisitDomain(input.dataset.visitDelayToggle, domains));
+      input.disabled = !settings.enabled;
+    });
+    const usable = settings.enabled;
+
+    domainInput.disabled = !usable;
+    domainForm.querySelector("button").disabled = !usable;
+    const currentDomain = normalizeVisitDomain(activeHost);
+    addCurrentDomainButton.hidden =
+      !usable ||
+      !currentDomain ||
+      domains.includes(currentDomain) ||
+      Boolean(document.body.dataset.workspace);
+    addCurrentDomainButton.textContent = `Add ${currentDomain}`;
+
+    domainList.replaceChildren();
+    if (domains.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "empty";
+      empty.textContent = "No sites listed.";
+      domainList.append(empty);
+    }
+    domains.forEach((domain) => {
+      const pill = document.createElement("div");
+      pill.className = "pill pill-plain";
+      const label = document.createElement("span");
+      label.className = "pill-label";
+      label.textContent = domain;
+      label.title = domain;
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.dataset.removeDomain = domain;
+      remove.title = `Remove ${domain}`;
+      remove.textContent = "x";
+      remove.disabled = !usable;
+      pill.append(label, remove);
+      domainList.append(pill);
+    });
+
+    visitToday.replaceChildren();
+    domains.forEach((domain) => {
+      const status = getVisitDelayStatus(visitDelay, domain, settings.visitDelaySeconds);
+      const row = document.createElement("div");
+      row.className = "stats-row";
+      const label = document.createElement("span");
+      label.textContent = domain;
+      const counts = document.createElement("span");
+      counts.textContent = `${status.step} today · ${formatDuration(status.waitedMs)} waited · next ${formatDuration(status.waitMs)}`;
+      row.append(label, counts);
+      if (status.step > 0) {
+        const reset = document.createElement("button");
+        reset.type = "button";
+        reset.dataset.resetDomain = domain;
+        reset.textContent = "Reset";
+        reset.disabled = !usable;
+        row.append(reset);
+      }
+      visitToday.append(row);
+    });
+
+    renderVisitDelayStats(domains);
+  }
+
+  function renderVisitDelayStats(domains) {
+    if (!visitTable) return;
+    const todayKey = getVisitDelayDayKey();
+    const weekKeys = new Set(
+      Array.from({ length: 7 }, (_, offset) =>
+        getVisitDelayDayKey(Date.now() - offset * 24 * 60 * 60 * 1000)
+      )
+    );
+    const totals = new Map();
+    const hours = Array(24).fill(0);
+    const blank = () => ({
+      loads: 0,
+      starts: 0,
+      completed: 0,
+      abandoned: 0,
+      resets: 0,
+      waitedMs: 0
+    });
+
+    for (const [day, entries] of Object.entries(visitDelay.days)) {
+      if (!weekKeys.has(day)) continue;
+      for (const [domain, entry] of Object.entries(entries)) {
+        const total = totals.get(domain) || { today: blank(), week: blank() };
+        for (const key of Object.keys(total.week)) {
+          total.week[key] += entry[key];
+          if (day === todayKey) total.today[key] += entry[key];
+        }
+        entry.hours.forEach((count, hour) => {
+          hours[hour] += count;
+        });
+        totals.set(domain, total);
+      }
+    }
+    for (const domain of domains) {
+      if (!totals.has(domain)) totals.set(domain, { today: blank(), week: blank() });
+    }
+
+    visitTable.replaceChildren();
+    if (totals.size === 0) {
+      const empty = document.createElement("div");
+      empty.className = "empty";
+      empty.textContent = "No sites listed yet.";
+      visitTable.append(empty);
+    } else {
+      const table = document.createElement("table");
+      table.className = "visit-table";
+      const head = table.createTHead().insertRow();
+      for (const heading of ["Site", "Loads", "Visits", "Left early", "Resets", "Waited"]) {
+        const cell = document.createElement("th");
+        cell.scope = "col";
+        cell.textContent = heading;
+        head.append(cell);
+      }
+      const body = table.createTBody();
+      const ordered = [...totals].sort((a, b) => b[1].week.starts - a[1].week.starts);
+      for (const [domain, total] of ordered) {
+        const row = body.insertRow();
+        row.insertCell().textContent = domain;
+        for (const key of ["loads", "completed", "abandoned", "resets"]) {
+          row.insertCell().textContent = `${total.today[key]} · ${total.week[key]}`;
+        }
+        row.insertCell().textContent = `${formatDuration(total.today.waitedMs)} · ${formatDuration(total.week.waitedMs)}`;
+      }
+      visitTable.append(table);
+    }
+
+    const peak = Math.max(1, ...hours);
+    visitHours.replaceChildren();
+    visitHours.setAttribute(
+      "aria-label",
+      `Visit starts by hour of day over the past 7 days, ${hours.reduce((sum, count) => sum + count, 0)} in total.`
+    );
+    hours.forEach((count, hour) => {
+      const bar = document.createElement("div");
+      bar.className = "hour-bar";
+      bar.tabIndex = 0;
+      const label = `${String(hour).padStart(2, "0")}:00–${String((hour + 1) % 24).padStart(2, "0")}:00`;
+      bar.setAttribute("aria-label", `${label}: ${count} ${count === 1 ? "visit" : "visits"}`);
+      if (!count) bar.dataset.empty = "";
+      const fill = document.createElement("div");
+      fill.className = "hour-bar-fill";
+      fill.style.height = count ? `${Math.max(2, (count / peak) * 100)}%` : "1px";
+      const tip = document.createElement("span");
+      tip.className = "hour-bar-tip";
+      tip.textContent = `${count} · ${label}`;
+      bar.append(fill, tip);
+      if (hour % 6 === 0) {
+        const axis = document.createElement("span");
+        axis.className = "hour-label";
+        axis.textContent = `${String(hour).padStart(2, "0")}:00`;
+        bar.append(axis);
+      }
+      visitHours.append(bar);
+    });
+
+    visitHourTable.replaceChildren();
+    const hourTable = document.createElement("table");
+    hourTable.className = "visit-table";
+    const hourHead = hourTable.createTHead().insertRow();
+    for (const heading of ["Hour", "Visits"]) {
+      const cell = document.createElement("th");
+      cell.scope = "col";
+      cell.textContent = heading;
+      hourHead.append(cell);
+    }
+    const hourBody = hourTable.createTBody();
+    hours.forEach((count, hour) => {
+      const row = hourBody.insertRow();
+      row.insertCell().textContent = `${String(hour).padStart(2, "0")}:00`;
+      row.insertCell().textContent = String(count);
+    });
+    visitHourTable.append(hourTable);
+  }
+
+  function formatDuration(ms) {
+    const total = Math.round(ms / 1000);
+    if (total < 60) return `${total}s`;
+    const minutes = Math.floor(total / 60);
+    const seconds = total % 60;
+    if (minutes < 60) return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+    return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, "0")}m`;
   }
 
   function renderFilterKeyStatus() {
@@ -638,25 +962,33 @@
     );
   }
 
-  function detectActivePlatform() {
+  function detectActiveTab() {
     return new Promise((resolve) => {
       if (
         typeof chrome === "undefined" ||
         !chrome.tabs ||
         typeof chrome.tabs.query !== "function"
       ) {
-        resolve("unknown");
+        resolve({ platform: "unknown", host: "" });
         return;
       }
 
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (chrome.runtime && chrome.runtime.lastError) {
-          resolve("unknown");
+          resolve({ platform: "unknown", host: "" });
           return;
         }
 
         const tab = tabs && tabs[0];
         const platformFromUrl = getPlatformForUrl(tab && tab.url);
+        let host = "";
+
+        try {
+          const url = new URL(tab && tab.url);
+          host = /^https?:$/.test(url.protocol) ? url.hostname : "";
+        } catch {
+          host = "";
+        }
 
         if (
           platformFromUrl !== "unknown" ||
@@ -664,17 +996,20 @@
           typeof tab.id !== "number" ||
           typeof chrome.tabs.sendMessage !== "function"
         ) {
-          resolve(platformFromUrl);
+          resolve({ platform: platformFromUrl, host });
           return;
         }
 
         chrome.tabs.sendMessage(tab.id, { type: "getSmoothSurferPlatform" }, (response) => {
           if (chrome.runtime && chrome.runtime.lastError) {
-            resolve("unknown");
+            resolve({ platform: "unknown", host });
             return;
           }
 
-          resolve(response && response.platform ? response.platform : "unknown");
+          resolve({
+            platform: response && response.platform ? response.platform : "unknown",
+            host
+          });
         });
       });
     });

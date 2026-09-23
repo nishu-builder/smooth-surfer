@@ -69,6 +69,10 @@
           <span>Hide comments</span>
           <input type="checkbox" data-setting="youtubeHideComments">
         </label>
+        <label class="switch-row" data-description="Shows a countdown before visiting this site. Uses the same domain list and duration as Visit delay below.">
+          <span>Loading delay</span>
+          <input type="checkbox" data-visit-delay-toggle="youtube.com">
+        </label>
       </section>
 
       <section data-site-section="twitter">
@@ -98,6 +102,10 @@
           <span>Prefer Following</span>
           <input type="checkbox" data-setting="twitterEnforceFollowing">
         </label>
+        <label class="switch-row" data-description="Shows a countdown before visiting this site. Uses the same domain list and duration as Visit delay below.">
+          <span>Loading delay</span>
+          <input type="checkbox" data-visit-delay-toggle="x.com">
+        </label>
       </section>
 
       <section data-site-section="reddit">
@@ -118,6 +126,10 @@
           <span>Hide comments</span>
           <input type="checkbox" data-setting="redditHideComments">
         </label>
+        <label class="switch-row" data-description="Shows a countdown before visiting this site. Uses the same domain list and duration as Visit delay below.">
+          <span>Loading delay</span>
+          <input type="checkbox" data-visit-delay-toggle="reddit.com">
+        </label>
       </section>
 
       <section data-site-section="substack">
@@ -130,6 +142,10 @@
           <span>Filter out content</span>
           <input type="checkbox" data-setting="substackFilterContent">
         </label>
+        <label class="switch-row" data-description="Shows a countdown before visiting this site. Uses the same domain list and duration as Visit delay below.">
+          <span>Loading delay</span>
+          <input type="checkbox" data-visit-delay-toggle="substack.com">
+        </label>
       </section>
 
       <section data-site-section="hacker-news">
@@ -141,6 +157,10 @@
         <label class="switch-row" data-description="Hides Hacker News story scores.">
           <span>Hide scores</span>
           <input type="checkbox" data-setting="hackerNewsHideScores">
+        </label>
+        <label class="switch-row" data-description="Shows a countdown before visiting this site. Uses the same domain list and duration as Visit delay below.">
+          <span>Loading delay</span>
+          <input type="checkbox" data-visit-delay-toggle="news.ycombinator.com">
         </label>
       </section>
 
@@ -209,6 +229,44 @@
             <input type="time" data-setting="focusScheduleEnd">
           </label>
         </div>
+      </section>
+
+      <section data-pinned-tabs-panel>
+        <h2>Pinned tabs</h2>
+        <label class="switch-row" data-description="Keeps pinned web pages available in every regular Chrome window. Requires tab access.">
+          <span>Share pins across windows</span>
+          <input type="checkbox" data-setting="crossWindowPinsEnabled">
+        </label>
+        <p>Keep the same pinned web pages in every regular Chrome window, including new windows. Pin a page normally to share it. Drag pins to set the order for new windows.</p>
+        <p>Unpinning or closing a pin unpins its copies without closing them. Closing a window keeps your pins. Navigation within each copy stays independent. Private windows are excluded.</p>
+      </section>
+
+      <section data-visit-delay-panel>
+        <h2>Visit delay</h2>
+        <p>Listed sites open behind a countdown. Each finished wait today makes the next one 1.5× longer; leaving early adds nothing. Counts reset at 03:00. Twitter and X are covered by either twitter.com or x.com.</p>
+        <label class="field-row">
+          <span>First wait (seconds)</span>
+          <input type="number" min="1" max="300" step="1" inputmode="numeric" data-setting="visitDelaySeconds">
+        </label>
+        <form class="phrase-form" data-domain-form>
+          <input type="text" data-domain-input placeholder="example.com" autocomplete="off" spellcheck="false">
+          <button type="submit">Add</button>
+        </form>
+        <button type="button" data-add-current-domain hidden></button>
+        <div class="pills" data-domain-list aria-live="polite"></div>
+        <div class="stats" data-visit-today aria-live="polite"></div>
+      </section>
+
+      <section data-visit-delay-stats hidden>
+        <h2>Visit delay</h2>
+        <p class="notice">Listed sites, today · past 7 days. Visits are finished waits; left early counts waits abandoned before the countdown ended.</p>
+        <div data-visit-delay-table></div>
+        <h3 class="chart-heading">Visits by hour, past 7 days</h3>
+        <div class="hour-chart" data-visit-delay-hours role="img"></div>
+        <details>
+          <summary>Hour table</summary>
+          <div data-visit-delay-hour-table></div>
+        </details>
       </section>
 
       <section data-consumption-panel>

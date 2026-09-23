@@ -18,7 +18,8 @@ html.workspace { width: auto; min-width: 0; overflow-x: visible; }
 .workspace .popup > header { grid-column: 1 / -1; border: 0; border-top: 2px solid var(--ss-action); border-radius: 0; padding: 8px 0; }
 .workspace .popup h1 { font: 400 26px/1.15 var(--ss-mono); letter-spacing: -.045em; }
 .workspace .popup > section { padding: 10px; gap: 6px; }
-.workspace .popup > [data-filter-panel], .workspace .popup > [data-reasons-panel] { grid-column: 1 / -1; }
+.workspace .popup > [data-filter-panel], .workspace .popup > [data-reasons-panel], .workspace .popup > [data-visit-delay-stats] { grid-column: 1 / -1; }
+.workspace .popup > [data-visit-delay-stats] { max-width: 720px; }
 .workspace .popup [data-stats-panel] { grid-column: 1 / -1; }
 .workspace .popup > [data-consumption-panel] { width: 100%; max-width: 500px; grid-column: 1 / -1; }
 .workspace .popup .pill-label { max-width: none; white-space: normal; }

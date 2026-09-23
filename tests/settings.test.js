@@ -355,3 +355,135 @@ assert.equal(
     "returned archives remain in the queue without changing original filter time"
   );
 }
+
+// Visit delay: domains, growth, the 03:00 day boundary, and event accounting.
+{
+  const S = require("../src/settings.js");
+  assert.equal(defaults.visitDelaySeconds, 1);
+  assert.deepEqual(defaults.visitDelayDomains, []);
+  assert.equal(S.normalizeSettings({ visitDelaySeconds: "0" }).visitDelaySeconds, 1);
+  assert.equal(S.normalizeSettings({ visitDelaySeconds: 900 }).visitDelaySeconds, 300);
+  assert.equal(S.normalizeSettings({ visitDelaySeconds: "abc" }).visitDelaySeconds, 1);
+  assert.equal(S.normalizeVisitDomain("https://www.X.com/home?x=1"), "x.com");
+  assert.equal(S.normalizeVisitDomain("*.reddit.com"), "reddit.com");
+  assert.equal(S.normalizeVisitDomain("x.com:443"), "x.com");
+  assert.equal(S.normalizeVisitDomain("localhost"), "", "a bare label is not a site");
+  assert.equal(S.normalizeVisitDomain("bad host"), "");
+  assert.equal(S.normalizeVisitDomain(""), "");
+  assert.deepEqual(
+    S.normalizeSettings({ visitDelayDomains: "x.com, https://reddit.com/r/a x.com" })
+      .visitDelayDomains,
+    ["x.com", "reddit.com"]
+  );
+  assert.equal(
+    S.normalizeSettings({ visitDelayDomains: Array.from({ length: 60 }, (_, i) => `s${i}.com`) })
+      .visitDelayDomains.length,
+    50
+  );
+  assert.equal(S.matchVisitDomain("old.reddit.com", ["reddit.com"]), "reddit.com");
+  assert.equal(S.matchVisitDomain("www.x.com", ["x.com"]), "x.com");
+  assert.equal(S.matchVisitDomain("x.com", ["twitter.com"]), "twitter.com");
+  assert.equal(S.matchVisitDomain("mobile.x.com", ["twitter.com"]), "twitter.com");
+  assert.equal(S.matchVisitDomain("twitter.com", ["x.com"]), "x.com");
+  assert.equal(S.matchVisitDomain("mobile.twitter.com", ["x.com"]), "x.com");
+  assert.equal(S.matchVisitDomain("x.com", ["twitter.com", "x.com"]), "x.com");
+  assert.equal(S.matchVisitDomain("notx.com", ["twitter.com"]), "");
+  assert.equal(S.matchVisitDomain("x.com.evil.test", ["twitter.com"]), "");
+  assert.equal(S.matchVisitDomain("notreddit.com", ["reddit.com"]), "", "no suffix matches");
+  assert.equal(
+    S.matchVisitDomain("old.reddit.com", ["reddit.com", "old.reddit.com"]),
+    "old.reddit.com",
+    "the most specific listed domain wins"
+  );
+  assert.deepEqual(
+    [0, 1, 2, 3].map((step) => S.getVisitDelayMs(step, 10)),
+    [10000, 15000, 23000, 34000],
+    "waits grow by 1.5× and round to whole seconds"
+  );
+  assert.equal(S.getVisitDelayMs(40, 10), S.VISIT_DELAY_CAP_SECONDS * 1000, "waits are capped");
+  assert.equal(S.getVisitDelayMs(-1, "bogus"), 1000);
+  assert.equal(S.getVisitDelayDayKey(new Date(2026, 5, 10, 2, 59)), "2026-06-09");
+  assert.equal(S.getVisitDelayDayKey(new Date(2026, 5, 10, 3, 0)), "2026-06-10");
+  assert.equal(S.getVisitDelayDayKey(new Date(2026, 5, 10, 23, 30)), "2026-06-10");
+
+  const at = new Date(2026, 5, 10, 14, 5).getTime();
+  let state = S.normalizeVisitDelay(null);
+  assert.deepEqual(state, { days: {} });
+  state = S.recordVisitDelayEvent(state, { domain: "x.com", event: "load", at });
+  state = S.recordVisitDelayEvent(state, { domain: "x.com", event: "start", at });
+  assert.equal(S.getVisitDelayStatus(state, "x.com", 10, at).step, 0, "starting adds no step");
+  state = S.recordVisitDelayEvent(state, { domain: "x.com", event: "abandon", waitedMs: 4000, at });
+  assert.equal(S.getVisitDelayStatus(state, "x.com", 10, at).step, 0, "leaving adds no step");
+  state = S.recordVisitDelayEvent(state, { domain: "x.com", event: "start", at });
+  state = S.recordVisitDelayEvent(state, { domain: "x.com", event: "finish", waitedMs: 10000, at });
+  let status = S.getVisitDelayStatus(state, "x.com", 10, at);
+  assert.equal(status.step, 1);
+  assert.equal(status.waitMs, 15000, "a finished wait lengthens the next one");
+  assert.equal(status.waitedMs, 14000);
+  const entry = state.days["2026-06-10"]["x.com"];
+  assert.equal(entry.loads, 1);
+  assert.equal(entry.starts, 2);
+  assert.equal(entry.completed, 1);
+  assert.equal(entry.abandoned, 1);
+  assert.equal(entry.hours[14], 2, "visits are bucketed by local hour");
+  state = S.recordVisitDelayEvent(state, { domain: "x.com", event: "reset", at });
+  status = S.getVisitDelayStatus(state, "x.com", 10, at);
+  assert.equal(status.step, 0, "reset returns to the first wait");
+  assert.equal(status.waitMs, 10000);
+  assert.equal(state.days["2026-06-10"]["x.com"].resets, 1);
+  assert.equal(state.days["2026-06-10"]["x.com"].completed, 1, "reset keeps the visit history");
+  const nextDay = new Date(2026, 5, 11, 3, 0).getTime();
+  state = S.recordVisitDelayEvent(state, { domain: "x.com", event: "finish", waitedMs: 1, at });
+  assert.equal(S.getVisitDelayStatus(state, "x.com", 10, at).step, 1);
+  assert.equal(
+    S.getVisitDelayStatus(state, "x.com", 10, nextDay).step,
+    0,
+    "counts reset at 03:00 the next day"
+  );
+  assert.equal(
+    S.getVisitDelayStatus(state, "x.com", 10, new Date(2026, 5, 11, 2, 0)).step,
+    1,
+    "02:00 still belongs to the previous day"
+  );
+  assert.throws(() => S.recordVisitDelayEvent(state, { domain: "x.com", event: "bogus" }));
+  assert.throws(() => S.recordVisitDelayEvent(state, { domain: "", event: "load" }));
+  assert.deepEqual(
+    S.normalizeVisitDelay({
+      days: {
+        "2026-06-10": {
+          "X.com": { step: "2", loads: -1, hours: [1, "3"], waitedMs: 5 },
+          "bad host": { step: 1 },
+          empty: { step: 0 }
+        },
+        nonsense: { "x.com": { step: 1 } }
+      }
+    }).days,
+    {
+      "2026-06-10": {
+        "x.com": {
+          step: 2,
+          loads: 0,
+          starts: 0,
+          completed: 0,
+          abandoned: 0,
+          resets: 0,
+          waitedMs: 5,
+          hours: [1, 3, ...Array(22).fill(0)]
+        }
+      }
+    }
+  );
+  const old = {};
+  for (let offset = 0; offset < 40; offset += 1) {
+    const day = new Date(2026, 5, 10 - offset);
+    old[
+      `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`
+    ] = { "x.com": { loads: 1 } };
+  }
+  assert.equal(
+    Object.keys(S.normalizeVisitDelay({ days: old }).days).length,
+    30,
+    "30-day retention"
+  );
+  console.log("visit delay settings tests passed");
+}

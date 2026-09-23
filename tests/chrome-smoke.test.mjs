@@ -135,7 +135,7 @@ const chrome = spawn(chromePath, [
   "--disable-sync",
   "--disable-component-update",
   "--allow-file-access-from-files",
-  "--host-resolver-rules=MAP shopify.com.test 127.0.0.1,MAP youtube.com.test 127.0.0.1,MAP twitter.com.test 127.0.0.1,MAP github.com.test 127.0.0.1,MAP reddit.com.test 127.0.0.1,MAP substack.com.test 127.0.0.1,MAP news.ycombinator.com.test 127.0.0.1",
+  "--host-resolver-rules=MAP shopify.com.test 127.0.0.1,MAP youtube.com.test 127.0.0.1,MAP twitter.com.test 127.0.0.1,MAP github.com.test 127.0.0.1,MAP reddit.com.test 127.0.0.1,MAP substack.com.test 127.0.0.1,MAP news.ycombinator.com.test 127.0.0.1,MAP slow.example.test 127.0.0.1",
   "about:blank"
 ]);
 
@@ -267,6 +267,98 @@ try {
   assert.match(popupState.pillText, /missed upside/);
   assert.match(popupState.pillText, /one short sentence/);
   assert.ok(popupState.stored.filterCriteria.includes("high-pressure AI investing hype"));
+
+  // Visit delay settings: sites are added from a form, normalized, listed as
+  // removable pills, and the first-wait field saves through the same path.
+  const visitPanel = await evaluate(
+    client,
+    `(async () => {
+    const seconds = document.querySelector("[data-setting=visitDelaySeconds]");
+    seconds.value = "20";
+    seconds.dispatchEvent(new Event("change", { bubbles: true }));
+    const input = document.querySelector("[data-domain-input]");
+    input.value = "https://www.Reddit.com/r/all";
+    document.querySelector("[data-domain-form]").requestSubmit();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    input.value = "not a site";
+    document.querySelector("[data-domain-form]").requestSubmit();
+    document.querySelector("[data-visit-delay-panel]").scrollIntoView();
+    const stored = JSON.parse(localStorage.getItem("smoothSurferSettings"));
+    return {
+      pills: [...document.querySelectorAll("[data-domain-list] .pill-label")].map((pill) => pill.textContent),
+      today: document.querySelector("[data-visit-today]").textContent,
+      status: document.querySelector("[data-status]").textContent,
+      domains: stored.visitDelayDomains,
+      seconds: stored.visitDelaySeconds
+    };
+  })()`
+  );
+  assert.deepEqual(visitPanel.pills, ["reddit.com"]);
+  assert.deepEqual(visitPanel.domains, ["reddit.com"]);
+  assert.equal(
+    await evaluate(
+      client,
+      `document.querySelector('[data-visit-delay-toggle="reddit.com"]').checked`
+    ),
+    true
+  );
+  assert.equal(visitPanel.seconds, 20);
+  assert.match(visitPanel.today, /reddit\.com0 today · 0s waited · next 20s/);
+  assert.match(visitPanel.status, /Enter a site like example\.com/);
+  await writeFile(
+    path.join(cacheDir, "popup-visit-delay.png"),
+    Buffer.from((await client.send("Page.captureScreenshot", { format: "png" })).data, "base64")
+  );
+  await evaluate(
+    client,
+    `(async () => {
+    document.querySelector("[data-remove-domain]").click();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  })()`
+  );
+  assert.deepEqual(
+    await evaluate(
+      client,
+      `JSON.parse(localStorage.getItem("smoothSurferSettings")).visitDelayDomains`
+    ),
+    []
+  );
+
+  assert.equal(
+    await evaluate(
+      client,
+      `document.querySelector('[data-visit-delay-toggle="reddit.com"]').checked`
+    ),
+    false
+  );
+  const siteDelaySync = await evaluate(
+    client,
+    `(async()=>{
+    const results=[];
+    for(const input of document.querySelectorAll('[data-visit-delay-toggle]')) {
+      input.click();
+      await new Promise(resolve=>setTimeout(resolve,30));
+      const domains=JSON.parse(localStorage.getItem('smoothSurferSettings')).visitDelayDomains;
+      document.querySelector('[data-remove-domain]').click();
+      results.push({domain:input.dataset.visitDelayToggle,domains,checkedAfterRemoval:input.checked});
+    }
+    const input=document.querySelector('[data-domain-input]');
+    input.value='twitter.com';
+    document.querySelector('[data-domain-form]').requestSubmit();
+    const twitter=document.querySelector('[data-visit-delay-toggle="x.com"]');
+    const aliasChecked=twitter.checked;
+    twitter.click();
+    await new Promise(resolve=>setTimeout(resolve,30));
+    return {results,aliasChecked,remaining:JSON.parse(localStorage.getItem('smoothSurferSettings')).visitDelayDomains};
+  })()`
+  );
+  assert.equal(siteDelaySync.results.length, 5);
+  for (const result of siteDelaySync.results) {
+    assert.deepEqual(result.domains, [result.domain], "site toggle updates the shared list");
+    assert.equal(result.checkedAfterRemoval, false, "removing a domain clears its site toggle");
+  }
+  assert.equal(siteDelaySync.aliasChecked, true, "Twitter alias checks the X site toggle");
+  assert.deepEqual(siteDelaySync.remaining, [], "disabling X removes the Twitter alias too");
 
   await evaluate(
     client,
@@ -695,6 +787,30 @@ try {
   ]);
   assert.deepEqual(redditFilteredState.after, redditFilteredState.before);
 
+  // Reddit can drop a recommendation label while its post is hidden. The post
+  // must stay hidden instead of reappearing each time the label disappears.
+  await navigate(client, `http://reddit.com.test:${fixturePort}/reddit-lazy-label.html`);
+  await waitForExpression(
+    client,
+    `document.querySelector("#reddit-lazy").classList.contains("smooth-surfer-hidden")`
+  );
+  const redditLazyState = await evaluate(
+    client,
+    `(async () => {
+    const post = document.querySelector("#reddit-lazy");
+    let reveals = 0;
+    new MutationObserver(() => {
+      if (!post.classList.contains("smooth-surfer-hidden")) reveals += 1;
+    }).observe(post, { attributes: true, attributeFilter: ["class"] });
+    for (let i = 0; i < 6; i += 1) {
+      window.dispatchEvent(new Event("scroll"));
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    return { reveals, hidden: post.classList.contains("smooth-surfer-hidden") };
+  })()`
+  );
+  assert.deepEqual(redditLazyState, { reveals: 0, hidden: true });
+
   await navigate(client, `http://substack.com.test:${fixturePort}/substack-content.html`);
   await waitForExpression(
     client,
@@ -758,6 +874,90 @@ try {
   ]);
   assert.deepEqual(hackerNewsFilteredState.after, hackerNewsFilteredState.before);
 
+  // Visit delay: a listed site opens behind a countdown, a finished wait grants
+  // this tab a pass and lengthens the next visit, reset returns to the first
+  // wait, and leaving early records nothing but an abandoned attempt.
+  const visitUrl = `http://slow.example.test:${fixturePort}/visit-delay.html`;
+  const visitState = `(() => {
+    const host = document.querySelector(".smooth-surfer-visit-wait");
+    const root = host && host.shadowRoot;
+    const text = (selector) => (root && root.querySelector(selector) || {}).textContent || "";
+    const stored = JSON.parse(localStorage.getItem("smoothSurferVisitDelay") || "{}");
+    const days = Object.values(stored.days || {});
+    return {
+      waiting: Boolean(host),
+      meta: text("[data-meta]"),
+      time: text("[data-time]"),
+      resetDisabled: Boolean(root && root.querySelector("[data-reset]").disabled),
+      bodyInert: Boolean(document.body && document.body.inert),
+      overflow: getComputedStyle(document.documentElement).overflow,
+      videoPaused: document.querySelector("video").paused,
+      pass: sessionStorage.getItem("smoothSurferVisitPass"),
+      entry: days.length ? days[0]["slow.example"] : null
+    };
+  })()`;
+  await navigate(client, visitUrl);
+  await waitForExpression(client, `${visitState}.meta.startsWith("Visit 1 today")`);
+  const firstVisit = await evaluate(client, visitState);
+  await mkdir(cacheDir, { recursive: true });
+  await writeFile(
+    path.join(cacheDir, "visit-delay.png"),
+    Buffer.from((await client.send("Page.captureScreenshot", { format: "png" })).data, "base64")
+  );
+  assert.equal(firstVisit.waiting, true);
+  assert.equal(firstVisit.time, "0:01");
+  assert.equal(firstVisit.resetDisabled, true, "nothing to reset on the first visit");
+  assert.equal(firstVisit.bodyInert, true);
+  assert.equal(firstVisit.overflow, "hidden");
+  assert.equal(firstVisit.videoPaused, true, "media stays paused behind the countdown");
+  assert.equal(firstVisit.entry.starts, 1);
+  assert.equal(firstVisit.entry.loads, 1);
+  await waitForExpression(client, `!${visitState}.waiting`);
+  const afterFirst = await evaluate(client, visitState);
+  assert.equal(afterFirst.pass, "slow.example");
+  assert.equal(afterFirst.bodyInert, false);
+  assert.equal(afterFirst.overflow, "visible");
+  assert.equal(afterFirst.entry.step, 1);
+  assert.equal(afterFirst.entry.completed, 1);
+  assert.ok(afterFirst.entry.waitedMs >= 1000);
+  assert.equal(
+    afterFirst.entry.hours.reduce((sum, count) => sum + count, 0),
+    1,
+    "the visit is bucketed by hour"
+  );
+  await navigate(client, visitUrl);
+  await delay(400);
+  const reloaded = await evaluate(client, visitState);
+  assert.equal(reloaded.waiting, false, "a passed tab reloads without a new countdown");
+  assert.equal(reloaded.entry.loads, 2);
+  assert.equal(reloaded.entry.starts, 1);
+  await evaluate(client, `sessionStorage.clear()`);
+  await navigate(client, visitUrl);
+  await waitForExpression(client, `${visitState}.meta.startsWith("Visit 2 today")`);
+  const secondVisit = await evaluate(client, visitState);
+  assert.equal(secondVisit.time, "0:02", "the second wait is 1.5× longer, rounded");
+  assert.equal(secondVisit.resetDisabled, false);
+  await evaluate(
+    client,
+    `document.querySelector(".smooth-surfer-visit-wait").shadowRoot.querySelector("[data-reset]").click()`
+  );
+  await waitForExpression(client, `${visitState}.meta.startsWith("Visit 1 today")`);
+  assert.equal((await evaluate(client, visitState)).entry.resets, 1);
+  await waitForExpression(client, `!${visitState}.waiting`);
+  const afterReset = await evaluate(client, visitState);
+  assert.equal(afterReset.entry.step, 1, "the wait after a reset counts as the first visit");
+  assert.equal(afterReset.entry.completed, 2);
+  await evaluate(client, `sessionStorage.clear()`);
+  await navigate(client, visitUrl);
+  await waitForExpression(client, `${visitState}.meta.startsWith("Visit 2 today")`);
+  await navigate(client, "about:blank");
+  await navigate(client, visitUrl);
+  await waitForExpression(client, `${visitState}.meta.startsWith("Visit 2 today")`);
+  const abandoned = await evaluate(client, visitState);
+  assert.equal(abandoned.entry.abandoned, 1, "leaving early is recorded");
+  assert.equal(abandoned.entry.step, 1, "leaving early adds no step");
+  await evaluate(client, `localStorage.clear(); sessionStorage.clear()`);
+
   client.close();
 } finally {
   chrome.kill("SIGTERM");
@@ -779,6 +979,11 @@ async function verifyExtensionPopupOpens() {
   const debugPort = Number(process.env.CHROME_DEBUG_PORT) || (await getFreePort());
   const barePort = Number(process.env.FIXTURE_PORT) || (await getFreePort());
   const bareServer = http.createServer((request, response) => {
+    if (request.url === "/twitter-redirect") {
+      response.writeHead(302, { Location: `http://x.com.test:${barePort}/bare-video.html` });
+      response.end();
+      return;
+    }
     sendHtml(
       response,
       `<!doctype html><html><head><meta charset="utf-8"></head>
@@ -798,6 +1003,7 @@ async function verifyExtensionPopupOpens() {
     "--no-first-run",
     "--no-default-browser-check",
     "--remote-allow-origins=*",
+    "--host-resolver-rules=MAP twitter.com.test 127.0.0.1,MAP x.com.test 127.0.0.1",
     `--load-extension=${root}`,
     `--disable-extensions-except=${root}`,
     "about:blank"
@@ -1894,6 +2100,7 @@ async function verifyExtensionPopupOpens() {
       "Filter sets passed (save, preview, selective import, validation, responsive layout)."
     );
     // All full-page destinations share one navigation and the real settings store.
+    // Navigation polls can see the new document before its body is parsed.
     await client.send("Emulation.setDeviceMetricsOverride", {
       width: 1280,
       height: 900,
@@ -1913,7 +2120,7 @@ async function verifyExtensionPopupOpens() {
     );
     await waitForExpression(
       client,
-      `document.body.dataset.workspace==='settings' && document.querySelector('[data-setting="enabled"]')?.checked`
+      `document.body?.dataset.workspace==='settings' && document.querySelector('[data-setting="enabled"]')?.checked`
     );
     assert.equal(await evaluate(client, `document.querySelector('h1').textContent`), "Settings");
     assert.equal(
@@ -1946,6 +2153,13 @@ async function verifyExtensionPopupOpens() {
       `(async()=>{
       const day=(offset)=>{const date=new Date();date.setDate(date.getDate()-offset);return date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0');};
       await SmoothSurferStorage.saveStats({days:{[day(0)]:{twitter:{'Engagement bait':4,Ads:3}},[day(1)]:{youtube:{Recommendations:5}},[day(9)]:{twitter:{Ads:100}}}});
+      const visitDay=(offset)=>SmoothSurferSettings.getVisitDelayDayKey(Date.now()-offset*86400000);
+      const hours=(...pairs)=>{const list=Array(24).fill(0);for(const [hour,count] of pairs)list[hour]=count;return list;};
+      await SmoothSurferStorage.saveVisitDelay({days:{
+        [visitDay(0)]:{'x.com':{step:3,loads:9,starts:4,completed:3,abandoned:1,resets:0,waitedMs:47000,hours:hours([9,1],[13,2],[22,1])}},
+        [visitDay(2)]:{'x.com':{step:2,loads:5,starts:2,completed:2,abandoned:0,resets:1,waitedMs:25000,hours:hours([13,1],[20,1])},'reddit.com':{step:1,loads:2,starts:1,completed:1,abandoned:0,resets:0,waitedMs:10000,hours:hours([8,1])}},
+        [visitDay(9)]:{'x.com':{step:1,loads:1,starts:1,completed:1,abandoned:0,resets:0,waitedMs:10000,hours:hours([1,1])}}
+      }});
     })()`
     );
     await evaluate(
@@ -1971,12 +2185,45 @@ async function verifyExtensionPopupOpens() {
       "Recommendations5|Engagement bait4|Ads3",
       "reason totals use the same seven-day window as site totals"
     );
+    assert.deepEqual(
+      await evaluate(
+        client,
+        `Array.from(document.querySelectorAll('[data-visit-delay-table] tbody tr')).map(row=>Array.from(row.cells).map(cell=>cell.textContent))`
+      ),
+      [
+        ["x.com", "9 · 14", "3 · 5", "1 · 1", "0 · 1", "47s · 1m 12s"],
+        ["reddit.com", "0 · 2", "0 · 1", "0 · 0", "0 · 0", "0s · 10s"]
+      ],
+      "visit delay totals use today and the same seven-day window"
+    );
+    assert.deepEqual(
+      await evaluate(
+        client,
+        `Array.from(document.querySelectorAll('[data-visit-delay-hours] .hour-bar:not([data-empty])')).map(bar=>bar.getAttribute('aria-label'))`
+      ),
+      [
+        "08:00–09:00: 1 visit",
+        "09:00–10:00: 1 visit",
+        "13:00–14:00: 3 visits",
+        "20:00–21:00: 1 visit",
+        "22:00–23:00: 1 visit"
+      ],
+      "the hour chart sums the past seven days across listed sites"
+    );
     assert.equal(
       await evaluate(
         client,
         `Array.from(document.querySelectorAll('.popup > section:not([hidden])')).length`
       ),
-      3
+      4
+    );
+    assert.equal(
+      await evaluate(
+        client,
+        `!document.querySelector('[data-visit-delay-stats]').hidden && document.querySelectorAll('[data-visit-delay-hours] .hour-bar').length`
+      ),
+      24,
+      "the stats page shows the visits-by-hour chart"
     );
     await writeFile(
       path.join(cacheDir, "workspace-stats.png"),
@@ -2012,7 +2259,7 @@ async function verifyExtensionPopupOpens() {
     );
     await waitForExpression(
       client,
-      `document.body.dataset.workspace==='settings' && document.querySelector('[data-setting="twitterHideTrends"]')?.checked===${!beforeToggle}`
+      `document.body?.dataset.workspace==='settings' && document.querySelector('[data-setting="twitterHideTrends"]')?.checked===${!beforeToggle}`
     );
     assert.equal(
       await evaluate(client, `document.documentElement.scrollWidth <= innerWidth`),
@@ -2036,6 +2283,50 @@ async function verifyExtensionPopupOpens() {
     assert.equal(await evaluate(client, `document.querySelector('.workspace-sidebar')`), null);
     console.log(
       "Workspace passed (navigation, shared settings, stats totals, empty states, responsive layout, compact popup)."
+    );
+    // Real extension storage changes must apply to existing tabs. A Twitter
+    // rule must also survive a redirect to X before content scripts execute.
+    await evaluate(
+      workerClient,
+      `(async()=>{
+        const settings=await SmoothSurferStorage.loadSettings();
+        await SmoothSurferStorage.saveSettings({...settings,enabled:true,focusScheduleEnabled:false,visitDelayDomains:[],visitDelaySeconds:2});
+        await SmoothSurferStorage.saveVisitDelay({days:{}});
+      })()`
+    );
+    await navigate(client, `http://x.com.test:${barePort}/bare-video.html`);
+    await waitForExpression(client, `!!document.querySelector('video')`);
+    assert.equal(
+      await evaluate(client, `!!document.querySelector('.smooth-surfer-visit-wait')`),
+      false
+    );
+    await evaluate(
+      workerClient,
+      `(async()=>{const settings=await SmoothSurferStorage.loadSettings();await SmoothSurferStorage.saveSettings({...settings,visitDelayDomains:['twitter.com']});})()`
+    );
+    await waitForExpression(
+      client,
+      `document.querySelector('.smooth-surfer-visit-wait')?.shadowRoot.querySelector('[data-domain]')?.textContent==='twitter.com'`
+    );
+    assert.equal(await evaluate(client, `document.body.inert`), true);
+    await waitForExpression(client, `!document.querySelector('.smooth-surfer-visit-wait')`);
+    await waitForExpression(
+      workerClient,
+      `(async()=>Object.values((await SmoothSurferStorage.loadVisitDelay()).days)[0]?.['twitter.com']?.completed===1)()`
+    );
+    await evaluate(client, `sessionStorage.clear()`);
+    await navigate(client, `http://twitter.com.test:${barePort}/twitter-redirect`);
+    await waitForExpression(
+      client,
+      `location.hostname==='x.com.test' && document.querySelector('.smooth-surfer-visit-wait')?.shadowRoot.querySelector('[data-meta]')?.textContent.startsWith('Visit 2 today')`
+    );
+    await waitForExpression(client, `!document.querySelector('.smooth-surfer-visit-wait')`);
+    await waitForExpression(
+      workerClient,
+      `(async()=>Object.values((await SmoothSurferStorage.loadVisitDelay()).days)[0]?.['twitter.com']?.completed===2)()`
+    );
+    console.log(
+      "Visit delay extension passed (live settings, Twitter-to-X redirect, completion accounting)."
     );
     workerClient.close();
     client.close();
@@ -2154,7 +2445,11 @@ async function evaluate(client, expression) {
   });
 
   if (result.exceptionDetails) {
-    throw new Error(result.exceptionDetails.text || "Runtime evaluation failed");
+    throw new Error(
+      result.exceptionDetails.exception?.description ||
+        result.exceptionDetails.text ||
+        "Runtime evaluation failed"
+    );
   }
 
   return result.result.value;
@@ -2261,6 +2556,11 @@ function createFixtureServer() {
         return;
       }
 
+      if (requestUrl.pathname === "/visit-delay.html") {
+        sendHtml(response, visitDelayFixture());
+        return;
+      }
+
       if (requestUrl.pathname === "/work-content.html") {
         sendHtml(response, workContentFixture());
         return;
@@ -2273,6 +2573,11 @@ function createFixtureServer() {
 
       if (requestUrl.pathname === "/reddit-filtered.html") {
         sendHtml(response, redditFilteredFixture());
+        return;
+      }
+
+      if (requestUrl.pathname === "/reddit-lazy-label.html") {
+        sendHtml(response, redditLazyLabelFixture());
         return;
       }
 
@@ -2607,6 +2912,42 @@ function redditFilteredFixture() {
   </html>`;
 }
 
+function redditLazyLabelFixture() {
+  return `<!doctype html>
+  <html>
+    <head>
+      <meta charset="utf-8">
+      <link rel="stylesheet" href="/src/theme.css">
+    <link rel="stylesheet" href="/src/styles.css">
+    </head>
+    <body>
+      <main>
+        <article>
+          <shreddit-post id="reddit-lazy" permalink="/r/example/comments/abc/lazy/">
+            <span slot="credit-bar"><span id="reddit-lazy-label">Because you've shown interest in a similar post</span></span>
+            <span slot="title">Harbour ferry timetable changes</span>
+          </shreddit-post>
+        </article>
+      </main>
+      <script>
+        // Render the label only while the post is displayed, as Reddit's
+        // lazily rendered credit bar can.
+        const post = document.querySelector("#reddit-lazy");
+        const bar = post.querySelector('[slot="credit-bar"]');
+        const label = bar.firstElementChild;
+        new MutationObserver(() => {
+          const hidden = post.classList.contains("smooth-surfer-hidden");
+          if (hidden && label.isConnected) label.remove();
+          if (!hidden && !label.isConnected) bar.append(label);
+        }).observe(post, { attributes: true, attributeFilter: ["class"] });
+      </script>
+      <script src="/src/settings.js"></script>
+      <script src="/src/storage.js"></script>
+      <script src="/src/content.js"></script>
+    </body>
+  </html>`;
+}
+
 function hackerNewsFilteredFixture() {
   return `<!doctype html>
   <html>
@@ -2720,6 +3061,32 @@ function workContentFixture() {
       <script src="/src/settings.js"></script>
       <script src="/src/storage.js"></script>
       <script src="/src/content.js"></script>
+    </body>
+  </html>`;
+}
+
+// Mirrors the document_start script order: settings and storage load in the
+// head with the countdown script, before the page body exists.
+function visitDelayFixture() {
+  return `<!doctype html>
+  <html>
+    <head>
+      <meta charset="utf-8">
+      <link rel="stylesheet" href="/src/theme.css">
+      <link rel="stylesheet" href="/src/styles.css">
+      <script>
+        localStorage.setItem("smoothSurferSettings", JSON.stringify({
+          ...JSON.parse(localStorage.getItem("smoothSurferSettings") || "{}"),
+          visitDelayDomains: ["slow.example"],
+          visitDelaySeconds: 1
+        }));
+      </script>
+      <script src="/src/settings.js"></script>
+      <script src="/src/storage.js"></script>
+      <script src="/src/visit-delay.js"></script>
+    </head>
+    <body>
+      <article><h1>Slow site</h1><video autoplay muted loop src="data:video/mp4;base64,AAAAHGZ0eXBpc29tAAACAGlzb21pc28ybXA0MQAAAAhmcmVlAAAAAG1kYXQ="></video></article>
     </body>
   </html>`;
 }

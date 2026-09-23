@@ -32,6 +32,7 @@ const popupColumnWidth = 640;
 const groups = [
   ["header", "youtube"],
   ["twitter", "reddit", "substack", "hacker-news"],
+  ["pinned tabs", "visit delay"],
   ["content filter", "everywhere", "focus schedule"],
   ["consumption facts"]
 ];
@@ -191,7 +192,8 @@ function popupSetupExpression() {
 
 function blocksExpression() {
   return `(() => {
-    const blocks = Array.from(document.querySelectorAll(".popup > header, .popup > section"));
+    const blocks = Array.from(document.querySelectorAll(".popup > header, .popup > section"))
+      .filter((el) => el.getBoundingClientRect().height > 0);
     return blocks.map((el) => {
       let label = "header";
       if (el.tagName.toLowerCase() === "section") {
