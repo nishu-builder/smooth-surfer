@@ -73,7 +73,7 @@ The popup also includes:
 
 - A Consumption Facts label: a nutrition-facts-style breakdown of the emotional ingredients (outrage, joy, humor, fear, curiosity/beauty, memes, polls) in the posts you actually saw today. It uses the same selected-model classification calls as filtering.
 - Comment hiding for YouTube and Reddit.
-- Video speed keys on any site: `Alt+]` faster, `Alt+[` slower, `Alt+\` reset. The modifier is configurable (Alt/Ctrl/Shift/Cmd, or no modifier) in the popup.
+- Video speed keys on any site: `Alt+Right` or `Alt+]` faster, `Alt+Left` or `Alt+[` slower, and `Alt+\` reset. Alt is Option on Mac. The modifier is configurable (Alt/Ctrl/Shift/Cmd, or no modifier) in the popup. With no modifier, use the bracket and backslash keys; plain arrows keep their normal page behavior.
 - A settings shortcut: press `Cmd+Shift+S` (`Ctrl+Shift+S` on Windows/Linux) twice quickly to open the popup.
 - [Loading delays](#loading-delays) with a one-second starting default, per-site checkboxes, a smooth countdown, and visit statistics.
 - [Shared pinned tabs](#cross-window-pinned-tabs) across regular Chrome windows, including new windows.
