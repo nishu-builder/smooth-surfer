@@ -787,6 +787,30 @@ try {
   ]);
   assert.deepEqual(redditFilteredState.after, redditFilteredState.before);
 
+  // Reddit can drop a recommendation label while its post is hidden. The post
+  // must stay hidden instead of reappearing each time the label disappears.
+  await navigate(client, `http://reddit.com.test:${fixturePort}/reddit-lazy-label.html`);
+  await waitForExpression(
+    client,
+    `document.querySelector("#reddit-lazy").classList.contains("smooth-surfer-hidden")`
+  );
+  const redditLazyState = await evaluate(
+    client,
+    `(async () => {
+    const post = document.querySelector("#reddit-lazy");
+    let reveals = 0;
+    new MutationObserver(() => {
+      if (!post.classList.contains("smooth-surfer-hidden")) reveals += 1;
+    }).observe(post, { attributes: true, attributeFilter: ["class"] });
+    for (let i = 0; i < 6; i += 1) {
+      window.dispatchEvent(new Event("scroll"));
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    return { reveals, hidden: post.classList.contains("smooth-surfer-hidden") };
+  })()`
+  );
+  assert.deepEqual(redditLazyState, { reveals: 0, hidden: true });
+
   await navigate(client, `http://substack.com.test:${fixturePort}/substack-content.html`);
   await waitForExpression(
     client,
@@ -2552,6 +2576,11 @@ function createFixtureServer() {
         return;
       }
 
+      if (requestUrl.pathname === "/reddit-lazy-label.html") {
+        sendHtml(response, redditLazyLabelFixture());
+        return;
+      }
+
       if (requestUrl.pathname === "/substack-content.html") {
         sendHtml(response, substackContentFixture());
         return;
@@ -2876,6 +2905,42 @@ function redditFilteredFixture() {
           <span id="reddit-age">3 hr. ago</span>
         </shreddit-post>
       </main>
+      <script src="/src/settings.js"></script>
+      <script src="/src/storage.js"></script>
+      <script src="/src/content.js"></script>
+    </body>
+  </html>`;
+}
+
+function redditLazyLabelFixture() {
+  return `<!doctype html>
+  <html>
+    <head>
+      <meta charset="utf-8">
+      <link rel="stylesheet" href="/src/theme.css">
+    <link rel="stylesheet" href="/src/styles.css">
+    </head>
+    <body>
+      <main>
+        <article>
+          <shreddit-post id="reddit-lazy" permalink="/r/example/comments/abc/lazy/">
+            <span slot="credit-bar"><span id="reddit-lazy-label">Because you've shown interest in a similar post</span></span>
+            <span slot="title">Harbour ferry timetable changes</span>
+          </shreddit-post>
+        </article>
+      </main>
+      <script>
+        // Render the label only while the post is displayed, as Reddit's
+        // lazily rendered credit bar can.
+        const post = document.querySelector("#reddit-lazy");
+        const bar = post.querySelector('[slot="credit-bar"]');
+        const label = bar.firstElementChild;
+        new MutationObserver(() => {
+          const hidden = post.classList.contains("smooth-surfer-hidden");
+          if (hidden && label.isConnected) label.remove();
+          if (!hidden && !label.isConnected) bar.append(label);
+        }).observe(post, { attributes: true, attributeFilter: ["class"] });
+      </script>
       <script src="/src/settings.js"></script>
       <script src="/src/storage.js"></script>
       <script src="/src/content.js"></script>
