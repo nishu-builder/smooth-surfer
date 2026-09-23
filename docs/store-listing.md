@@ -1,6 +1,6 @@
 # Chrome Web Store listing
 
-Source copy for the Chrome Web Store developer dashboard, updated for 0.2.9.
+Source copy for the Chrome Web Store developer dashboard, updated for 0.2.11.
 Package publishing does not update the long description, privacy answers, or
 screenshots automatically; apply those fields in the dashboard before submission.
 
