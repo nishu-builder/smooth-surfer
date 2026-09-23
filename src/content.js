@@ -10,6 +10,7 @@
   const CLASSIFICATION_TIMEOUT_MS = 12000;
   const CLASSIFICATION_RETRY_MS = 30000;
   const CLASSIFICATION_CACHE_LIMIT = 500;
+  const REDDIT_DECISION_LIMIT = 2000;
   const TWEET_FADE_MS = 160;
   const SPEED_MIN = 0.25;
   const SPEED_MAX = 4;
@@ -77,6 +78,11 @@
   const tweetIdentities = new WeakMap();
   const tweetFadeTimers = new WeakMap();
   const tweetPresentations = new WeakMap();
+  // Reddit post id -> { rules, epoch, result }. Hiding a post can remove the
+  // cues that decided it (a lazily rendered recommendation label, the image
+  // variant chosen by srcset), so a decision holds for the post until settings
+  // change instead of being re-derived from what a hidden post still shows.
+  const redditPostDecisions = new Map();
   let classificationEpoch = 0;
   const recordedStatKeys = new Set();
   const recordedConsumptionKeys = new Set();
@@ -536,15 +542,20 @@
     scanRedditRecommendationModules();
 
     getRedditPostContainers().forEach((container) => {
-      const reasons = [];
+      const decision = getRedditPostDecision(container);
+      const rules = decision ? decision.rules : new Set();
 
       if (settings.redditHideAds && isRedditPromoted(container)) {
-        reasons.push("ad");
+        rules.add("ad");
       }
 
       if (settings.redditHideRecommendations && isRedditRecommendation(container)) {
-        reasons.push("recommendation");
+        rules.add("recommendation");
       }
+
+      const reasons = [...rules].filter((rule) =>
+        rule === "ad" ? settings.redditHideAds : settings.redditHideRecommendations
+      );
 
       if (reasons.length > 0) {
         hideElement(container, reasons, "reddit-post");
@@ -552,6 +563,17 @@
       }
 
       if (canFilterContent) {
+        if (decision?.result && decision.epoch === classificationEpoch) {
+          applyModelClassification(
+            container,
+            decision.result,
+            "reddit-post",
+            normalizeInlineText(getRedditPostText(container)).slice(0, 2000),
+            getPostImages(container),
+            true
+          );
+          return;
+        }
         requestModelClassification(container, getRedditPostText(container), "reddit-post");
       } else {
         restoreElement(container);
@@ -1102,6 +1124,13 @@
     images,
     immediate = false
   ) {
+    if (kind === "reddit-post" && !classification.retryAt) {
+      const decision = getRedditPostDecision(container);
+      if (decision) {
+        decision.epoch = classificationEpoch;
+        decision.result = classification;
+      }
+    }
     if (classification.blocked && !isReviewPostRestored(container, text, images)) {
       recordReviewPost(container, text, classification, images);
       hideContentElement(container, classification.reasons || [], kind, immediate);
@@ -1348,7 +1377,13 @@
 
   function getPostImages(container) {
     return normalizeImageUrls(
-      [...container.querySelectorAll("img")].map((image) => image.currentSrc || image.src)
+      [...container.querySelectorAll("img")].map((image) =>
+        // Reddit's srcset serves differently sized preview URLs as layout and
+        // visibility change. The src attribute stays put while the post does.
+        platform === "reddit"
+          ? (image.getAttribute("src") && image.src) || image.currentSrc
+          : image.currentSrc || image.src
+      )
     );
   }
 
@@ -1372,6 +1407,32 @@
         )
         .filter((element) => element && document.body.contains(element))
     );
+  }
+
+  function getRedditPostId(container) {
+    const post = container.matches("shreddit-post")
+      ? container
+      : container.querySelector("shreddit-post");
+    return (
+      post?.id ||
+      post?.getAttribute("permalink") ||
+      container.querySelector('a[href*="/comments/"]')?.getAttribute("href") ||
+      ""
+    );
+  }
+
+  function getRedditPostDecision(container) {
+    const id = getRedditPostId(container);
+    if (!id) return null;
+    let decision = redditPostDecisions.get(id);
+    if (!decision) {
+      decision = { rules: new Set(), epoch: -1, result: null };
+      redditPostDecisions.set(id, decision);
+      if (redditPostDecisions.size > REDDIT_DECISION_LIMIT) {
+        redditPostDecisions.delete(redditPostDecisions.keys().next().value);
+      }
+    }
+    return decision;
   }
 
   function isRedditPromoted(container) {

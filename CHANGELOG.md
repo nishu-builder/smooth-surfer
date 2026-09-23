@@ -3,6 +3,10 @@
 Notable changes per released version. Versions match `manifest.json`, and a
 release is a `v*` tag; see [docs/RELEASING.md](docs/RELEASING.md).
 
+## Unreleased
+
+- Stop Reddit posts from flickering between hidden and visible. A hide decision now stays with the post until settings change, even when hiding it removes the recommendation label or changes which image size Reddit loads.
+
 ## 0.2.10
 
 - Prevent filtered X/Twitter posts from flashing back into view when the page replaces their CSS classes, including during fades.
