@@ -832,10 +832,12 @@
         // Alt/Option remaps event.key on macOS (Option+] becomes "‘"), but
         // event.code stays "BracketRight".
         let delta = 0;
+        // Bare arrows belong to the player/page (seeking, sliders, navigation).
+        const modifiedArrows = settings.videoSpeedModifier !== "none";
 
-        if (event.code === "BracketRight") {
+        if (event.code === "BracketRight" || (modifiedArrows && event.code === "ArrowRight")) {
           delta = SPEED_STEP;
-        } else if (event.code === "BracketLeft") {
+        } else if (event.code === "BracketLeft" || (modifiedArrows && event.code === "ArrowLeft")) {
           delta = -SPEED_STEP;
         } else if (event.code !== "Backslash") {
           return;

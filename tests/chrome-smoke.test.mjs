@@ -422,6 +422,114 @@ try {
   assert.equal(speedState.afterSingleTap, 0);
   assert.deepEqual(speedState.messages, [{ type: "openSmoothSurferSettings" }]);
 
+  // Modified arrows change speed before the player's own key handler can seek.
+  const arrowSpeedState = await evaluate(
+    client,
+    `(() => {
+    const video = document.querySelector('#speed-video');
+    let playerKeys = 0;
+    video.addEventListener('keydown', () => playerKeys++);
+    const press = (code, modifiers = {}, target = video, rate = 1) => {
+      video.playbackRate = rate;
+      const event = new KeyboardEvent('keydown', {code, bubbles:true, cancelable:true, ...modifiers});
+      target.dispatchEvent(event);
+      return [video.playbackRate, event.defaultPrevented];
+    };
+    const update = patch => window.__smoothSurferStorageListeners.forEach(listener => listener({
+      [SmoothSurferSettings.STORAGE_KEY]: {newValue:{...SmoothSurferSettings.DEFAULT_SETTINGS,...patch}}
+    }, 'sync'));
+    const results = {
+      faster: press('ArrowRight', {altKey:true}),
+      slower: press('ArrowLeft', {altKey:true}),
+      playerKeysAfterHandled: playerKeys,
+      bareRight: press('ArrowRight'),
+      bareLeft: press('ArrowLeft'),
+      wrongModifier: press('ArrowRight', {ctrlKey:true}),
+      extraModifier: press('ArrowRight', {altKey:true,shiftKey:true}),
+      maximum: press('ArrowRight', {altKey:true}, video, 4),
+      minimum: press('ArrowLeft', {altKey:true}, video, 0.25)
+    };
+    results.editable = ['input','textarea','div'].map(tag => {
+      const editor = document.createElement(tag);
+      if (tag === 'div') editor.contentEditable = 'true';
+      document.body.append(editor);
+      const state = press('ArrowLeft', {altKey:true}, editor);
+      editor.remove();
+      return state;
+    });
+    results.modifiers = ['ctrl','shift','meta'].map(modifier => {
+      update({videoSpeedModifier:modifier});
+      return press('ArrowRight', {[modifier+'Key']:true});
+    });
+    update({videoSpeedModifier:'none'});
+    results.noModifierArrow = press('ArrowRight');
+    results.noModifierBracket = press('BracketRight');
+    update({videoSpeedHotkeys:false});
+    results.disabledHotkeys = press('ArrowRight', {altKey:true});
+    update({enabled:false});
+    results.disabledExtension = press('ArrowRight', {altKey:true});
+    update({});
+    video.remove();
+    results.noVideo = press('ArrowRight', {altKey:true}, document.body);
+    document.body.append(video);
+    video.playbackRate = 1;
+    return results;
+  })()`
+  );
+  assert.deepEqual(arrowSpeedState, {
+    faster: [1.25, true],
+    slower: [0.75, true],
+    playerKeysAfterHandled: 0,
+    bareRight: [1, false],
+    bareLeft: [1, false],
+    wrongModifier: [1, false],
+    extraModifier: [1, false],
+    maximum: [4, true],
+    minimum: [0.25, true],
+    editable: [
+      [1, false],
+      [1, false],
+      [1, false]
+    ],
+    modifiers: [
+      [1.25, true],
+      [1.25, true],
+      [1.25, true]
+    ],
+    noModifierArrow: [1, false],
+    noModifierBracket: [1.25, true],
+    disabledHotkeys: [1, false],
+    disabledExtension: [1, false],
+    noVideo: [1, false]
+  });
+  // Trusted browser input also exercises cancellation of native Alt+Left navigation.
+  for (const [key, keyCode, rate] of [
+    ["ArrowRight", 39, 1.25],
+    ["ArrowLeft", 37, 1]
+  ]) {
+    await client.send("Input.dispatchKeyEvent", {
+      type: "keyDown",
+      key,
+      code: key,
+      windowsVirtualKeyCode: keyCode,
+      modifiers: 1
+    });
+    await client.send("Input.dispatchKeyEvent", {
+      type: "keyUp",
+      key,
+      code: key,
+      windowsVirtualKeyCode: keyCode,
+      modifiers: 1
+    });
+    assert.equal(
+      await evaluate(client, `document.querySelector('#speed-video')?.playbackRate`),
+      rate
+    );
+  }
+  console.log(
+    "Video speed shortcuts passed (arrows, brackets, modifiers, editing, player propagation, browser navigation)."
+  );
+
   await navigate(client, `http://youtube.com.test:${fixturePort}/youtube-content.html`);
   await waitForExpression(
     client,
@@ -2638,7 +2746,9 @@ function videoContentFixture() {
         // Stand in for the extension messaging channel so the settings-open
         // shortcut has somewhere to deliver its message.
         window.__smoothSurferMessages = [];
+        window.__smoothSurferStorageListeners = [];
         window.chrome = {
+          storage: {onChanged: {addListener(listener) {window.__smoothSurferStorageListeners.push(listener);}}},
           runtime: {
             lastError: null,
             sendMessage(message, callback) {

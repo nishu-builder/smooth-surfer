@@ -1,6 +1,6 @@
 # Chrome Web Store listing
 
-Source copy for the Chrome Web Store developer dashboard, updated for 0.2.9.
+Source copy for the Chrome Web Store developer dashboard, updated for 0.2.11.
 Package publishing does not update the long description, privacy answers, or
 screenshots automatically; apply those fields in the dashboard before submission.
 
@@ -51,7 +51,9 @@ Per-site cleanup:
 - Reddit: hide promoted posts, recommendation modules, and comments.
 - Substack: hide recommendation modules. Hacker News: hide story scores.
 - Across sites: soften distractions, pause deep scrolling, and change video
-  speed with Alt+], Alt+[, and Alt+backslash (modifier configurable).
+  speed with Alt+Right/Left (or Alt+]/[) and reset with Alt+backslash.
+  Alt is Option on Mac; the modifier is configurable. With no modifier, use
+  brackets and backslash so plain arrows keep their normal page behavior.
 
 Optional AI filtering:
 

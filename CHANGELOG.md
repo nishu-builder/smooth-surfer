@@ -3,8 +3,9 @@
 Notable changes per released version. Versions match `manifest.json`, and a
 release is a `v*` tag; see [docs/RELEASING.md](docs/RELEASING.md).
 
-## Unreleased
+## 0.2.11
 
+- Support Option/Alt + Right/Left Arrow for video speed changes, alongside the existing bracket shortcuts. Preserve normal arrow-key behavior when no modifier is selected or while editing text.
 - Stop Reddit posts from flickering between hidden and visible. A hide decision now stays with the post until settings change, even when hiding it removes the recommendation label or changes which image size Reddit loads.
 
 ## 0.2.10
