@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Smooth Surfer</title>
-    <link rel="stylesheet" href="src/theme.css">
+    <link rel="stylesheet" href="src/theme.css"><link rel="stylesheet" href="src/ui-theme.css">
     <link rel="stylesheet" href="src/popup.css">
     <link rel="stylesheet" href="src/workspace.css">
 </head>
@@ -166,6 +166,7 @@
 
       <section data-filter-panel>
         <h2>Content filter</h2>
+        <div class="filter-model">
         <label class="field-row"><span>AI model</span><select data-setting="aiProvider"><option value="anthropic">Claude Haiku · cloud</option><option value="local">Gemini Nano · on-device</option></select></label>
         <div data-local-model-controls hidden><p class="notice">Experimental. Text stays on this device. Image analysis is unavailable. No cloud fallback.</p><button type="button" data-local-model-setup>Set up on-device AI</button><button type="button" data-local-model-refresh>Check status</button></div>
         <label class="switch-row" data-description="Optional. Sends up to two supported image URLs per post to Claude alongside text. Adds API cost and latency. Requires an Anthropic key.">
@@ -176,11 +177,16 @@
           <input type="password" data-secret="anthropicApiKey" placeholder="sk-ant-...">
         </label>
         <p class="notice" data-filter-key-status></p>
+        </div>
+        <div class="filter-rules">
+        <h3>Rules to filter</h3>
+        <p>Describe what you want to see less of.</p>
         <form class="phrase-form" data-phrase-form>
-          <input type="text" data-phrase-input placeholder="Add filter criterion">
+          <input type="text" data-phrase-input aria-label="New filter criterion" placeholder="Add filter criterion">
           <button type="submit">Add</button>
         </form>
         <div class="pills" data-phrase-list aria-live="polite"></div>
+        </div>
       </section>
 
       <section>
@@ -249,7 +255,7 @@
           <input type="number" min="1" max="300" step="1" inputmode="numeric" data-setting="visitDelaySeconds">
         </label>
         <form class="phrase-form" data-domain-form>
-          <input type="text" data-domain-input placeholder="example.com" autocomplete="off" spellcheck="false">
+          <input type="text" data-domain-input aria-label="Site to delay" placeholder="example.com" autocomplete="off" spellcheck="false">
           <button type="submit">Add</button>
         </form>
         <button type="button" data-add-current-domain hidden></button>

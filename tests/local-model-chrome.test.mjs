@@ -264,7 +264,7 @@ try {
   await retry(() => evaluate(setup, '!document.querySelector("[data-model-download]").disabled'));
   const button = await evaluate(
     setup,
-    '(()=>{const r=document.querySelector("[data-model-download]").getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()'
+    '(()=>{const button=document.querySelector("[data-model-download]");button.scrollIntoView({block:"center"});const r=button.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()'
   );
   await setup.send("Input.dispatchMouseEvent", {
     type: "mousePressed",

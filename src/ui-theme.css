@@ -1,0 +1,20 @@
+/* Beeper Muse palette, scoped to extension-owned pages. Host pages keep theme.css. */
+:root {
+  --ss-paper: #fffef9;
+  --ss-canvas: #fffdf4;
+  --ss-gray: #f4f4e8;
+  --ss-action: #20221e;
+  --ss-focus: #355dad;
+  --ss-ink: #20221e;
+  --ss-muted: #64655b;
+  --ss-line: #d7d7c9;
+  --ss-control-line: #888b7b;
+  --ss-hover: #f1f1e7;
+  --ss-action-hover: #34372f;
+  --ss-accent: #e3ff73;
+  --ss-accent-hover: #d9f765;
+  --ss-radius: 6px;
+  --ss-shadow: 3px 4px 0 #e7e7dc;
+  --ss-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --ss-sans: Arial, Helvetica, sans-serif;
+}

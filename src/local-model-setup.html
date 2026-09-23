@@ -1,3 +1,36 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>On-device AI · Smooth Surfer</title><link rel="stylesheet" href="theme.css"><link rel="stylesheet" href="popup.css"><link rel="stylesheet" href="local-model.css"></head>
-<body><main class="model-setup"><h1>On-device AI</h1><p class="notice">Experimental</p><p>Gemini Nano runs in Chrome. Posts, rules, and feedback stay on this device. No API key is needed.</p><p>Text only, including available image descriptions. Image analysis is unavailable in this mode. English prompts are supported; other languages may fail.</p><p>The first setup downloads a model. Chrome requires compatible desktop hardware and at least 22 GB of free storage. iPhone is not supported by this model.</p><p data-model-status role="status">Checking availability…</p><progress data-model-progress max="1" value="0" hidden></progress><div class="model-actions"><button data-model-download disabled>Download model</button><button data-model-check>Check again</button><a href="../popup.html?view=settings">Settings</a></div><p class="notice">Keep this tab open during setup. Once ready, you can close it and refresh or restart Chrome safely. If Chrome removes the model, filtering pauses until you set it up again. It never switches to cloud AI automatically.</p></main><script src="local-model-engine.js"></script><script src="local-model-setup.js"></script></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>On-device AI · Smooth Surfer</title>
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="ui-theme.css">
+  <link rel="stylesheet" href="popup.css">
+  <link rel="stylesheet" href="local-model.css">
+</head>
+<body>
+  <main class="model-setup">
+    <a class="setup-brand" href="../popup.html?view=settings">Smooth Surfer</a>
+    <div class="setup-heading"><h1>On-device AI</h1><span class="setup-badge">Experimental</span></div>
+    <p class="setup-intro">Filter posts without a cloud API.</p>
+    <p>Gemini Nano runs in Chrome. Posts, rules, and feedback stay on this device. No API key is needed.</p>
+    <div class="setup-facts">
+      <div><h2>Before you start</h2><p>The first setup downloads a model. You’ll need compatible desktop hardware and at least 22 GB of free storage. iPhone is not supported.</p></div>
+      <div><h2>What it can read</h2><p>Text and available image descriptions. Image analysis is unavailable. English prompts are supported; other languages may fail.</p></div>
+    </div>
+    <div class="setup-status">
+      <h2>Model status</h2>
+      <p data-model-status role="status">Checking availability…</p>
+      <progress data-model-progress aria-label="Model download progress" max="1" value="0" hidden></progress>
+    </div>
+    <div class="model-actions">
+      <button class="primary" data-model-download disabled>Download model</button>
+      <button data-model-check>Check again</button>
+    </div>
+    <p class="setup-note">Keep this tab open during setup. Once ready, you can close it and refresh or restart Chrome safely. If Chrome removes the model, filtering pauses until you set it up again. It never switches to cloud AI automatically.</p>
+    <footer><a href="../popup.html?view=settings">Back to settings</a><span>Gemini Nano · on-device</span></footer>
+  </main>
+  <script src="local-model-engine.js"></script><script src="local-model-setup.js"></script>
+</body>
+</html>

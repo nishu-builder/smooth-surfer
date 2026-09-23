@@ -51,7 +51,7 @@
     stats.hidden = true;
     facts.hidden = true;
     // Use the same controls and save path as the toolbar popup.
-    main.querySelector("[data-filter-panel]").append(facts.querySelector(".switch-row"));
+    main.querySelector(".filter-model").append(facts.querySelector(".switch-row"));
     main.insertBefore(
       main.querySelector("[data-filter-panel]"),
       main.querySelector("header").nextSibling

@@ -3,6 +3,11 @@
 Notable changes per released version. Versions match `manifest.json`, and a
 release is a `v*` tag; see [docs/RELEASING.md](docs/RELEASING.md).
 
+## Unreleased
+
+- Refresh the popup, settings, review, stats, filter sets, AI setup, and visit-delay splash with Beeper Muse’s cream palette, dark outlines, and lime accents.
+- Open the current site’s controls first in the popup, with keyboard-accessible disclosures for other sites. Keep full-page settings expanded and separate AI configuration from filtering rules.
+
 ## 0.2.11
 
 - Support Option/Alt + Right/Left Arrow for video speed changes, alongside the existing bracket shortcuts. Preserve normal arrow-key behavior when no modifier is selected or while editing text.

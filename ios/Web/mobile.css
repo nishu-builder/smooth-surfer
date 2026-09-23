@@ -2,7 +2,8 @@
 @media (pointer: coarse) {
   :root:not(.workspace), :root:not(.workspace) body { width: 100%; min-width: 0; }
   button, select, input:not([type="checkbox"]), textarea,
-  .workspace-sidebar nav a, .popup-nav a, .switch-row, .switch-row.compact {
+  .workspace-sidebar nav a, .popup-nav a, .switch-row, .switch-row.compact,
+  .site-controls > summary {
     min-height: 44px;
   }
   :root :is(input:not([type="checkbox"]), textarea, select) {

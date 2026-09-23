@@ -1,44 +1,36 @@
 # Product style
 
-The visual reference is [Fogg’s identity on Brand Archive](https://brandarchive.xyz/identity/fogg), credited to Kurppa Hosk Bunch (2013). Use its typography and crisp geometry as direction for Smooth Surfer. Our palette is black, white, and neutral gray; do not use the reference’s purple or orange. Keep layouts dense. The reference is Fogg’s identity and stationery, not Brand Archive’s surrounding interface.
+Smooth Surfer’s extension pages use the [Beeper Muse](https://github.com/nishu-builder/beeper-muse) visual language: warm cream surfaces, dark outlines, monospace headings, readable sans-serif text, and restrained lime accents. Use the same treatment for the visit-delay splash.
 
 ## CSS tokens
 
-Use `src/theme.css` across the popup, review page, and in-page controls.
+Load `src/ui-theme.css` after `src/theme.css` on extension-owned pages. Keep the base theme and its host-page geometry unchanged; do not inject the UI stylesheet into websites. The visit-delay overlay defines matching tokens inside its shadow root.
 
 | Token | Value | Use |
 | --- | --- | --- |
-| `--ss-paper` | `#FFFFFF` | Main surfaces |
-| `--ss-gray` | `#F2F2F2` | Secondary surfaces |
-| `--ss-action` | `#111111` | Primary actions, links, headings |
-| `--ss-focus` | `#111111` | Focus indicators |
-| `--ss-ink` | `#171717` | Reading text |
-| `--ss-muted` | `#616161` | Supporting text |
-| `--ss-radius` | `2px` | Controls and panels |
-
-These are Smooth Surfer’s monochrome interface tokens, adapted from the reference’s geometry rather than its colors.
+| `--ss-canvas` | `#FFFDF4` | Page background |
+| `--ss-paper` | `#FFFEF9` | Cards and fields |
+| `--ss-gray` | `#F4F4E8` | Supporting surfaces |
+| `--ss-ink`, `--ss-action` | `#20221E` | Text and dark outlines |
+| `--ss-muted` | `#64655B` | Supporting text |
+| `--ss-line` | `#D7D7C9` | Dividers and card borders |
+| `--ss-accent` | `#E3FF73` | Primary actions and selected controls |
+| `--ss-focus` | `#355DAD` | Keyboard focus |
+| `--ss-radius` | `6px` | Controls and panels |
 
 ## Typography and layout
 
-- The reference uses Gridnik by Wim Crouwel. Prefer Gridnik when available; the current CSS uses local system monospace fallbacks. No Gridnik font files are bundled.
-- Use the geometric/monospaced stack at regular weight for headings, navigation, control labels, actions, and metadata. Avoid bold sans-serif setting labels next to monospace headings. Use a neutral sans serif for longer post previews and help text.
-- Keep white surfaces, thin dividers, crisp corners, and consistent alignment. Avoid pill-shaped panels and heavy shadows.
-- Default to compact spacing: 4–8px between related controls, 10–12px inside post cards, and 8px between cards. Headers should not push content down.
-- Keep post previews at 14–15px with 1.4–1.45 line height. Reduce padding before shrinking reading text. Controls should remain at least 28px high.
-- Use black for primary actions and white for surfaces. Supporting fills, borders, and hover states stay neutral gray.
-- Keep decoration out of reading and decision areas. Do not copy Fogg’s logo or artwork into the extension.
-- Preserve visible focus indicators, legible contrast, narrow-screen wrapping, and existing feed geometry.
-- Theme variables are namespaced. Content styles must not restyle the host page.
+- Use bundled system font stacks: monospace for headings, navigation, buttons, and metadata; sans serif for setting labels and explanatory text. No network fonts.
+- Use bold headings and 13–15px reading text. Supporting text in the popup can be 12px. Keep readable line heights and visible keyboard focus.
+- Use thin borders, 6–8px corners, and a small solid offset shadow for the main card or selected area. Avoid gradients, decorative imagery, and motion.
+- Use lime sparingly with dark text. Secondary and destructive actions keep a paper background. Feedback retains green/red state colors.
+- The popup is 360px wide. Open the current site’s native disclosure and collapse other sites. Preserve disclosure state while saving settings. All controls remain accessible; keep the page links at the top.
+- Full-page settings keep site controls expanded. At wider sizes, split model configuration and rules into two columns within the Content filter card.
+- Full pages share a 216px sidebar for Review rulings, Settings, Stats, and Filter sets. At 700px or narrower, use a top navigation row and a single content column. Use 44px touch targets on mobile.
+- Review cards put the saved or native post first and judgments second. Columns depend on available content width; preserve the sticky keyboard bar, selected-ruling marker, and existing feedback interactions.
+- Stats distinguish hiding-action counts from consumption facts. Keep the nutrition-label treatment readable.
+- Setup and visit-delay screens use one centered outlined card, clear status, and a small number of actions. Preserve mobile wrapping and the countdown’s existing behavior.
 
 ## Copy
 
-- Keep copy terse and factual. Use sentence case and concrete actions: “Good ruling,” “Bad ruling,” “Recalibrate rules,” “Filter added.”
-- Remove slogans, motivational language, and introductions that repeat the controls.
-- Keep details that affect a choice: data sharing, rule scope, persistence, and error recovery.
-- Use the same terms across the popup, review page, feed controls, and listing.
-
-Review cards put the native or saved post first, followed by rule judgments. Use a narrow reading column and clear dividers between posts. At 960px and wider, place the post on the left and its rulings on the right. Mark the selected ruling with a black border and directional judgment buttons; a sticky keyboard bar names the exact post and ruling affected by arrow keys. Avatars, media, and quoted-post frames can follow familiar X shapes; keep the surrounding controls monochrome and compact.
-
-Popup setting rows use a consistent 28px target with 16px checkboxes. Keep page links on one compact navigation row. Active sites use a small text badge; retain the same thin border and alignment as other sections.
-
-Full pages share a 180px left sidebar: Review rulings, Settings, Stats, and Filter sets. The current page uses a black fill and an accessible current-page label. On windows narrower than 700px, navigation becomes a top row. Post and ruling columns respond to the available content width after the sidebar. Settings reuse popup controls in a wider grid; Stats separates hiding-action counts from consumption facts.
+Use sentence case and concrete actions: “Good ruling,” “Recalibrate rules,” “Add,” “Check again.” Keep explanations that affect a choice: data sharing, rule scope, persistence, and recovery. Avoid slogans and redundant introductions. Use consistent terms across the popup, settings, and store listing.

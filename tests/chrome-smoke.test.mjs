@@ -181,7 +181,7 @@ try {
   assert.match(youtubeStyles.viewModelThumbFilter, /grayscale/);
 
   await client.send("Emulation.setDeviceMetricsOverride", {
-    width: 360,
+    width: 390,
     height: 720,
     deviceScaleFactor: 1,
     mobile: false
@@ -262,7 +262,51 @@ try {
   assert.ok(popupState.checkboxWidth <= 22);
   assert.ok(popupState.bodyWidth >= 300);
   assert.ok(popupState.popupWidth >= 300);
-  assert.ok(popupState.popupWidth <= 340);
+  assert.ok(popupState.popupWidth <= 360);
+  assert.deepEqual(
+    await evaluate(
+      client,
+      `Array.from(document.querySelectorAll('.site-controls[open] h2')).map(h => h.textContent)`
+    ),
+    ["Reddit"],
+    "the active site opens after async tab detection; other sites stay compact"
+  );
+  await evaluate(client, `document.querySelector('[data-site-section="youtube"] summary').focus()`);
+  await client.send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    text: "\r",
+    key: "Enter",
+    code: "Enter",
+    windowsVirtualKeyCode: 13
+  });
+  await client.send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key: "Enter",
+    code: "Enter",
+    windowsVirtualKeyCode: 13
+  });
+  assert.equal(
+    await evaluate(client, `document.querySelector('[data-site-section="youtube"] details').open`),
+    true,
+    "other sites can be expanded with the keyboard"
+  );
+  await evaluate(
+    client,
+    `document.querySelector('[data-setting="youtubeHideComments"]').focus();document.querySelector('[data-setting="youtubeHideComments"]').click()`
+  );
+  assert.equal(
+    await evaluate(
+      client,
+      `document.activeElement.matches('[data-setting="youtubeHideComments"]')`
+    ),
+    true,
+    "saving a setting preserves keyboard focus"
+  );
+  assert.equal(
+    await evaluate(client, `document.querySelector('[data-site-section="youtube"] details').open`),
+    true,
+    "saving a setting preserves the open disclosure"
+  );
   assert.match(popupState.pillText, /high-pressure AI investing hype/);
   assert.match(popupState.pillText, /missed upside/);
   assert.match(popupState.pillText, /one short sentence/);
@@ -1205,7 +1249,7 @@ async function verifyExtensionPopupOpens() {
     );
     assert.equal(popupLayout.title, "Smooth Surfer");
     assert.equal(popupLayout.bodyOverflow, "visible", "only the popup viewport scrolls");
-    assert.equal(popupLayout.width, 320);
+    assert.equal(popupLayout.width, 360);
     assert.ok(popupLayout.height >= 300, "the popup has a usable rendered height");
     assert.equal(popupLayout.visibility, "visible");
     assert.ok(popupLayout.inputs > 10, "the popup renders its settings controls");
@@ -1344,7 +1388,7 @@ async function verifyExtensionPopupOpens() {
     await navigate(client, extensionOrigin + "/review.html");
     await waitForExpression(client, `document.querySelectorAll('.post').length === 3`);
     await client.send("Emulation.setDeviceMetricsOverride", {
-      width: 1100,
+      width: 1280,
       height: 1000,
       deviceScaleFactor: 1,
       mobile: false
@@ -1398,7 +1442,7 @@ async function verifyExtensionPopupOpens() {
       embedHealth.state === "true" ? "native post ready" : embedHealth.message
     );
     await client.send("Emulation.setDeviceMetricsOverride", {
-      width: 1100,
+      width: 1280,
       height: 1000,
       deviceScaleFactor: 1,
       mobile: false
@@ -1822,7 +1866,7 @@ async function verifyExtensionPopupOpens() {
       `document.getElementById('calibration-progress').textContent.includes('Results saved') && document.querySelectorAll('.replay-example').length===2`
     );
     await client.send("Emulation.setDeviceMetricsOverride", {
-      width: 1100,
+      width: 1280,
       height: 1000,
       deviceScaleFactor: 1,
       mobile: false
@@ -2243,6 +2287,11 @@ async function verifyExtensionPopupOpens() {
       true,
       "tracking control is available in full-page settings"
     );
+    assert.equal(
+      await evaluate(client, `document.querySelectorAll('.site-controls').length`),
+      0,
+      "full-page settings keep every site's controls expanded"
+    );
     const beforeToggle = await evaluate(
       client,
       `document.querySelector('[data-setting="twitterHideTrends"]').checked`
@@ -2385,7 +2434,7 @@ async function verifyExtensionPopupOpens() {
     );
     assert.equal(
       await evaluate(client, `document.body.getBoundingClientRect().width`),
-      320,
+      360,
       "full-page views do not change the toolbar popup"
     );
     assert.equal(await evaluate(client, `document.querySelector('.workspace-sidebar')`), null);

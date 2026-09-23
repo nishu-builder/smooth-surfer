@@ -23,9 +23,9 @@ import { fileURLToPath } from "node:url";
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = path.join(root, "docs", "store-assets");
 const cacheDir = path.join(root, ".cache");
-const canvas = { width: 1280, height: 800, background: "0xf2f2f2" };
-// Popup body is 320px wide; at deviceScaleFactor 2 the column is 640px.
-const popupColumnWidth = 640;
+const canvas = { width: 1280, height: 800, background: "0xfffdf4" };
+// Popup body is 360px wide; at deviceScaleFactor 2 the column is 720px.
+const popupColumnWidth = 720;
 // Curated section groups, one store screenshot each. Labels match a section's
 // data-site-section or its lowercased <h2>; "header" is the title row. Stats
 // and Backup are left out of the store set as utility sections.
@@ -102,7 +102,7 @@ await withChrome([`--load-extension=${root}`], async (client, port) => {
   const worker = await waitForWorker(port);
   const extensionId = new URL(worker.url).hostname;
 
-  // Narrow viewport so the popup renders at its natural 320px width; the body
+  // Narrow viewport so the popup renders at its natural 360px width; the body
   // cap is lifted in setup so the whole menu lays out for a full-page capture.
   await client.send("Emulation.setDeviceMetricsOverride", {
     width: 360,
@@ -167,6 +167,7 @@ function compose(inputs, filter, name) {
 
 function popupSetupExpression() {
   return `(() => {
+    document.querySelectorAll(".site-controls").forEach(details => { details.open = true; });
     document.body.style.maxHeight = "none";
     document.body.style.overflow = "visible";
     const d = new Date();

@@ -756,25 +756,38 @@
 
   function renderActiveSection() {
     if (document.body.dataset.workspace) return;
-    let insertAfter = header;
-
-    defaultSiteSectionOrder.forEach((section) => {
-      popup.insertBefore(section, insertAfter.nextSibling);
-      insertAfter = section;
-    });
-
-    siteSections.forEach((section) => {
-      const isActive = section.dataset.siteSection === activePlatform;
-      section.dataset.activeSite = String(isActive);
-    });
-
     const activeSection = siteSections.find(
       (section) => section.dataset.siteSection === activePlatform
     );
-
-    if (activeSection) {
-      popup.insertBefore(activeSection, header.nextSibling);
+    const orderedSections = activeSection
+      ? [activeSection, ...defaultSiteSectionOrder.filter((section) => section !== activeSection)]
+      : defaultSiteSectionOrder;
+    let insertAfter = header;
+    for (const section of orderedSections) {
+      // Moving an already placed section drops keyboard focus during a save.
+      if (insertAfter.nextElementSibling !== section) {
+        popup.insertBefore(section, insertAfter.nextSibling);
+      }
+      insertAfter = section;
     }
+
+    siteSections.forEach((section) => {
+      const isActive = section.dataset.siteSection === activePlatform;
+      const activeChanged = section.dataset.activeSite !== String(isActive);
+      section.dataset.activeSite = String(isActive);
+      if (!section.querySelector(".site-controls")) {
+        const details = document.createElement("details");
+        details.className = "site-controls";
+        details.open = isActive;
+        const summary = document.createElement("summary");
+        summary.append(section.querySelector("h2"));
+        details.append(summary, ...section.childNodes);
+        section.append(details);
+      }
+      if (activeChanged) {
+        section.querySelector(".site-controls").open = isActive;
+      }
+    });
   }
 
   function renderStats() {
