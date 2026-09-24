@@ -78,6 +78,12 @@
   const tweetIdentities = new WeakMap();
   const tweetFadeTimers = new WeakMap();
   const tweetPresentations = new WeakMap();
+  // A post's rendered media can disappear when X notices that its row is
+  // hidden. Remember blocked decisions by permalink, not those transient cues.
+  const tweetBlocks = new Map();
+  // Ads and reposts describe a placement, not the underlying post. Keep those
+  // decisions with the mounted article so an organic copy stays eligible.
+  const tweetContextBlocks = new WeakMap();
   // Reddit post id -> { rules, epoch, result }. Hiding a post can remove the
   // cues that decided it (a lazily rendered recommendation label, the image
   // variant chosen by srcset), so a decision holds for the post until settings
@@ -446,6 +452,38 @@
       restoreElement(article);
     }
     const identity = getTweetIdentity(article);
+    const id = getTweetId(article);
+    const contextBlock = tweetContextBlocks.get(article);
+    const block = contextBlock?.id === id ? contextBlock : tweetBlocks.get(id);
+    if (block) {
+      const reasons =
+        block.kind === "format"
+          ? block.formats.filter((key) => settings[key]).map((key) => FORMAT_LABELS[key])
+          : block.reasons;
+      const enabled =
+        block.kind === "ad"
+          ? settings.twitterHideAds
+          : block.kind === "format"
+            ? reasons.length > 0
+            : canFilterContent;
+      if (
+        block.kind !== "ad" &&
+        (isReviewSnapshotRestored(block.review) ||
+          isReviewPostRestored(container, getTweetText(article), getPostImages(article)))
+      ) {
+        tweetIdentities.set(container, identity);
+        restoreElement(container);
+        return;
+      }
+      if (enabled) {
+        tweetIdentities.set(container, identity);
+        hideTweet(container, reasons, true);
+        return;
+      }
+      tweetContextBlocks.delete(article);
+      tweetBlocks.delete(id);
+      restoreElement(container);
+    }
     if (tweetIdentities.get(container) !== identity) {
       restoreElement(container);
       tweetIdentities.set(container, identity);
@@ -457,6 +495,7 @@
     }
 
     if (reasons.length > 0) {
+      rememberTweetBlock(container, reasons, "ad");
       hideTweet(container, reasons, true);
       return;
     }
@@ -477,6 +516,7 @@
         formats
       };
       recordReviewPost(container, text, classification, images);
+      rememberTweetBlock(container, classification.reasons, "format", formats);
       hideTweet(container, classification.reasons, true);
       return;
     }
@@ -974,6 +1014,9 @@
     inFlightClassifications.clear();
     if (clearCache) {
       modelClassifications.clear();
+      for (const [id, block] of tweetBlocks) {
+        if (block.kind === "model") tweetBlocks.delete(id);
+      }
     } else {
       // An on/off toggle invalidates callbacks, not already known verdicts.
       // Retry transient failures immediately when filtering is re-enabled.
@@ -1134,6 +1177,7 @@
       }
     }
     if (classification.blocked && !isReviewPostRestored(container, text, images)) {
+      if (kind === "tweet") rememberTweetBlock(container, classification.reasons || [], "model");
       recordReviewPost(container, text, classification, images);
       hideContentElement(container, classification.reasons || [], kind, immediate);
     } else {
@@ -1325,6 +1369,41 @@
           }
         : null
     };
+  }
+
+  function getTweetId(article) {
+    const link = article?.querySelector('a[href*="/status/"] time')?.closest("a");
+    return link?.getAttribute("href")?.match(/\/status\/([^/?#]+)/)?.[1] || "";
+  }
+
+  function rememberTweetBlock(container, reasons, kind, formats = []) {
+    const article = getTweetArticle(container);
+    const id = getTweetId(article);
+    if (!id) return;
+    const post = captureReviewPost(container, getTweetText(article), getPostImages(article));
+    const block = {
+      id,
+      reasons,
+      kind,
+      formats,
+      review: { text: post.text, images: post.images, url: post.url }
+    };
+    if (kind === "ad") {
+      tweetContextBlocks.set(article, block);
+      return;
+    }
+    if (kind === "format" && formats.includes("twitterHideReposts")) {
+      tweetContextBlocks.set(article, block);
+      if (formats.length === 1) return;
+    }
+    tweetBlocks.delete(id);
+    tweetBlocks.set(id, {
+      ...block,
+      formats: formats.filter((key) => key !== "twitterHideReposts")
+    });
+    if (tweetBlocks.size > CLASSIFICATION_CACHE_LIMIT) {
+      tweetBlocks.delete(tweetBlocks.keys().next().value);
+    }
   }
 
   function getTweetIdentity(article) {
@@ -1662,7 +1741,8 @@
       setTweetPresentation(element, "smooth-surfer-hidden");
       return;
     }
-    const identity = getTweetIdentity(getTweetArticle(element));
+    const identity =
+      getTweetId(getTweetArticle(element)) || getTweetIdentity(getTweetArticle(element));
     const epoch = classificationEpoch;
     setTweetPresentation(element, "smooth-surfer-tweet-fading");
     tweetFadeTimers.set(
@@ -1674,7 +1754,8 @@
         if (
           !element.isConnected ||
           epoch !== classificationEpoch ||
-          identity !== getTweetIdentity(getTweetArticle(element))
+          identity !==
+            (getTweetId(getTweetArticle(element)) || getTweetIdentity(getTweetArticle(element)))
         )
           return;
         hideTweetWithoutScrollJump(element, true);
