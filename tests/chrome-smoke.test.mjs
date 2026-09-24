@@ -15,6 +15,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { verifyFeedRendering } from "./feed-render.test.mjs";
+
 import { verifyTwitterFeed, twitterFilterFixture } from "./twitter-feed.test.mjs";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -714,6 +716,7 @@ try {
   assert.equal(twitterContentState.linkedinHidden, false);
   assert.equal(twitterContentState.trendDisplay, "none");
 
+  await verifyFeedRendering({ client, navigate, evaluate, waitForExpression, fixturePort });
   await verifyTwitterFeed({
     client,
     navigate,
