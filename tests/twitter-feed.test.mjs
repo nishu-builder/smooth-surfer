@@ -16,6 +16,138 @@ export async function verifyTwitterFeed({
     await wait(`window.requests?.length === 8`);
   };
   await open();
+  // X unmounts media when a row becomes hidden. That must not undo a
+  // format decision and set off a hide/show/remount loop for the same post.
+  await run(`updateSettings({twitterFilterContent:false,twitterHideVideos:true});
+    document.querySelector('#cell-0 article').insertAdjacentHTML('beforeend','<div data-testid="videoPlayer"></div>')`);
+  await wait(`document.querySelector('#cell-0').classList.contains('smooth-surfer-hidden')`);
+  const mediaFrames = await run(`(async()=>{
+    const cell=document.querySelector('#cell-0'); const heights=[];
+    for(let i=0;i<6;i++) {
+      cell.querySelector('[data-testid="videoPlayer"]')?.remove();
+      await new Promise(requestAnimationFrame);
+      heights.push(cell.getBoundingClientRect().height);
+      cell.querySelector('article').insertAdjacentHTML('beforeend','<div data-testid="videoPlayer"></div>');
+      await new Promise(requestAnimationFrame);
+      heights.push(cell.getBoundingClientRect().height);
+    }
+    return heights;
+  })()`);
+  assert.deepEqual(
+    mediaFrames,
+    Array(12).fill(0),
+    "media unmounting never reveals the same blocked post"
+  );
+  // Reusing the row for another permalink must release the old decision.
+  await run(`document.querySelector('#cell-0 [data-testid="videoPlayer"]').remove();
+    document.querySelector('#cell-0 a').href='/fixture/status/new-post'`);
+  await wait(`document.querySelector('#cell-0').getBoundingClientRect().height === 180`);
+  await run(`(() => {
+    const remount=makeCell('remount', 'Video caption no longer rendered');
+    remount.querySelector('a').href='/fixture/status/0';
+    document.querySelector('#cell-0').replaceWith(remount);
+  })()`);
+  await wait(`document.querySelector('#cell-remount').getBoundingClientRect().height === 0`);
+  assert.equal(
+    await run(`requests.length`),
+    8,
+    "a known format block survives remount without inference"
+  );
+  await run(`updateSettings({twitterHideVideos:false})`);
+  await wait(`document.querySelector('#cell-remount').getBoundingClientRect().height === 180`);
+
+  // A model verdict also survives lazy captions, media, and partial text
+  // renders for the same permalink, including changes during the fade.
+  await open();
+  await run(`resolvePost(0,true)`);
+  await wait(`document.querySelector('#cell-0').classList.contains('smooth-surfer-tweet-fading')`);
+  await run(`document.querySelector('#text-0').textContent='Partial rendering';
+    document.querySelector('#cell-0 article').insertAdjacentHTML('beforeend','<div data-testid="tweetPhoto"><img alt="Lazy caption"></div>')`);
+  await wait(`document.querySelector('#cell-0').getBoundingClientRect().height === 0`);
+  const modelFrames = await run(`(async()=>{
+    const cell=document.querySelector('#cell-0'); const heights=[];
+    for(let i=0;i<6;i++) {
+      cell.querySelector('img').alt='Caption '+i;
+      cell.querySelector('[data-testid="tweetText"]').textContent=i%2?'Partial rendering':'';
+      await new Promise(requestAnimationFrame);
+      heights.push(cell.getBoundingClientRect().height);
+    }
+    return heights;
+  })()`);
+  assert.deepEqual(
+    modelFrames,
+    Array(6).fill(0),
+    "render changes do not reopen a model-blocked post"
+  );
+  assert.equal(await run(`requests.length`), 8, "render changes do not reclassify a blocked post");
+  await run(`restorePost('Post 0')`);
+  await wait(`document.querySelector('#cell-0').getBoundingClientRect().height === 180`);
+  await run(`window.dispatchEvent(new Event('scroll'))`);
+  assert.equal(
+    await run(
+      `requests.filter(r=>r.message.text==='Post 0' || /Caption|Partial rendering/.test(r.message.text)).length`
+    ),
+    1,
+    "restoring the original snapshot survives changed render text"
+  );
+
+  // Changing filtering criteria releases remembered model decisions.
+  await open();
+  await run(`resolvePost(0,true)`);
+  await wait(`document.querySelector('#cell-0').getBoundingClientRect().height === 0`);
+  await run(`updateSettings({filterCriteria:['Different rules']})`);
+  await wait(`requests.length === 16`);
+  await run(
+    `requests.find((r,i)=>i>=8 && r.message.text==='Post 0').callback({blocked:false,classifier:'claude-haiku',reasons:[]})`
+  );
+  await wait(`document.querySelector('#cell-0').getBoundingClientRect().height === 180`);
+  await open();
+  await run(`updateSettings({twitterFilterContent:false});
+    document.querySelector('#cell-0 article').insertAdjacentHTML('afterbegin','<span id="ad-label">Ad</span>')`);
+  await wait(`document.querySelector('#cell-0').getBoundingClientRect().height === 0`);
+  await run(`document.querySelector('#ad-label').remove(); new Promise(requestAnimationFrame)`);
+  assert.equal(
+    await run(`document.querySelector('#cell-0').getBoundingClientRect().height`),
+    0,
+    "removing a promoted label cannot reopen a known ad"
+  );
+  await run(`(() => {
+    const organic=makeCell('organic', 'Post 0');
+    organic.querySelector('a').href='/fixture/status/0';
+    document.querySelector('main').append(organic);
+  })()`);
+  await run(`new Promise(requestAnimationFrame)`);
+  assert.equal(
+    await run(`document.querySelector('#cell-organic').getBoundingClientRect().height`),
+    180,
+    "a promoted placement does not hide an organic copy of the same post"
+  );
+  await run(`updateSettings({twitterHideAds:false})`);
+  await wait(`document.querySelector('#cell-0').getBoundingClientRect().height === 180`);
+  await open();
+  await run(`updateSettings({twitterFilterContent:false,twitterHideReposts:true});
+    document.querySelector('#cell-0 article').insertAdjacentHTML('afterbegin','<div data-testid="socialContext">Someone reposted</div>')`);
+  await wait(`document.querySelector('#cell-0').getBoundingClientRect().height === 0`);
+  await run(
+    `document.querySelector('#cell-0 [data-testid="socialContext"]').remove(); new Promise(requestAnimationFrame)`
+  );
+  assert.equal(
+    await run(`document.querySelector('#cell-0').getBoundingClientRect().height`),
+    0,
+    "a disappearing repost label does not reveal the mounted repost"
+  );
+  await run(`(() => {
+    const original=makeCell('original', 'Post 0');
+    original.querySelector('a').href='/fixture/status/0';
+    document.querySelector('main').append(original);
+  })()`);
+  await run(`new Promise(requestAnimationFrame)`);
+  assert.equal(
+    await run(`document.querySelector('#cell-original').getBoundingClientRect().height`),
+    180,
+    "hiding a repost does not hide a separately mounted original post"
+  );
+  await open();
   const initial = await run(`(() => ({
     height: document.querySelector('#cell-0').getBoundingClientRect().height,
     nextTop: document.querySelector('#cell-1').getBoundingClientRect().top,
@@ -242,7 +374,9 @@ export async function verifyTwitterFeed({
   );
   await run(`document.querySelector('#text-0').closest('article').remove()`);
   await wait(`document.querySelector('#cell-0').classList.contains('smooth-surfer-hidden')`);
-  await run(`document.querySelector('#text-reply').firstChild.data = 'A replacement reply'`);
+  await run(
+    `document.querySelector('#text-reply').firstChild.data = 'A replacement reply'; document.querySelector('#cell-0 a').href='/fixture/status/replacement-reply'`
+  );
   await wait(`requests.length === 10`);
   assert.equal(await run(`document.querySelector('#cell-0').getBoundingClientRect().height`), 180);
   await run(`resolvePost(9,false)`);
@@ -350,7 +484,7 @@ export async function verifyTwitterFeed({
 
   // Class repair must still release a recycled row and respect disabling.
   await run(`document.querySelector('#cell-0').className = 'react-recycled-row';
-    document.querySelector('#text-0').textContent = 'Recycled allowed post'`);
+    document.querySelector('#text-0').textContent = 'Recycled allowed post'; document.querySelector('#cell-0 a').href='/fixture/status/recycled-allowed'`);
   await wait(`requests.length === 9`);
   assert.equal(await run(`document.querySelector('#cell-0').getBoundingClientRect().height`), 180);
   await run(`resolvePost(8, false); updateSettings({enabled:false})`);

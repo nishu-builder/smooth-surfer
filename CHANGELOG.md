@@ -3,6 +3,11 @@
 Notable changes per released version. Versions match `manifest.json`, and a
 release is a `v*` tag; see [docs/RELEASING.md](docs/RELEASING.md).
 
+## 0.2.12
+
+- Stop an X/Twitter hide/show loop when hidden posts lose their video player, media captions, text, or promoted label. Keep blocked decisions attached to the post’s permalink across rerenders and remounts; release them for new post IDs, changed filters, and explicit restores.
+- Keep a blocked post’s fade from being canceled by media or text changes within the same post.
+
 ## 0.2.11
 
 - Support Option/Alt + Right/Left Arrow for video speed changes, alongside the existing bracket shortcuts. Preserve normal arrow-key behavior when no modifier is selected or while editing text.
