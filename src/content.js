@@ -31,6 +31,8 @@
     "PageDown",
     "PageUp"
   ]);
+  const REDDIT_POST_SELECTOR =
+    "shreddit-post, article, [data-testid='post-container'], [data-testid='post'], [slot='post-container']";
   const REDDIT_TEXT_SELECTORS = [
     '[slot="title"]',
     '[slot="text-body"]',
@@ -77,7 +79,7 @@
   const pendingClassifications = new WeakMap();
   const tweetIdentities = new WeakMap();
   const tweetFadeTimers = new WeakMap();
-  const tweetPresentations = new WeakMap();
+  const hiddenPresentations = new WeakMap();
   // A post's rendered media can disappear when X notices that its row is
   // hidden. Remember blocked decisions by permalink, not those transient cues.
   const tweetBlocks = new Map();
@@ -89,6 +91,7 @@
   // variant chosen by srcset), so a decision holds for the post until settings
   // change instead of being re-derived from what a hidden post still shows.
   const redditPostDecisions = new Map();
+  const redditIdentities = new WeakMap();
   let classificationEpoch = 0;
   const recordedStatKeys = new Set();
   const recordedConsumptionKeys = new Set();
@@ -269,31 +272,46 @@
     }
 
     observer = new MutationObserver((mutations) => {
-      // React can replace a tweet or mutate its text in an existing cell.
-      // Reconcile those cells before paint, including cached blocked posts.
+      // Feed frameworks can replace posts or mutate their text in existing rows.
+      // Reconcile those rows before paint, including cached blocked posts.
       const relevant = mutations.filter((mutation) => {
         if (mutation.type !== "attributes" || mutation.attributeName !== "class") return true;
         // React can replace className on an existing row. Reapply our current
         // presentation before paint, without rescanning for our own class writes.
-        const presentation = tweetPresentations.get(mutation.target);
+        const presentation = hiddenPresentations.get(mutation.target);
         if (!presentation || mutation.target.classList.contains(presentation)) return false;
         mutation.target.classList.add(presentation);
         return true;
       });
       if (relevant.length) {
         fastProcessAddedNodes(relevant);
+        fastProcessRedditNodes(relevant);
         scheduleScan();
       }
     });
     observer.observe(document.body, {
       childList: true,
       subtree: true,
-      characterData: platform === "twitter",
-      attributes: platform === "twitter",
+      characterData: platform === "twitter" || platform === "reddit",
+      attributes: platform === "twitter" || platform === "reddit",
       attributeFilter:
         platform === "twitter"
           ? ["href", "data-testid", "alt", "src", "srcset", "class"]
-          : undefined
+          : platform === "reddit"
+            ? [
+                "class",
+                "id",
+                "permalink",
+                "post-title",
+                "promoted",
+                "data-promoted",
+                "href",
+                "src",
+                "srcset",
+                "alt",
+                "data-testid"
+              ]
+            : undefined
     });
 
     window.setInterval(scheduleScan, 2000);
@@ -553,7 +571,8 @@
       if (
         cell &&
         !cell.querySelector('article[data-testid="tweet"]') &&
-        cell.dataset.smoothSurferHiddenKind === "tweet"
+        cell.dataset.smoothSurferHiddenKind === "tweet" &&
+        (cell.textContent.trim() || cell.querySelector("img, video, canvas, iframe"))
       ) {
         restoreElement(cell);
       }
@@ -581,44 +600,83 @@
 
     scanRedditRecommendationModules();
 
-    getRedditPostContainers().forEach((container) => {
-      const decision = getRedditPostDecision(container);
-      const rules = decision ? decision.rules : new Set();
+    getRedditPostContainers().forEach((container) =>
+      processRedditPost(container, canFilterContent)
+    );
+  }
 
-      if (settings.redditHideAds && isRedditPromoted(container)) {
-        rules.add("ad");
-      }
+  function processRedditPost(container, canFilterContent) {
+    // A framework can rebuild a hidden post over multiple frames. Do not
+    // expand its empty shell while waiting for the replacement's identity.
+    if (
+      !container.childElementCount &&
+      !container.textContent.trim() &&
+      hiddenPresentations.has(container)
+    )
+      return;
+    const id = getRedditPostId(container);
+    if (redditIdentities.has(container) && redditIdentities.get(container) !== id) {
+      restoreElement(container);
+    }
+    redditIdentities.set(container, id);
+    const decision = getRedditPostDecision(container);
+    const rules = decision ? decision.rules : new Set();
 
-      if (settings.redditHideRecommendations && isRedditRecommendation(container)) {
-        rules.add("recommendation");
-      }
+    if (settings.redditHideAds && isRedditPromoted(container)) {
+      rules.add("ad");
+    }
 
-      const reasons = [...rules].filter((rule) =>
-        rule === "ad" ? settings.redditHideAds : settings.redditHideRecommendations
-      );
+    if (settings.redditHideRecommendations && isRedditRecommendation(container)) {
+      rules.add("recommendation");
+    }
 
-      if (reasons.length > 0) {
-        hideElement(container, reasons, "reddit-post");
+    const reasons = [...rules].filter((rule) =>
+      rule === "ad" ? settings.redditHideAds : settings.redditHideRecommendations
+    );
+
+    if (reasons.length > 0) {
+      hideElement(container, reasons, "reddit-post");
+      return;
+    }
+
+    if (canFilterContent) {
+      if (decision?.result && decision.epoch === classificationEpoch) {
+        applyModelClassification(
+          container,
+          decision.result,
+          "reddit-post",
+          normalizeInlineText(getRedditPostText(container)).slice(0, 2000),
+          getPostImages(container),
+          true
+        );
         return;
       }
+      requestModelClassification(container, getRedditPostText(container), "reddit-post");
+    } else {
+      restoreElement(container);
+    }
+  }
 
-      if (canFilterContent) {
-        if (decision?.result && decision.epoch === classificationEpoch) {
-          applyModelClassification(
-            container,
-            decision.result,
-            "reddit-post",
-            normalizeInlineText(getRedditPostText(container)).slice(0, 2000),
-            getPostImages(container),
-            true
-          );
-          return;
-        }
-        requestModelClassification(container, getRedditPostText(container), "reddit-post");
-      } else {
-        restoreElement(container);
+  function fastProcessRedditNodes(mutations) {
+    if (platform !== "reddit" || !effectsEnabled()) return;
+    const canFilterContent = canFilterPlatformContent("reddit");
+    if (!settings.redditHideAds && !settings.redditHideRecommendations && !canFilterContent) return;
+    const posts = new Set();
+    const collect = (node, descendants = false) => {
+      const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+      if (!element?.isConnected) return;
+      // Include outer article wrappers as well as the custom post element.
+      for (let ancestor = element; ancestor; ancestor = ancestor.parentElement) {
+        if (ancestor.matches(REDDIT_POST_SELECTOR)) posts.add(ancestor);
       }
-    });
+      if (descendants)
+        element.querySelectorAll(REDDIT_POST_SELECTOR).forEach((post) => posts.add(post));
+    };
+    for (const mutation of mutations) {
+      collect(mutation.target);
+      mutation.addedNodes.forEach((node) => collect(node, true));
+    }
+    posts.forEach((container) => processRedditPost(container, canFilterContent));
   }
 
   function scanRedditRecommendationModules() {
@@ -1070,7 +1128,12 @@
     const request = {
       key,
       epoch: classificationEpoch,
-      identity: kind === "tweet" ? getTweetIdentity(getTweetArticle(container)) : null,
+      identity:
+        kind === "tweet"
+          ? getTweetIdentity(getTweetArticle(container))
+          : kind === "reddit-post"
+            ? getRedditPostId(container)
+            : null,
       review: captureReviewPost(container, normalizedText, reviewImages)
     };
     pendingClassifications.set(container, request);
@@ -1154,6 +1217,7 @@
         )
           return;
       }
+      if (kind === "reddit-post" && request.identity !== getRedditPostId(container)) return;
       pendingClassifications.delete(container);
       delete container.dataset.smoothSurferPendingKey;
       applyModelClassification(container, result, kind, normalizedText, reviewImages);
@@ -1477,11 +1541,7 @@
 
   function getRedditPostContainers() {
     return uniqueElements(
-      Array.from(
-        document.querySelectorAll(
-          "shreddit-post, article, [data-testid='post-container'], [data-testid='post'], [slot='post-container']"
-        )
-      )
+      Array.from(document.querySelectorAll(REDDIT_POST_SELECTOR))
         .map(
           (element) =>
             element.closest("shreddit-post, article, [data-testid='post-container']") || element
@@ -1633,14 +1693,9 @@
   function markPendingContent(container, kind) {
     // Local inference can be slower. Keep posts readable while it works.
     if (settings.aiProvider === "local") return;
-    if (kind === "tweet") {
-      // Keep X's measured cell height intact while waiting. Collapsing every
-      // unknown post makes its virtual timeline repeatedly shrink and expand.
-      container.dataset.smoothSurferPending = "true";
-      container.dataset.smoothSurferHiddenKind = kind;
-    } else {
-      markPendingElement(container, kind);
-    }
+    // Pending reviews keep their original layout on every site. Allowed posts
+    // must not disappear and reappear while waiting for a cloud response.
+    markPendingElement(container, kind);
 
     if (kind === "hacker-news-story") {
       const metaRow = getHackerNewsMetaRow(container);
@@ -1656,8 +1711,6 @@
       return;
     }
 
-    element.classList.add("smooth-surfer-hidden");
-    element.dataset.smoothSurferHidden = "true";
     element.dataset.smoothSurferPending = "true";
     element.dataset.smoothSurferReasons = "pending classification";
 
@@ -1711,7 +1764,7 @@
     if (kind === "tweet") {
       hideTweetWithoutScrollJump(element, immediate);
     } else {
-      element.classList.add("smooth-surfer-hidden");
+      setHiddenPresentation(element, "smooth-surfer-hidden");
     }
     element.dataset.smoothSurferHidden = "true";
     element.dataset.smoothSurferReasons = reasons.join("; ");
@@ -1728,7 +1781,7 @@
     // Keep measured space above the reading position. Collapse only when the
     // user returns far enough for this row to be below that position again.
     if (rect.top < 0 || (deferred && rect.top < 100 && window.scrollY > 0)) {
-      setTweetPresentation(element, "smooth-surfer-tweet-deferred");
+      setHiddenPresentation(element, "smooth-surfer-tweet-deferred");
       return;
     }
     element.classList.remove("smooth-surfer-tweet-deferred");
@@ -1738,24 +1791,26 @@
       rect.top >= window.innerHeight ||
       window.matchMedia("(prefers-reduced-motion: reduce)").matches
     ) {
-      setTweetPresentation(element, "smooth-surfer-hidden");
+      setHiddenPresentation(element, "smooth-surfer-hidden");
       return;
     }
     const identity =
       getTweetId(getTweetArticle(element)) || getTweetIdentity(getTweetArticle(element));
     const epoch = classificationEpoch;
-    setTweetPresentation(element, "smooth-surfer-tweet-fading");
+    setHiddenPresentation(element, "smooth-surfer-tweet-fading");
     tweetFadeTimers.set(
       element,
       window.setTimeout(() => {
         tweetFadeTimers.delete(element);
-        tweetPresentations.delete(element);
+        hiddenPresentations.delete(element);
         element.classList.remove("smooth-surfer-tweet-fading");
+        // An empty row can be a staged rebuild of the blocked post. Finish
+        // collapsing it; the observer restores actual replacement content.
+        const article = getTweetArticle(element);
         if (
           !element.isConnected ||
           epoch !== classificationEpoch ||
-          identity !==
-            (getTweetId(getTweetArticle(element)) || getTweetIdentity(getTweetArticle(element)))
+          (article && identity !== (getTweetId(article) || getTweetIdentity(article)))
         )
           return;
         hideTweetWithoutScrollJump(element, true);
@@ -1763,8 +1818,8 @@
     );
   }
 
-  function setTweetPresentation(element, className) {
-    tweetPresentations.set(element, className);
+  function setHiddenPresentation(element, className) {
+    hiddenPresentations.set(element, className);
     element.classList.add(className);
   }
 
@@ -1788,7 +1843,7 @@
   }
 
   function restoreElement(element) {
-    tweetPresentations.delete(element);
+    hiddenPresentations.delete(element);
     pendingClassifications.delete(element);
     window.clearTimeout(tweetFadeTimers.get(element));
     tweetFadeTimers.delete(element);

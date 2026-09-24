@@ -3,6 +3,12 @@
 Notable changes per released version. Versions match `manifest.json`, and a
 release is a `v*` tag; see [docs/RELEASING.md](docs/RELEASING.md).
 
+## 0.2.13
+
+- Keep posts visible while cloud filtering decisions are pending, preventing allowed posts from collapsing and reappearing on Reddit and other feeds.
+- Repair Reddit hide states before the next frame when posts are remounted or their CSS classes are replaced. Ignore late filtering replies for recycled posts.
+- Keep blocked X/Twitter rows collapsed during staged rebuilds, including empty wrappers and rebuilds that interrupt a fade. Restore rows when replacement posts or feed modules arrive.
+
 ## 0.2.12
 
 - Stop an X/Twitter hide/show loop when hidden posts lose their video player, media captions, text, or promoted label. Keep blocked decisions attached to the post’s permalink across rerenders and remounts; release them for new post IDs, changed filters, and explicit restores.
