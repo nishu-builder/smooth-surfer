@@ -41,8 +41,6 @@ chrome.commands.onCommand.addListener = handler => { self.__pinCommand = handler
 for (const file of await readdir(root))
   if (file.endsWith(".html")) await cp(path.join(root, file), path.join(extension, file));
 const manifest = JSON.parse(await readFile(path.join(root, "manifest.json"), "utf8"));
-manifest.permissions.push("tabs");
-delete manifest.optional_permissions;
 await writeFile(path.join(extension, "manifest.json"), JSON.stringify(manifest));
 const chrome = spawn(
   binary,
@@ -183,9 +181,7 @@ try {
     `chrome.tabs.create({windowId:${initial.id},url:'https://pins-one.example.test/',pinned:true,active:false})`
   );
   const secondWindow = await evaluate(`chrome.windows.create({url:'about:blank',focused:false})`);
-  await evaluate(
-    `(async()=>{const settings=await SmoothSurferStorage.loadSettings();await SmoothSurferStorage.saveSettings({...settings,crossWindowPinsEnabled:true});})()`
-  );
+  // Sharing is on by default; no settings change is needed.
   await until(async () =>
     (await snapshot()).every((window) => window.tabs.filter((tab) => tab.pinned).length === 1)
   );

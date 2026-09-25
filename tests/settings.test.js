@@ -24,6 +24,8 @@ assert.equal(
 
 const defaults = settings.normalizeSettings();
 assert.equal(settings.DEFAULT_SETTINGS.aiProvider, "anthropic");
+assert.equal(settings.DEFAULT_SETTINGS.crossWindowPinsEnabled, true);
+assert.equal(settings.normalizeSettings({}).crossWindowPinsEnabled, true);
 assert.equal(defaults.aiProvider, "anthropic");
 assert.equal(
   settings.normalizeSettings({ enabled: true }).aiProvider,
