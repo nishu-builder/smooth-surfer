@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
+import { createServer } from "node:http";
 import { cp, mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -28,6 +29,15 @@ const profile = path.join(tmp, "profile");
 await mkdir(extension);
 for (const folder of ["src", "icons"])
   await cp(path.join(root, folder), path.join(extension, folder), { recursive: true });
+// Capture the registered handler so it can run against real Chrome tabs in
+// headless mode, where OS keyboard shortcut delivery is unavailable.
+const backgroundPath = path.join(extension, "src/background.js");
+await writeFile(
+  backgroundPath,
+  `const addCommandListener = chrome.commands.onCommand.addListener.bind(chrome.commands.onCommand);
+chrome.commands.onCommand.addListener = handler => { self.__pinCommand = handler; addCommandListener(handler); };\n` +
+    (await readFile(backgroundPath, "utf8"))
+);
 for (const file of await readdir(root))
   if (file.endsWith(".html")) await cp(path.join(root, file), path.join(extension, file));
 const manifest = JSON.parse(await readFile(path.join(root, "manifest.json"), "utf8"));
@@ -65,7 +75,16 @@ async function until(operation) {
   throw new Error(`Timed out waiting for pinned tabs: ${JSON.stringify(await diagnostic())}`);
 }
 let socket;
+const pageSockets = [];
+const fixture = createServer((_request, response) => {
+  response.writeHead(200, { "Content-Type": "text/html" });
+  response.end(
+    '<!doctype html><title>Pin test</title><input id="draft"><a href="/linked">Follow link</a>'
+  );
+});
 try {
+  await new Promise((resolve) => fixture.listen(0, "127.0.0.1", resolve));
+  const fixtureOrigin = `http://127.0.0.1:${fixture.address().port}`;
   let port;
   await until(async () => {
     try {
@@ -100,7 +119,7 @@ try {
     if (message.error) promise.reject(new Error(message.error.message));
     else promise.resolve(message.result);
   };
-  function send(method, params) {
+  function send(method, params, channel = socket) {
     return new Promise((resolve, reject) => {
       const id = ++sequence;
       const timer = setTimeout(() => {
@@ -108,20 +127,37 @@ try {
         reject(new Error(`CDP timeout: ${method}`));
       }, 15000);
       pending.set(id, { resolve, reject, timer });
-      socket.send(JSON.stringify({ id, method, params }));
+      channel.send(JSON.stringify({ id, method, params }));
     });
   }
-  async function evaluate(expression) {
-    const result = await send("Runtime.evaluate", {
-      expression,
-      awaitPromise: true,
-      returnByValue: true
-    });
+  async function evaluate(expression, channel = socket) {
+    const result = await send(
+      "Runtime.evaluate",
+      {
+        expression,
+        awaitPromise: true,
+        returnByValue: true
+      },
+      channel
+    );
     if (result.exceptionDetails)
       throw new Error(
         result.exceptionDetails.exception?.description || result.exceptionDetails.text
       );
     return result.result.value;
+  }
+  async function pageAt(url) {
+    const target = await until(async () =>
+      (await targets()).find((item) => item.type === "page" && item.url === url)
+    );
+    const channel = new WebSocket(target.webSocketDebuggerUrl);
+    pageSockets.push(channel);
+    channel.onmessage = socket.onmessage;
+    await new Promise((resolve, reject) => {
+      channel.onopen = resolve;
+      channel.onerror = reject;
+    });
+    return channel;
   }
   // The worker target can appear before Chrome installs extension bindings
   // and the background script finishes loading. Wait for both before testing.
@@ -139,6 +175,10 @@ try {
     `(()=>{self.__pinEvents=[];chrome.tabs.onUpdated.addListener((id,c,t)=>{if('pinned' in c)self.__pinEvents.push({id,c,windowId:t.windowId})});chrome.tabs.onRemoved.addListener((id,info)=>self.__pinEvents.push({id,info}));chrome.windows.onRemoved.addListener(id=>self.__pinEvents.push({windowRemoved:id}));})()`
   );
   const initial = (await snapshot())[0];
+  const command = (await evaluate(`chrome.commands.getAll()`)).find(
+    (item) => item.name === "toggle-pin-tab"
+  );
+  assert.ok(command?.shortcut, "Chrome registers the pin shortcut");
   const first = await evaluate(
     `chrome.tabs.create({windowId:${initial.id},url:'https://pins-one.example.test/',pinned:true,active:false})`
   );
@@ -162,12 +202,13 @@ try {
     (await snapshot()).every((window) => window.tabs.filter((tab) => tab.pinned).length === 1)
   );
   await evaluate(`chrome.tabs.update(${first.id},{url:'https://pins-one.example.test/message'})`);
-  await until(async () =>
-    (await snapshot())
-      .flatMap((window) => window.tabs)
-      .find((tab) => tab.id === first.id)
-      ?.url.endsWith("/message")
-  );
+  await until(async () => {
+    const tabs = (await snapshot()).find((window) => window.id === initial.id).tabs;
+    return (
+      tabs.some((tab) => tab.id === first.id && !tab.pinned && tab.url.endsWith("/message")) &&
+      tabs.some((tab) => tab.pinned && tab.url === "https://pins-one.example.test/")
+    );
+  });
   assert.ok(
     (await snapshot())
       .filter((window) => window.id !== initial.id)
@@ -176,7 +217,15 @@ try {
       )
   );
 
-  await evaluate(`chrome.tabs.update(${first.id},{pinned:false})`);
+  const restored = (await snapshot())
+    .find((window) => window.id === initial.id)
+    .tabs.find((tab) => tab.pinned);
+  assert.notEqual(restored.id, first.id);
+  assert.equal(restored.index, first.index, "restore the pin in its previous position");
+  assert.equal((await evaluate(`chrome.tabs.get(${first.id})`)).active, false);
+  await evaluate(
+    `(async()=>self.__pinCommand('toggle-pin-tab', await chrome.tabs.get(${restored.id})))()`
+  );
   await until(async () =>
     (await snapshot()).every((window) => window.tabs.every((tab) => !tab.pinned))
   );
@@ -184,7 +233,7 @@ try {
     (await snapshot())
       .flatMap((window) => window.tabs)
       .filter((tab) => tab.url.startsWith("https://pins-one.example.test")).length,
-    3,
+    4,
     "unpin never closes another window's page"
   );
 
@@ -248,15 +297,111 @@ try {
   );
   assert.equal((await evaluate(`chrome.tabs.get(${orderFirst.id})`)).pinned, true);
 
+  const shortcutTab = await evaluate(
+    `chrome.tabs.create({windowId:${secondWindow.id},url:'https://shortcut.example.test/',active:true})`
+  );
+  await evaluate(
+    `(async()=>self.__pinCommand('toggle-pin-tab', await chrome.tabs.get(${shortcutTab.id})))()`
+  );
+  await until(async () =>
+    (await snapshot()).every((window) => window.tabs.filter((tab) => tab.pinned).length === 3)
+  );
+
+  await evaluate(
+    `chrome.tabs.update(${shortcutTab.id},{url:'https://shortcut.example.test/#next'})`
+  );
+  await until(async () => {
+    const tabs = (await snapshot()).find((window) => window.id === secondWindow.id).tabs;
+    return (
+      tabs.some(
+        (tab) => tab.id === shortcutTab.id && !tab.pinned && tab.active && tab.url.endsWith("#next")
+      ) &&
+      tabs.some(
+        (tab) =>
+          tab.id !== shortcutTab.id &&
+          tab.pinned &&
+          (tab.pendingUrl || tab.url) === "https://shortcut.example.test/"
+      )
+    );
+  });
+  await evaluate(`chrome.tabs.remove(${shortcutTab.id})`);
+  await until(async () =>
+    (await snapshot()).every((window) => window.tabs.filter((tab) => tab.pinned).length === 3)
+  );
+
+  // Use real loaded documents to check link navigation, the back stack, and
+  // SPA history changes without losing an in-progress form in the live page.
+  const liveTab = await evaluate(
+    `chrome.tabs.create({windowId:${secondWindow.id},url:${JSON.stringify(fixtureOrigin + "/start")},active:true})`
+  );
+  await until(async () => (await evaluate(`chrome.tabs.get(${liveTab.id})`)).status === "complete");
+  const livePage = await pageAt(fixtureOrigin + "/start");
+  await evaluate(
+    `(async()=>self.__pinCommand('toggle-pin-tab', await chrome.tabs.get(${liveTab.id})))()`
+  );
+  await until(async () => (await evaluate(`chrome.tabs.get(${liveTab.id})`)).pinned);
+  await evaluate(
+    `document.getElementById('draft').value='unsent draft'; history.pushState({draft:true}, '', '/start?compose=1')`,
+    livePage
+  );
+  await until(async () => !(await evaluate(`chrome.tabs.get(${liveTab.id})`)).pinned);
+  assert.equal(
+    await evaluate(`document.getElementById('draft').value`, livePage),
+    "unsent draft",
+    "splitting a SPA page keeps its form state"
+  );
+  assert.equal((await evaluate(`chrome.tabs.get(${liveTab.id})`)).active, true);
+  await until(async () =>
+    (await snapshot())
+      .find((window) => window.id === secondWindow.id)
+      .tabs.some((tab) => tab.pinned && tab.url === fixtureOrigin + "/start")
+  );
+  await evaluate(`document.querySelector('a').click()`, livePage);
+  await until(
+    async () => (await evaluate(`chrome.tabs.get(${liveTab.id})`)).url === fixtureOrigin + "/linked"
+  );
+  await evaluate(`history.back()`, livePage);
+  await until(
+    async () =>
+      (await evaluate(`chrome.tabs.get(${liveTab.id})`)).url === fixtureOrigin + "/start?compose=1"
+  );
+  assert.equal(
+    (await evaluate(`chrome.tabs.get(${liveTab.id})`)).pinned,
+    false,
+    "back navigation does not re-pin a departed tab"
+  );
+
+  const linkPin = await evaluate(
+    `chrome.tabs.create({windowId:${secondWindow.id},url:${JSON.stringify(fixtureOrigin + "/link-start")},active:true})`
+  );
+  await until(async () => (await evaluate(`chrome.tabs.get(${linkPin.id})`)).status === "complete");
+  const linkPage = await pageAt(fixtureOrigin + "/link-start");
+  await evaluate(
+    `(async()=>self.__pinCommand('toggle-pin-tab', await chrome.tabs.get(${linkPin.id})))()`
+  );
+  await until(async () => (await evaluate(`chrome.tabs.get(${linkPin.id})`)).pinned);
+  await evaluate(`document.querySelector('a').click()`, linkPage);
+  await until(async () => {
+    const tab = await evaluate(`chrome.tabs.get(${linkPin.id})`);
+    return !tab.pinned && tab.url === fixtureOrigin + "/linked";
+  });
+  await until(async () =>
+    (await snapshot())
+      .find((window) => window.id === secondWindow.id)
+      .tabs.some((tab) => tab.pinned && tab.url === fixtureOrigin + "/link-start")
+  );
+
   console.log(
-    "Pinned tabs Chrome passed (real extension, existing/new windows, navigation, unpin, close tab, close window, saved ordering)."
+    "Pinned tabs Chrome passed (registered shortcut and handler, windows, URL departures, links, SPA form state, history, unpin/close, saved ordering)."
   );
 } finally {
   socket?.close();
+  for (const channel of pageSockets) channel.close();
   chrome.kill("SIGTERM");
   await Promise.race([
     new Promise((resolve) => chrome.once("exit", resolve)),
     delay(2000).then(() => chrome.kill("SIGKILL"))
   ]);
   await rm(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  await new Promise((resolve) => fixture.close(resolve));
 }

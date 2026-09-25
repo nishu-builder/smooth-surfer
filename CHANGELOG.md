@@ -3,6 +3,11 @@
 Notable changes per released version. Versions match `manifest.json`, and a
 release is a `v*` tag; see [docs/RELEASING.md](docs/RELEASING.md).
 
+## 0.2.14
+
+- Add Cmd+Shift+P on Mac and Ctrl+Shift+P on Windows/Linux to pin or unpin the current tab; customize it in Chrome’s extension keyboard shortcuts.
+- Keep shared pins tied to their saved URL. Navigating away turns the current page into a regular tab and restores the saved pin without interrupting the page or changing other windows.
+
 ## 0.2.13
 
 - Keep posts visible while cloud filtering decisions are pending, preventing allowed posts from collapsing and reappearing on Reddit and other feeds.

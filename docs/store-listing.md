@@ -1,6 +1,6 @@
 # Chrome Web Store listing
 
-Source copy for the Chrome Web Store developer dashboard, updated for 0.2.11.
+Source copy for the Chrome Web Store developer dashboard, updated for 0.2.14.
 Package publishing does not update the long description, privacy answers, or
 screenshots automatically; apply those fields in the dashboard before submission.
 
@@ -36,9 +36,14 @@ Shared pinned tabs:
 
 - Enable Share pins across windows and allow optional tab access. Existing and
   new pinned web pages appear in every regular Chrome window, including new ones.
+- Pin or unpin the current tab with Cmd+Shift+P on Mac or Ctrl+Shift+P on
+  Windows/Linux. Customize the shortcut in Chrome's extension keyboard shortcuts.
+- Shared pins keep the exact URL you saved. Navigating away moves your current
+  page into a regular tab and restores the saved pin, preserving your page state
+  and browsing history. Other windows keep their pins.
 - Drag pinned tabs into your preferred order; new windows preserve the last
   arrangement you made.
-- Each copy navigates independently. Closing a window keeps your shared pins.
+- Closing a window keeps your shared pins.
   Unpinning or closing an individual pin unpins other copies without closing them.
 - Private windows are excluded. Saved pin URLs stay on this device.
 
@@ -91,7 +96,8 @@ user-selected loading delays, and consistent access to pinned pages.
 
 - `storage`: Saves settings with `chrome.storage.sync`; stores API keys,
   review previews, feedback, filter sets, visit-delay statistics, and shared
-  pinned URLs locally. Temporary pin-to-tab bindings use `chrome.storage.session`.
+  pinned URLs locally. Temporary pin-to-tab bindings and initial load/redirect
+  state use `chrome.storage.session`.
 - `alarms`: Resumes requested rule-recalibration jobs after worker suspension
   or a browser restart.
 - `offscreen`: Hosts the bundled page that accesses Chrome's built-in model for

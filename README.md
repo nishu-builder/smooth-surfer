@@ -76,7 +76,7 @@ The popup also includes:
 - Video speed keys on any site: `Alt+Right` or `Alt+]` faster, `Alt+Left` or `Alt+[` slower, and `Alt+\` reset. Alt is Option on Mac. The modifier is configurable (Alt/Ctrl/Shift/Cmd, or no modifier) in the popup. With no modifier, use the bracket and backslash keys; plain arrows keep their normal page behavior.
 - A settings shortcut: press `Cmd+Shift+S` (`Ctrl+Shift+S` on Windows/Linux) twice quickly to open the popup.
 - [Loading delays](#loading-delays) with a one-second starting default, per-site checkboxes, a smooth countdown, and visit statistics.
-- [Shared pinned tabs](#cross-window-pinned-tabs) across regular Chrome windows, including new windows.
+- [Shared pinned tabs](#cross-window-pinned-tabs) that keep their saved URL across regular Chrome windows. Pin or unpin with `Cmd+Shift+P` (`Ctrl+Shift+P` on Windows/Linux).
 - A focus schedule that runs effects only during chosen hours.
 - A stats panel counting what was hidden per site today and this week.
 - Settings export/import as JSON (the API key is never exported).
@@ -103,10 +103,18 @@ loads, completed waits, early exits, resets, time waited, and visits by hour.
 ## Cross-window pinned tabs
 
 Enable **Share pins across windows** in Settings and allow the optional tab
-permission. Pin a web page using Chrome’s normal **Pin** tab-menu action. Existing
-and newly pinned HTTP/HTTPS pages appear as inactive pinned copies in every
-regular Chrome window, including windows opened later. Each copy navigates
-independently, so reading an email in one window does not navigate the others.
+permission. Pin or unpin the current tab with **Cmd+Shift+P** on Mac or
+**Ctrl+Shift+P** on Windows/Linux, or use Chrome’s normal **Pin** tab-menu action.
+Change the shortcut in `chrome://extensions/shortcuts` if needed. The shortcut
+also works as ordinary Chrome pinning when sharing is off.
+
+Existing and newly pinned HTTP/HTTPS pages appear as inactive pinned copies in every
+regular Chrome window, including windows opened later. Pins remember the exact
+URL you pinned. Navigating to a different URL (including a path, query, or fragment
+change) turns that page into a regular tab, preserving its history and current
+state, and restores an inactive pin at the saved URL. Other windows keep their
+pins. Reloading the same URL leaves it pinned. A restored pin’s initial redirects
+are allowed to finish before later navigation splits it into a regular tab.
 
 Reorder pinned tabs by dragging them in any regular window. New windows use the
 last order you arranged; existing windows keep their own current arrangement.
