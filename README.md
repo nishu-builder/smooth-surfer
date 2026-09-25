@@ -76,7 +76,7 @@ The popup also includes:
 - Video speed keys on any site: `Alt+Right` or `Alt+]` faster, `Alt+Left` or `Alt+[` slower, and `Alt+\` reset. Alt is Option on Mac. The modifier is configurable (Alt/Ctrl/Shift/Cmd, or no modifier) in the popup. With no modifier, use the bracket and backslash keys; plain arrows keep their normal page behavior.
 - A settings shortcut: press `Cmd+Shift+S` (`Ctrl+Shift+S` on Windows/Linux) twice quickly to open the popup.
 - [Loading delays](#loading-delays) with a one-second starting default, per-site checkboxes, a smooth countdown, and visit statistics.
-- [Shared pinned tabs](#cross-window-pinned-tabs) that keep their saved URL across regular Chrome windows. Pin or unpin with `Cmd+Shift+P` (`Ctrl+Shift+P` on Windows/Linux).
+- [Shared pinned tabs](#cross-window-pinned-tabs) that keep their saved URL across regular Chrome windows. Pin or unpin with `Cmd+Shift+P` (`Alt+Shift+P` on Windows/Linux).
 - A focus schedule that runs effects only during chosen hours.
 - A stats panel counting what was hidden per site today and this week.
 - Settings export/import as JSON (the API key is never exported).
@@ -104,7 +104,7 @@ loads, completed waits, early exits, resets, time waited, and visits by hour.
 
 Enable **Share pins across windows** in Settings and allow the optional tab
 permission. Pin or unpin the current tab with **Cmd+Shift+P** on Mac or
-**Ctrl+Shift+P** on Windows/Linux, or use Chrome’s normal **Pin** tab-menu action.
+**Alt+Shift+P** on Windows/Linux, or use Chrome’s normal **Pin** tab-menu action.
 Change the shortcut in `chrome://extensions/shortcuts` if needed. The shortcut
 also works as ordinary Chrome pinning when sharing is off.
 
