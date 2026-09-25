@@ -5,7 +5,7 @@ release is a `v*` tag; see [docs/RELEASING.md](docs/RELEASING.md).
 
 ## 0.2.14
 
-- Add Cmd+Shift+P on Mac and Alt+Shift+P on Windows/Linux to pin or unpin the current tab; customize it in Chrome’s extension keyboard shortcuts.
+- Add Cmd+Shift+P on Mac and Alt+P on Windows/Linux to pin or unpin the current tab; customize it in Chrome’s extension keyboard shortcuts.
 - Keep shared pins tied to their saved URL. Navigating away turns the current page into a regular tab and restores the saved pin without interrupting the page or changing other windows.
 
 ## 0.2.13

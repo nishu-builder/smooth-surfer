@@ -36,7 +36,7 @@ Shared pinned tabs:
 
 - Enable Share pins across windows and allow optional tab access. Existing and
   new pinned web pages appear in every regular Chrome window, including new ones.
-- Pin or unpin the current tab with Cmd+Shift+P on Mac or Alt+Shift+P on
+- Pin or unpin the current tab with Cmd+Shift+P on Mac or Alt+P on
   Windows/Linux. Customize the shortcut in Chrome's extension keyboard shortcuts.
 - Shared pins keep the exact URL you saved. Navigating away moves your current
   page into a regular tab and restores the saved pin, preserving your page state
