@@ -44,14 +44,16 @@ function harness(saved = {}) {
     },
     { id: 4, type: "popup", incognito: false, tabs: [] }
   ];
-  let nextId = 100;
+  let nextId = Math.max(100, ...windows.flatMap((w) => w.tabs.map((tab) => tab.id + 1)));
+  let focusedWindowId = 1;
   const settings = { enabled: true, crossWindowPinsEnabled: true, ...saved.settings };
   let permitted = saved.permitted !== false;
   const settingsEvent = event();
   const creates = [];
   const errors = [];
   const area = (data) => ({
-    get: async (key) => structuredClone({ [key]: data[key] }),
+    get: async (keys) =>
+      structuredClone(Object.fromEntries([keys].flat().map((key) => [key, data[key]]))),
     set: async (values) => Object.assign(data, structuredClone(values))
   });
   const find = (id) => windows.flatMap((w) => w.tabs).find((tab) => tab.id === id);
@@ -59,6 +61,7 @@ function harness(saved = {}) {
     storage: { local: area(local), session: area(session) },
     permissions: { contains: async () => permitted, onAdded: event() },
     runtime: { onStartup: event(), onInstalled: event() },
+    commands: { onCommand: event() },
     windows: {
       onCreated: event(),
       getAll: async () => structuredClone(windows.filter((w) => w.type === "normal"))
@@ -69,11 +72,17 @@ function harness(saved = {}) {
       onRemoved: event(),
       onAttached: event(),
       onMoved: event(),
-      query: async () => structuredClone(windows.flatMap((w) => w.tabs)),
+      query: async (query) =>
+        structuredClone(
+          windows
+            .filter((w) => !query.lastFocusedWindow || w.id === focusedWindowId)
+            .flatMap((w) => w.tabs)
+            .filter((tab) => !query.active || tab.active)
+        ),
       create: async (options) => {
         const w = windows.find((item) => item.id === options.windowId);
         if (!w) throw new Error("Window closed");
-        const tab = { id: nextId++, incognito: w.incognito, ...options };
+        const tab = { id: nextId++, incognito: w.incognito, status: "complete", ...options };
         creates.push(options);
         w.tabs.push(tab);
         api.tabs.onCreated.emit(structuredClone(tab));
@@ -108,6 +117,7 @@ function harness(saved = {}) {
     creates,
     find,
     settle,
+    focusWindow: (id) => (focusedWindowId = id),
     changeSettings: (patch) => {
       Object.assign(settings, patch);
       settingsEvent.emit();
@@ -147,6 +157,12 @@ const pins = (h, id) => h.windows.find((w) => w.id === id).tabs.filter((tab) => 
   const gmailCopy = pins(h, 2)[0];
   await h.api.tabs.update(1, { url: "https://mail.google.com/mail/u/0/#inbox/message-id" });
   await h.settle();
+  assert.equal(h.find(1).pinned, false, "the live document becomes a regular tab");
+  assert.equal(h.find(1).active, true, "navigation keeps its active tab and history");
+  const gmailReplacement = pins(h, 1)[0];
+  assert.notEqual(gmailReplacement.id, 1, "the saved URL has a separate pinned tab");
+  assert.equal(gmailReplacement.url, "https://mail.google.com/mail/u/0/#inbox");
+  assert.equal(gmailReplacement.active, false);
   assert.equal(
     h.find(gmailCopy.id).url,
     "https://mail.google.com/mail/u/0/#inbox",
@@ -170,7 +186,7 @@ const pins = (h, id) => h.windows.find((w) => w.id === id).tabs.filter((tab) => 
   await h.settle();
   for (const id of [1, 2, 5]) assert.equal(pins(h, id).length, 3);
 
-  await h.api.tabs.update(1, { pinned: false });
+  await h.api.tabs.update(gmailReplacement.id, { pinned: false });
   await h.settle();
   for (const id of [1, 2, 5]) assert.equal(pins(h, id).length, 2);
   assert.ok(h.find(gmailCopy.id), "unpin keeps other copies open");
@@ -193,7 +209,7 @@ const pins = (h, id) => h.windows.find((w) => w.id === id).tabs.filter((tab) => 
   await h.settle();
   assert.equal(h.local.smoothSurferPinnedTabs.length, 1, "closing a whole window retains pins");
 
-  // Worker restart preserves bindings even if the pinned tab navigated away.
+  // Worker restart preserves bindings and the saved pins.
   const rest = harness({ local: h.local, session: h.session, windows: h.windows });
   await rest.settle();
   assert.equal(rest.creates.length, 0);
@@ -270,8 +286,147 @@ const pins = (h, id) => h.windows.find((w) => w.id === id).tabs.filter((tab) => 
   await reboot.api.tabs.create({ windowId: 9, url: "chrome://extensions/", pinned: true });
   await reboot.settle();
   assert.equal(reboot.local.smoothSurferPinnedTabs.length, 1, "do not persist internal pages");
+
+  for (const destination of [
+    "https://mail.google.com/mail/u/0/message",
+    "https://mail.google.com/mail/u/0/?search=hello#inbox",
+    "https://elsewhere.example/",
+    "chrome://newtab/"
+  ]) {
+    const navigation = harness();
+    await navigation.settle();
+    await navigation.api.tabs.update(1, { url: destination });
+    await navigation.settle();
+    assert.equal(navigation.find(1).url, destination);
+    assert.equal(navigation.find(1).pinned, false);
+    assert.equal(pins(navigation, 1).length, 1);
+    assert.equal(pins(navigation, 2).length, 1);
+    navigation.closeTab(1);
+    await navigation.settle();
+    assert.equal(
+      navigation.local.smoothSurferPinnedTabs.length,
+      1,
+      "closing a departure keeps the pin"
+    );
+  }
+
+  const reload = harness();
+  await reload.settle();
+  const reloadCount = reload.creates.length;
+  await reload.api.tabs.update(1, { status: "loading" });
+  await reload.api.tabs.update(1, { status: "complete" });
+  await reload.settle();
+  assert.equal(reload.creates.length, reloadCount, "reloading the same URL keeps its pin");
+  const background = pins(reload, 2)[0];
+  await reload.api.tabs.update(background.id, { url: "https://example.com/background" });
+  await reload.settle();
+  assert.equal(reload.find(background.id).active, false, "background navigation never takes focus");
+  assert.equal(reload.find(background.id).pinned, false);
+
+  // A newly created pin can redirect before finishing its initial load.
+  const redirects = harness({
+    local: { smoothSurferPinnedTabs: ["https://redirect.example/"] },
+    session: {
+      smoothSurferPinnedTabBindings: { 1: "https://redirect.example/" },
+      smoothSurferPinnedTabPages: { 1: { loading: true } }
+    },
+    windows: [
+      {
+        id: 1,
+        type: "normal",
+        tabs: [
+          {
+            id: 1,
+            windowId: 1,
+            pinned: true,
+            status: "loading",
+            url: "https://redirect.example/login"
+          }
+        ]
+      }
+    ]
+  });
+  await redirects.settle();
+  await redirects.api.tabs.update(1, { status: "complete" });
+  await redirects.settle();
+  assert.equal(redirects.creates.length, 0, "initial redirects must not create a restore loop");
+  const redirectedRestart = harness({
+    local: redirects.local,
+    session: redirects.session,
+    windows: redirects.windows
+  });
+  await redirectedRestart.settle();
+  assert.equal(redirectedRestart.creates.length, 0, "redirect baseline survives worker restarts");
+  await redirectedRestart.api.tabs.update(1, { url: "https://redirect.example/another-page" });
+  await redirectedRestart.settle();
+  assert.equal(redirectedRestart.find(1).pinned, false);
+  assert.equal(
+    pins(redirectedRestart, 1)[0].url,
+    "https://redirect.example/",
+    "restore the saved URL, not its redirect"
+  );
+
+  const stale = harness({
+    local: { smoothSurferPinnedTabs: ["https://original.example/"] },
+    session: { smoothSurferPinnedTabBindings: { 1: "https://original.example/" } }
+  });
+  await stale.settle();
+  assert.equal(stale.find(1).pinned, false, "a worker restart repairs a departed pin");
+  assert.equal(pins(stale, 1)[0].url, "https://original.example/");
+
+  const quick = harness();
+  await quick.settle();
+  await quick.api.tabs.update(2, { pinned: true });
+  await quick.api.tabs.update(2, { url: "https://example.com/next" });
+  await quick.settle();
+  assert.ok(
+    quick.local.smoothSurferPinnedTabs.includes("https://example.com/"),
+    "capture the URL when pinned even if it immediately navigates"
+  );
+  assert.equal(quick.find(2).pinned, false);
+
+  const inFlight = harness();
+  await inFlight.settle();
+  inFlight.find(2).pendingUrl = "https://example.com/loading";
+  await inFlight.api.tabs.update(2, { pinned: true });
+  await inFlight.settle();
+  assert.equal(inFlight.find(2).pinned, true, "pinning a pending URL waits for it to commit");
+  delete inFlight.find(2).pendingUrl;
+  await inFlight.api.tabs.update(2, { url: "https://example.com/loading", status: "complete" });
+  await inFlight.settle();
+  assert.equal(inFlight.find(2).pinned, true);
+
+  const shortcut = harness();
+  await shortcut.settle();
+  shortcut.focusWindow(2);
+  shortcut.api.commands.onCommand.emit("toggle-pin-tab");
+  await shortcut.settle();
+  assert.equal(shortcut.find(2).pinned, true, "the shortcut pins the focused window's active tab");
+  assert.ok(shortcut.local.smoothSurferPinnedTabs.includes("https://example.com/"));
+  shortcut.api.commands.onCommand.emit("toggle-pin-tab", shortcut.find(2));
+  await shortcut.settle();
+  assert.equal(shortcut.find(2).pinned, false, "pressing again unpins");
+  assert.ok(!shortcut.local.smoothSurferPinnedTabs.includes("https://example.com/"));
+  shortcut.api.commands.onCommand.emit("unknown", shortcut.find(2));
+  shortcut.api.commands.onCommand.emit("toggle-pin-tab", shortcut.find(3));
+  await shortcut.settle();
+  assert.equal(shortcut.find(3).pinned, true, "the shortcut does not modify private tabs");
+  assert.equal(shortcut.find(2).pinned, false);
+  shortcut.api.commands.onCommand.emit("toggle-pin-tab", shortcut.find(2));
+  shortcut.api.commands.onCommand.emit("toggle-pin-tab", shortcut.find(2));
+  await shortcut.settle();
+  assert.equal(shortcut.find(2).pinned, false, "rapid presses toggle the current state");
+  shortcut.changeSettings({ enabled: false });
+  await shortcut.settle();
+  shortcut.api.commands.onCommand.emit("toggle-pin-tab", shortcut.find(2));
+  await shortcut.settle();
+  assert.equal(shortcut.find(2).pinned, false, "the master switch disables the shortcut");
+  off.api.commands.onCommand.emit("toggle-pin-tab", off.find(2));
+  await off.settle();
+  assert.equal(off.find(2).pinned, true, "the shortcut also works for ordinary Chrome pins");
+  assert.equal(off.local.smoothSurferPinnedTabs, undefined);
   console.log(
-    "Pinned tabs passed (permissions, existing/new windows, independent navigation, unpin/close, concurrency, restart, privacy)."
+    "Pinned tabs passed (shortcut, URL departures, redirects, reload, permissions, windows, unpin/close, concurrency, restart, privacy)."
   );
 })().catch((error) => {
   console.error(error);

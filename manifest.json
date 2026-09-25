@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Smooth Surfer",
-  "version": "0.2.13",
+  "version": "0.2.14",
   "description": "Filter distracting feeds, add loading delays to habitual sites, and share pinned tabs across Chrome windows.",
   "icons": {
     "16": "icons/icon16.png",
@@ -13,6 +13,15 @@
   "host_permissions": ["https://api.anthropic.com/*"],
   "background": {
     "service_worker": "src/background.js"
+  },
+  "commands": {
+    "toggle-pin-tab": {
+      "suggested_key": {
+        "default": "Alt+P",
+        "mac": "Command+Shift+P"
+      },
+      "description": "Pin or unpin the current tab"
+    }
   },
   "action": {
     "default_title": "Smooth Surfer",
