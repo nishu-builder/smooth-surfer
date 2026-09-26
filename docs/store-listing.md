@@ -43,7 +43,7 @@ https://github.com/nishu-builder/smooth-surfer
 **Screenshots** (1280×800, in this order, from [store-assets/](store-assets/);
 regenerate with `node scripts/capture-store-assets.mjs`):
 
-1. `01-overview.png`: Calmer feeds, already working.
+1. `01-overview.png`: Calmer feeds, no setup needed.
 2. `02-ai-filter.png`: Hide posts you'd rather not see.
 3. `03-hidden-posts.png`: Check every call.
 4. `04-loading-delay.png`: A pause before habit sites.

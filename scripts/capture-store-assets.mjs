@@ -38,7 +38,7 @@ const CARDS = [
     file: "01-overview.png",
     shot: "popup-overview",
     eyebrow: "YouTube · X · Reddit · Substack · Hacker News",
-    title: "Calmer feeds,<br>already working.",
+    title: "Calmer feeds,<br>no setup needed.",
     body: "No Shorts, feed ads, or recommendation rabbit holes. Every switch says what it does, and every section says what’s on."
   },
   {
@@ -224,7 +224,7 @@ function tileHtml() {
     h1 { margin: 0; padding: 0 6px; background: #fffdf4; font: 700 30px/1.1 var(--mono); letter-spacing: -1.5px; }
     p { justify-self: start; margin: 0; padding: 6px 12px; border: 1px solid #20221e; border-radius: 5px; background: #e3ff73; box-shadow: 2px 3px 0 #dfdfd1; font: 14px/1.4 var(--mono); }
     `,
-    `<div class="tile"><div class="row"><img src="${iconUrl()}" alt=""><h1>Smooth<br>Surfer</h1></div><p>Calmer feeds, already working.</p></div>`
+    `<div class="tile"><div class="row"><img src="${iconUrl()}" alt=""><h1>Smooth<br>Surfer</h1></div><p>Calmer feeds, no setup needed.</p></div>`
   );
 }
 
