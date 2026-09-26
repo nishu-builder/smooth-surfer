@@ -1,8 +1,8 @@
 {
   "name": "smooth-surfer",
-  "version": "0.2.14",
+  "version": "0.2.15",
   "private": true,
-  "description": "Filter distracting feeds, add loading delays to habitual sites, and share pinned tabs across Chrome windows.",
+  "description": "Calmer feeds, a pause before habit sites, and pinned tabs that follow you into every Chrome window.",
   "license": "MIT",
   "repository": {
     "type": "git",

@@ -1,6 +1,6 @@
 # Chrome Web Store listing
 
-Source copy for the Chrome Web Store developer dashboard, updated for 0.2.14.
+Source copy for the Chrome Web Store developer dashboard, updated for 0.2.15.
 Package publishing does not update the long description, privacy answers, or
 screenshots automatically; apply those fields in the dashboard before submission.
 
@@ -9,80 +9,31 @@ screenshots automatically; apply those fields in the dashboard before submission
 **Name:** Smooth Surfer
 
 **Summary (132 chars max):**
-Filter distracting feeds, add loading delays to habitual sites, and share pinned tabs across Chrome windows.
+Calmer feeds, a pause before habit sites, and pinned tabs that follow you into every Chrome window.
 
 **Description:**
 
-Smooth Surfer helps you browse with less feed noise and less habitual checking.
-Clean up distracting feeds, add a brief pause before visiting selected sites,
-and keep your pinned pages available across Chrome windows.
+Smooth Surfer makes the web a little less sticky.
 
-Loading delays:
+Cleaner feeds
+Hide recommendations, Shorts, ads, trends, and engagement counts on YouTube,
+X, Reddit, Substack, and Hacker News. Turn each one on or off per site.
 
-- Loading delay is on by default for YouTube, X/Twitter, Reddit, Substack, and
-  Hacker News. Turn it off in a site's settings, or add any domain to the Visit
-  delay list. Both controls stay in sync.
-- Start with a one-second wait by default, or choose a first wait from 1 to
-  300 seconds. Each completed wait makes the next one 1.5 times longer,
-  rounded to whole seconds and capped at 20 minutes.
-- Watch a smooth countdown that pauses while the tab is hidden. Leaving early
-  does not increase the next wait. Reset the count at any time; daily counts
-  restart at 03:00 local time.
-- Either twitter.com or x.com covers both sites, including redirects. New rules
-  apply to already-open tabs. A completed tab keeps its pass across reloads
-  until it has been in the background for 30 minutes.
-- See visits, completed waits, early exits, resets, time waited, and visits by hour.
+Filter posts with your own rules
+Describe what you don't want to see in plain English, and Smooth Surfer hides
+matching posts. Use Claude with your own Anthropic API key, or Chrome's
+on-device model. Review what was hidden and refine your rules from there.
 
-Shared pinned tabs:
+A pause before habit sites
+Distracting sites open behind a short countdown that grows each time you visit
+that day. It's on for the built-in sites by default, and you can add any other.
 
-- On by default: existing and new pinned web pages appear in every regular
-  Chrome window, including new ones. Turn off Share pins across windows to stop.
-- Pin or unpin the current tab with Cmd+Shift+P on Mac or Alt+P on
-  Windows/Linux. Customize the shortcut in Chrome's extension keyboard shortcuts.
-  While sharing is on, the shortcut is the only way to change pins; pins and
-  unpins from Chrome's tab menu are undone.
-- Shared pins keep the exact URL you saved. Navigating away moves your current
-  page into a regular tab and restores the saved pin, preserving your page state
-  and browsing history. Other windows keep their pins.
-- Drag pinned tabs into your preferred order; new windows preserve the last
-  arrangement you made.
-- Closing a window or a pin keeps your shared pins; a closed pin returns at its
-  saved URL. Unpinning removes a pin everywhere without closing other copies.
-- Private windows are excluded. Saved pin URLs stay on this device.
+Pinned tabs in every window
+Pin a tab with Cmd+Shift+P (Alt+P on Windows/Linux) and it appears in every
+Chrome window. Pins stay at their saved page, and closing one brings it back
+instead of losing it.
 
-Per-site cleanup:
-
-- YouTube: hide recommendations, Shorts, games, live chat, end screens,
-  engagement stats, and comments; grayscale thumbnails and disable autoplay.
-- X / Twitter: hide ads and trends, prefer Following, or instantly hide
-  reposts, quote posts, and video posts.
-- Reddit: hide promoted posts, recommendation modules, and comments.
-- Substack: hide recommendation modules. Hacker News: hide story scores.
-- Across sites: soften distractions, pause deep scrolling, and change video
-  speed with Alt+Right/Left (or Alt+]/[) and reset with Alt+backslash.
-  Alt is Option on Mac; the modifier is configurable. With no modifier, use
-  brackets and backslash so plain arrows keep their normal page behavior.
-
-Optional AI filtering:
-
-Write criteria in plain English to filter unwanted posts on X, Reddit, Substack,
-and Hacker News. Choose Claude Haiku with your own Anthropic API key, or opt into
-experimental on-device text processing with Chrome's built-in Gemini Nano on
-supported desktop installations. Claude is the default. On-device mode requires
-model setup and never falls back to a cloud provider automatically.
-
-Review rulings shows filtered posts and the rules that matched them. Judge each
-ruling, explain corrections, and use Recalibrate rules to test proposed wording
-against saved examples. Revisions support undo. Archive unreviewed posts to keep
-them for later. On X, Less like this lets you write a rule or request editable
-suggestions. Analyze images is a separate opt-in for Claude and adds API cost.
-
-Save and share named Filter sets, schedule when effects run, view hidden-item
-statistics and Consumption Facts, and export settings without API keys. Open
-settings with a Cmd/Ctrl+Shift+S double-tap.
-
-Loading delays, pinned tabs, and basic cleanup need no API key. No Smooth Surfer
-account, backend, or analytics. Open source:
+No account, no analytics, and no Smooth Surfer servers. Open source:
 https://github.com/nishu-builder/smooth-surfer
 
 **Category:** Productivity → Workflow & Planning
@@ -93,7 +44,7 @@ https://github.com/nishu-builder/smooth-surfer
 
 **Single purpose description:**
 Smooth Surfer helps users browse with fewer distractions through feed cleanup,
-user-selected loading delays, and consistent access to pinned pages.
+loading delays on habit-forming sites, and consistent access to pinned pages.
 
 **Permission justifications:**
 
