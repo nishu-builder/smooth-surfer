@@ -40,6 +40,8 @@
       border-radius: 5px; background: var(--ss-canvas, #fffdf4);
       font: 700 11px var(--ss-mono, "SFMono-Regular", Consolas, monospace); text-transform: uppercase;
     }
+    .tile.icon { background: var(--ss-paper, #fffef9); border-color: var(--ss-line, #d7d7c9); }
+    .tile canvas { width: 16px; height: 16px; }
     .text { display: grid; min-width: 0; }
     .title, .url { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .title { font-weight: 700; }
@@ -150,6 +152,8 @@
   async function show() {
     const response = await send({ type: "listWindowTabs" });
     if (!response || open || !enabled) return;
+    await Promise.all(response.tabs.map(decodeIcon));
+    if (open || !enabled) return;
     const host = document.createElement("div");
     host.className = "smooth-surfer-tab-search";
     host.style.cssText = "position:fixed;inset:0;z-index:2147483647;";
@@ -249,8 +253,16 @@
       row.id = `tab-${index}`;
       row.dataset.index = String(index);
       row.setAttribute("role", "option");
-      const tile = element("span", "tile", initial(tab));
+      const tile = element("span", "tile", tab.bitmap ? "" : initial(tab));
       tile.setAttribute("aria-hidden", "true");
+      if (tab.bitmap) {
+        const canvas = element("canvas");
+        canvas.width = 32;
+        canvas.height = 32;
+        canvas.getContext("2d").drawImage(tab.bitmap, 0, 0, 32, 32);
+        tile.classList.add("icon");
+        tile.append(canvas);
+      }
       const text = element("span", "text");
       text.append(
         highlighted("span", "title", tab.title || displayUrl(tab.url), words),
@@ -321,6 +333,18 @@
       return url.hostname.replace(/^www\./, "") + (url.pathname === "/" ? "" : url.pathname);
     } catch {
       return value || "";
+    }
+  }
+
+  // Icons arrive as bytes from Chrome's cache and are drawn on a canvas, so no
+  // image request is made from this page.
+  async function decodeIcon(tab) {
+    if (!tab.icon) return;
+    try {
+      const bytes = Uint8Array.from(window.atob(tab.icon), (char) => char.charCodeAt(0));
+      tab.bitmap = await window.createImageBitmap(new Blob([bytes], { type: "image/png" }));
+    } catch {
+      tab.bitmap = null;
     }
   }
 
