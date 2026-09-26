@@ -144,7 +144,9 @@ importScripts(
       editFilterCriterion: () => editFilterCriterion(message.previous, message.next),
       addFilterCriterion: () => editFilterCriterion(null, message.criterion),
       suggestFilterCriteria: () => suggestFilterCriteria(message.text),
-      visitDelayEvent: () => handleVisitDelayEvent(message, sender)
+      visitDelayEvent: () => handleVisitDelayEvent(message, sender),
+      listWindowTabs: () => listWindowTabs(sender),
+      activateWindowTab: () => activateWindowTab(sender, message.tabId)
     };
     if (Object.hasOwn(reviewActions, message.type)) {
       Promise.resolve()
@@ -190,6 +192,30 @@ importScripts(
   });
 
   // One writer for visit counts, so two tabs finishing at once both count.
+  // Tab search only sees and switches tabs in the sender's own window.
+  async function listWindowTabs(sender) {
+    const windowId = sender?.tab?.windowId;
+    if (windowId === undefined) throw new Error("Tab search needs a tab.");
+    const tabs = await chrome.tabs.query({ windowId });
+    return {
+      tabs: tabs.map((tab) => ({
+        id: tab.id,
+        title: tab.title || "",
+        url: tab.url || tab.pendingUrl || "",
+        active: tab.active,
+        pinned: tab.pinned,
+        audible: Boolean(tab.audible)
+      }))
+    };
+  }
+
+  async function activateWindowTab(sender, tabId) {
+    const tab = await chrome.tabs.get(Number(tabId));
+    if (tab.windowId !== sender?.tab?.windowId) throw new Error("That tab is in another window.");
+    await chrome.tabs.update(tab.id, { active: true });
+    return {};
+  }
+
   function handleVisitDelayEvent(message, sender) {
     const domain = normalizeVisitDomain(message.domain);
     if (!domain) throw new Error("Unknown site.");

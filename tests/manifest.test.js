@@ -27,7 +27,12 @@ assert.ok(contentScript.matches.includes("<all_urls>"));
 // The visit-delay countdown must cover a listed site before it paints, and the
 // feed script relies on the shared settings and storage globals it defines.
 assert.equal(contentScript.run_at, "document_start");
-assert.deepEqual(contentScript.js, ["src/settings.js", "src/storage.js", "src/visit-delay.js"]);
+assert.deepEqual(contentScript.js, [
+  "src/settings.js",
+  "src/storage.js",
+  "src/visit-delay.js",
+  "src/tab-search.js"
+]);
 assert.deepEqual(contentScript.css, ["src/theme.css", "src/styles.css"]);
 const feedScript = manifest.content_scripts[1];
 assert.deepEqual(feedScript.matches, contentScript.matches);

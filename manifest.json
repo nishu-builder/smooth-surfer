@@ -37,7 +37,7 @@
     {
       "matches": ["<all_urls>"],
       "css": ["src/theme.css", "src/styles.css"],
-      "js": ["src/settings.js", "src/storage.js", "src/visit-delay.js"],
+      "js": ["src/settings.js", "src/storage.js", "src/visit-delay.js", "src/tab-search.js"],
       "run_at": "document_start"
     },
     {

@@ -262,6 +262,9 @@
   document.querySelector("[data-settings-shortcut-row]").dataset.description = isMac
     ? "Press ⌘⇧S twice quickly to open this menu from any page."
     : "Press Ctrl+Shift+S twice quickly to open this menu from any page.";
+  document.querySelector("[data-tab-search-row]").dataset.description = isMac
+    ? "Press ⌘K to search this window’s tabs. Sites that use ⌘K themselves keep it."
+    : "Press Ctrl+K to search this window’s tabs. Sites that use Ctrl+K themselves keep it.";
   document.querySelectorAll(".switch-row[data-description]").forEach((row, index) => {
     const title = row.querySelector("span");
     const input = row.querySelector("input");

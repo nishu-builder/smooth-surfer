@@ -28,6 +28,7 @@ assert.equal(settings.DEFAULT_SETTINGS.crossWindowPinsEnabled, true);
 assert.equal(settings.normalizeSettings({}).crossWindowPinsEnabled, true);
 assert.equal(settings.normalizeSettings({}).lazyPinnedTabs, true, "pin copies sleep by default");
 assert.equal(settings.normalizeSettings({ lazyPinnedTabs: false }).lazyPinnedTabs, false);
+assert.equal(settings.normalizeSettings({}).tabSearchEnabled, true, "tab search is on by default");
 assert.equal(defaults.aiProvider, "anthropic");
 assert.equal(
   settings.normalizeSettings({ enabled: true }).aiProvider,

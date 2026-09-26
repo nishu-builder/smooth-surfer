@@ -78,7 +78,7 @@ loading delays on habit-forming sites, and consistent access to pinned pages.
   is configured, or when that provider is used for requested suggestions or
   recalibration. Powers filtering and Consumption Facts in cloud mode.
 - Content scripts on `<all_urls>`: Apply selected cleanup effects, loading-delay
-  overlays, video-speed keys, scrolling breaks, and the settings shortcut.
+  overlays, video-speed keys, scrolling breaks, tab search, and the settings shortcut.
   On-device model requests process text locally. Claude requests use the user's
   own key. Review images, avatars, and native X embeds load from their providers.
 
