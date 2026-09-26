@@ -7,7 +7,7 @@
 
 Smooth Surfer reduces feed noise and habitual site checking. Clean up YouTube, X/Twitter, Reddit, Substack, and Hacker News; add a loading delay before distracting sites; and keep pinned pages available across Chrome windows. The source also includes an iPhone Safari extension package.
 
-Loading delays, shared pinned tabs, and the basic cleanup switches run locally without an API key. Start with **Loading delay** under a site’s settings; shared pinned tabs work out of the box.
+Loading delays, shared pinned tabs, and the basic cleanup switches run locally without an API key. Loading delays for the built-in sites and shared pinned tabs work out of the box.
 
 Choose Claude Haiku 4.5 with an Anthropic key or on-device processing with Chrome's built-in Gemini Nano. Both filter X/Twitter, Reddit, Substack, and Hacker News against your criteria. Claude is the default on desktop and Safari; explicit saved provider choices are preserved. Gemini Nano is an experimental opt-in. On-device processing requires a supported desktop Chrome installation and model setup; it does not silently fall back to Claude. Local mode processes text and supplied image descriptions. Image analysis is available with Claude.
 
@@ -83,8 +83,8 @@ The popup also includes:
 
 ## Loading delays
 
-Turn on **Loading delay** alongside the other controls for YouTube, X/Twitter,
-Reddit, Substack, or Hacker News. These checkboxes and the **Visit delay** domain
+**Loading delay** is on by default for YouTube, X/Twitter, Reddit, Substack, and
+Hacker News; turn it off alongside each site's other controls. These checkboxes and the **Visit delay** domain
 list stay in sync. Add any other domain in that list. Either `twitter.com` or
 `x.com` covers both names, including redirects. New rules apply to tabs that are
 already open.

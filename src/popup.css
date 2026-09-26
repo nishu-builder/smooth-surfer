@@ -448,6 +448,13 @@ input:disabled {
   font-weight: 400;
 }
 
+.stats-row span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .stats-row span:last-child {
   color: var(--ss-muted);
   flex: 0 0 auto;

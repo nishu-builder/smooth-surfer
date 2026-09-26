@@ -270,6 +270,33 @@ try {
   assert.match(popupState.pillText, /one short sentence/);
   assert.ok(popupState.stored.filterCriteria.includes("high-pressure AI investing hype"));
 
+  // Every built-in site starts with a loading delay. Clear them so the checks
+  // below start from an empty list.
+  const defaultDelays = await evaluate(
+    client,
+    `(async () => {
+    const toggles = [...document.querySelectorAll("[data-visit-delay-toggle]")];
+    const before = {
+      pills: [...document.querySelectorAll("[data-domain-list] .pill-label")].map((pill) => pill.textContent),
+      checked: toggles.every((input) => input.checked)
+    };
+    while (document.querySelector("[data-remove-domain]")) {
+      document.querySelector("[data-remove-domain]").click();
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    }
+    return { ...before, cleared: toggles.every((input) => !input.checked) };
+  })()`
+  );
+  assert.deepEqual(defaultDelays.pills, [
+    "youtube.com",
+    "x.com",
+    "reddit.com",
+    "substack.com",
+    "news.ycombinator.com"
+  ]);
+  assert.equal(defaultDelays.checked, true);
+  assert.equal(defaultDelays.cleared, true);
+
   // Visit delay settings: sites are added from a form, normalized, listed as
   // removable pills, and the first-wait field saves through the same path.
   const visitPanel = await evaluate(
@@ -2303,7 +2330,11 @@ async function verifyExtensionPopupOpens() {
       ),
       [
         ["x.com", "9 · 14", "3 · 5", "1 · 1", "0 · 1", "47s · 1m 12s"],
-        ["reddit.com", "0 · 2", "0 · 1", "0 · 0", "0 · 0", "0s · 10s"]
+        ["reddit.com", "0 · 2", "0 · 1", "0 · 0", "0 · 0", "0s · 10s"],
+        // Default delayed sites without history follow in list order.
+        ["youtube.com", "0 · 0", "0 · 0", "0 · 0", "0 · 0", "0s · 0s"],
+        ["substack.com", "0 · 0", "0 · 0", "0 · 0", "0 · 0", "0s · 0s"],
+        ["news.ycombinator.com", "0 · 0", "0 · 0", "0 · 0", "0 · 0", "0s · 0s"]
       ],
       "visit delay totals use today and the same seven-day window"
     );
