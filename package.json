@@ -1,6 +1,6 @@
 {
   "name": "smooth-surfer",
-  "version": "0.2.15",
+  "version": "0.3.0",
   "private": true,
   "description": "Calmer feeds, a pause before habit sites, and pinned tabs that follow you into every Chrome window.",
   "license": "MIT",
