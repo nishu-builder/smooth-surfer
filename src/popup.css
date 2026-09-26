@@ -291,6 +291,10 @@ h1 {
   text-align: center;
 }
 
+.count:empty {
+  display: none;
+}
+
 .count[data-empty] {
   border-color: var(--ss-line);
   background: var(--ss-gray);

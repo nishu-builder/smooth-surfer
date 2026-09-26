@@ -39,13 +39,13 @@ Apple's converter can change its project format with Xcode updates; generation f
 2. In iOS Settings, open Apps → Safari → Extensions → Smooth Surfer. On iOS 16–17, Safari is directly in Settings.
 3. Enable the extension and grant access to the websites to filter. Cloud AI also needs permission for `api.anthropic.com`.
 4. Open a supported website in Safari. Open Safari's page menu, select Smooth Surfer, and open Settings to enter an Anthropic API key and choose rules.
-5. Review rulings, Settings, Stats, and Filter sets open as extension pages in Safari tabs. Touch controls have larger targets and feedback fields avoid iOS focus zoom.
+5. Hidden posts, Settings, Stats, and Filter sets open as extension pages in Safari tabs. Touch controls have larger targets and feedback fields avoid iOS focus zoom.
 
 The containing app shows these instructions. Its **Open app settings** button uses Apple's supported app-settings URL; it does not pretend to jump directly to Safari's extensions pane. API keys stay in the extension's local storage. The native container neither reads them nor logs extension messages.
 
 Chrome's Gemini Nano/offscreen runtime is unavailable in Safari and is not a mobile on-device implementation. Safari packaging defaults to Claude when no provider is saved and removes the Chrome-only `offscreen` permission; runtime capability detection reports the local option as unavailable. Selecting a local provider must never silently send posts to a cloud model. Use Anthropic explicitly on iPhone.
 
-Rules, review history, and feedback belong to this Safari profile and do not automatically sync with Chrome. Safari may suspend extension workers when the browser is backgrounded. Recalibration checkpoints are stored, and opening Review rulings resumes the job; timers are not a promise that work continues while the phone is locked. Successfully saved feedback is safe to refresh. Keep the existing saved-state indicator as the source of truth while a write is pending.
+Rules, review history, and feedback belong to this Safari profile and do not automatically sync with Chrome. Safari may suspend extension workers when the browser is backgrounded. Recalibration checkpoints are stored, and opening Hidden posts resumes the job; timers are not a promise that work continues while the phone is locked. Successfully saved feedback is safe to refresh. Keep the existing saved-state indicator as the source of truth while a write is pending.
 
 ## Compatibility boundaries
 
@@ -63,7 +63,7 @@ Before TestFlight, test on an iPhone and iPad with a signed build:
 - Enable/disable the extension; deny, then grant website/API access and confirm the UI gives useful feedback.
 - Verify X filtering and deduplication while scrolling, navigating, and resuming Safari. Check a format filter without an API key and an AI rule with one.
 - Open each workspace tab, save settings, submit good/bad feedback with an explanation, undo, archive, and refresh to verify persistence.
-- Start recalibration, background/lock the phone, reopen Review rulings, and confirm checkpoint recovery without duplicate changes.
+- Start recalibration, background/lock the phone, reopen Hidden posts, and confirm checkpoint recovery without duplicate changes.
 - Check portrait/landscape, the onscreen keyboard, font scaling, and minimum-width layouts. Verify mobile YouTube, Reddit, Substack, and Hacker News independently.
 - Verify no cloud requests occur while a local-only configuration is selected, and that the unavailable local model is clearly explained.
 

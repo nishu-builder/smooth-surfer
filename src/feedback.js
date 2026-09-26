@@ -51,17 +51,20 @@
     const shadow = host.attachShadow({ mode: "open" });
     const style = document.createElement("style");
     style.textContent = `
-      :host { color-scheme: light; } * { box-sizing: border-box; }
-      dialog { width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 40px); overflow: auto; margin: auto; padding: 16px; border: 1px solid var(--ss-action); border-radius: var(--ss-radius); color: var(--ss-ink); background: white; font: 14px/1.4 var(--ss-sans); box-shadow: 0 18px 60px #17171726; }
-      dialog::backdrop { background: #17171766; } h2 { font: 18px/1.3 var(--ss-mono); margin: 0 0 6px; } p { margin: 6px 0; color: var(--ss-muted); }
-      blockquote { margin: 8px 0; padding: 8px; background: var(--ss-gray); border-left: 2px solid var(--ss-focus); max-height: 140px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
-      label { display: block; margin: 10px 0 4px; font-weight: 600; }
-      textarea { width: 100%; min-height: 65px; resize: vertical; font: inherit; padding: 6px; border: 1px solid var(--ss-control-line); border-radius: var(--ss-radius); }
-      button { font: 12px/1.35 var(--ss-mono); cursor: pointer; border-radius: var(--ss-radius); border: 1px solid var(--ss-action); padding: 5px 8px; min-height: 28px; background: #fff; color: var(--ss-action); }
-      button:hover { background: var(--ss-hover); } button:disabled { opacity: .55; cursor: wait; }
-      .primary { background: var(--ss-action); color: white; } .primary:hover { background: var(--ss-action-hover); }
-      .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; } .suggestions { display: grid; gap: 4px; margin-top: 8px; } .suggestions button { text-align: left; }
-      :focus-visible { outline: 2px solid var(--ss-focus); outline-offset: 2px; } small { display: block; margin-top: 4px; color: var(--ss-muted); } [role=status]:empty { display: none; }
+      :host { color-scheme: light dark; } * { box-sizing: border-box; }
+      dialog { width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 40px); overflow: auto; margin: auto; padding: 24px; border: 1px solid var(--ss-ink); border-radius: 8px; color: var(--ss-ink); background: var(--ss-paper); font: 14px/1.55 var(--ss-sans); box-shadow: 5px 6px 0 var(--ss-stamp); }
+      dialog::backdrop { background: rgb(32 34 30 / 45%); }
+      h2 { font: 700 20px/1.25 var(--ss-mono); letter-spacing: -0.8px; margin: 0 0 6px; } p { margin: 6px 0; color: var(--ss-muted); }
+      blockquote { margin: 12px 0; padding: 10px 12px; border-radius: 10px 10px 10px 3px; background: var(--ss-gray); max-height: 140px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }
+      label { display: block; margin: 16px 0 6px; font: 600 12px/1.5 var(--ss-mono); }
+      textarea { width: 100%; min-height: 72px; resize: vertical; font: inherit; padding: 10px 12px; border: 1px solid var(--ss-control-line); border-radius: 5px; background: var(--ss-paper); color: var(--ss-ink); }
+      textarea:focus { border-color: var(--ss-ink); outline: none; }
+      button { font: 12px/1.3 var(--ss-mono); cursor: pointer; border-radius: 5px; border: 1px solid var(--ss-ink); padding: 0 14px; min-height: 36px; background: var(--ss-paper); color: var(--ss-ink); }
+      button:hover:not(:disabled) { background: var(--ss-hover); } button:disabled { opacity: .5; cursor: default; }
+      .primary { background: var(--ss-accent); color: var(--ss-accent-ink); box-shadow: 2px 3px 0 var(--ss-stamp); } .primary:hover:not(:disabled) { background: var(--ss-accent-hover); }
+      .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; } .suggestions { display: grid; gap: 6px; margin-top: 10px; }
+      .suggestions button { min-height: 0; padding: 8px 12px; border-color: var(--ss-line); text-align: left; font: 13px/1.45 var(--ss-sans); } .suggestions button:hover { border-color: var(--ss-ink); }
+      :focus-visible { outline: 3px solid var(--ss-focus); outline-offset: 3px; } small { display: block; margin-top: 6px; color: var(--ss-muted); font-size: 12px; } [role=status] { color: var(--ss-ink); } [role=status]:empty { display: none; }
     `;
     const dialog = document.createElement("dialog");
     dialog.setAttribute("aria-labelledby", "feedback-title");
@@ -75,31 +78,31 @@
     const intro = make(
       "p",
       text
-        ? "Write a filter or get suggestions for this post."
-        : "Write a filter for this post. Suggestions require text."
+        ? "Describe posts like this one, or let the AI suggest a rule."
+        : "Describe posts like this one. Suggestions need post text."
     );
     const preview = make("blockquote", text ? text.slice(0, 2000) : "Image post");
-    const suggest = make("button", "Suggest filters");
+    const suggest = make("button", "Suggest rules");
     suggest.type = "button";
     suggest.disabled = !text;
     const note = make(
       "small",
-      "Sends post text to Claude using your API key. Choose Add filter to apply."
+      "Sends this post’s text to your selected AI model. Nothing changes until you add a rule."
     );
     const choices = make("div", "");
     choices.className = "suggestions";
-    const label = make("label", "Filter posts that match");
+    const label = make("label", "Hide posts that are…");
     label.htmlFor = "feedback-rule";
     const input = make("textarea", "");
     input.id = "feedback-rule";
     input.maxLength = 500;
     input.placeholder = "For example: posts asking readers to repost for a giveaway";
-    const scope = make("small", "Applies wherever content filtering is enabled.");
+    const scope = make("small", "Applies on every site where the AI filter is on.");
     const status = make("p", "");
     status.setAttribute("role", "status");
     const actions = make("div", "");
     actions.className = "actions";
-    const save = make("button", "Add filter");
+    const save = make("button", "Add rule");
     save.type = "button";
     save.className = "primary";
     const cancel = make("button", "Cancel");
@@ -154,7 +157,7 @@
     });
     save.addEventListener("click", async () => {
       if (!input.value.trim()) {
-        status.textContent = "Enter a filter or choose a suggestion.";
+        status.textContent = "Describe the posts to hide, or pick a suggestion.";
         input.focus();
         return;
       }
@@ -162,7 +165,7 @@
       try {
         await send({ type: "addFilterCriterion", criterion: input.value });
         finished = true;
-        status.textContent = "Filter added.";
+        status.textContent = "Rule added. Similar posts will be hidden.";
         save.hidden = true;
         suggest.disabled = true;
         input.disabled = true;

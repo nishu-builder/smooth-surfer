@@ -43,7 +43,8 @@ try {
     "ios",
     "popup.html",
     "review.html",
-    "filters.html"
+    "filters.html",
+    "welcome.html"
   ]) {
     await cp(path.join(repositoryRoot, filename), path.join(root, filename), { recursive: true });
   }
@@ -53,7 +54,7 @@ try {
   const files = await readdir(destination);
   assert(!files.includes(".env"));
   assert(!files.includes("package.json"));
-  for (const page of ["popup.html", "review.html", "filters.html"]) {
+  for (const page of ["popup.html", "review.html", "filters.html", "welcome.html"]) {
     const html = await readFile(path.join(destination, page), "utf8");
     assert.equal((html.match(/ios-mobile.css/g) || []).length, 1);
     for (const [, resource] of html.matchAll(/(?:src|href)="((?:src|icons)\/[^"?#]+)"/g)) {

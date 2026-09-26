@@ -96,7 +96,7 @@ dialog p { color: var(--ss-muted); }
 .review-page .post[data-current="true"] { box-shadow: 5px 6px 0 var(--ss-stamp); }
 .rulings { margin-top: 12px; padding: 12px 0 0; border-top: 1px solid var(--ss-line); }
 .ruling-heading { margin: 0 0 8px; color: var(--ss-muted); font: 10px var(--ss-mono); letter-spacing: 1px; text-transform: uppercase; }
-.ruling { padding: 10px 12px; border: 1px solid var(--ss-line); border-radius: 6px; transition: background-color 160ms ease, border-color 160ms ease; }
+.ruling { padding: 10px 12px; border: 1px solid var(--ss-line); border-radius: 6px; }
 .ruling[data-current="true"] { border-color: var(--ss-ink); background: var(--ss-action-soft); }
 .ruling + .ruling { margin-top: 6px; }
 .trigger-rule { margin: 0 0 10px; font-size: 14px; font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }

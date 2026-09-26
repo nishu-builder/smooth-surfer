@@ -118,7 +118,14 @@ try {
     )
   );
   const extension = worker.url.replace("/src/background.js", "");
-  const page = await connect((await targets()).find((target) => target.type === "page"));
+  // A fresh install opens the welcome page in the foreground; drive that tab so
+  // the page under test stays visible.
+  const welcome = await retry(async () =>
+    (await targets()).find(
+      (target) => target.type === "page" && target.url.endsWith("/welcome.html")
+    )
+  );
+  const page = await connect(welcome);
   await page.send("Page.navigate", { url: `${extension}/popup.html?view=settings` });
   await retry(() => evaluate(page, 'Boolean(document.querySelector("[data-local-model-setup]"))'));
   await retry(() => evaluate(page, 'document.querySelector("[data-setting=enabled]").checked'));

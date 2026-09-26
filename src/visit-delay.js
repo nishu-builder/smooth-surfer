@@ -20,32 +20,43 @@
     :host { all: initial; }
     .backdrop {
       position: fixed; inset: 0; display: grid; place-items: center; overflow: auto;
-      background: var(--ss-paper, #ffffff); color: var(--ss-ink, #171717);
-      font: 13px/1.45 var(--ss-sans, "Helvetica Neue", Arial, sans-serif);
+      background-color: var(--ss-canvas, #fffdf4);
+      background-image: radial-gradient(var(--ss-dot, #cecfbb) 1px, transparent 1px);
+      background-size: 14px 14px;
+      color: var(--ss-ink, #20221e);
+      font: 14px/1.55 var(--ss-sans, Arial, Helvetica, sans-serif);
     }
     .card {
-      display: grid; gap: 10px; width: min(420px, calc(100vw - 32px)); margin: 16px;
-      padding: 18px 0 0; border-top: 2px solid var(--ss-action, #111111); outline: none;
+      display: grid; gap: 14px; width: min(460px, calc(100vw - 32px)); margin: 16px; padding: 28px;
+      border: 1px solid var(--ss-ink, #20221e); border-radius: 8px; outline: none;
+      background: var(--ss-paper, #fffef9); box-shadow: 5px 6px 0 var(--ss-stamp, #e7e7dc);
     }
     .brand, .meta, .time, .domain, button {
       font-family: var(--ss-mono, "SFMono-Regular", Consolas, "Liberation Mono", monospace);
     }
-    .brand { font-size: 12px; color: var(--ss-muted, #616161); }
-    .domain { margin: 0; font-size: 26px; line-height: 1.15; font-weight: 400; letter-spacing: -0.03em; overflow-wrap: anywhere; }
-    .meta { font-size: 12px; color: var(--ss-muted, #616161); }
-    .time { font-size: 56px; line-height: 1; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
-    .bar { height: 4px; background: var(--ss-gray, #f2f2f2); }
-    .fill { height: 100%; width: 100%; background: var(--ss-action, #111111); transform: scaleX(0); transform-origin: left; }
-    .note { margin: 0; color: var(--ss-muted, #616161); }
-    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .brand { display: flex; align-items: center; gap: 8px; color: var(--ss-muted, #64655b); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; }
+    .brand::before { content: ""; width: 8px; height: 8px; border: 1px solid var(--ss-ink, #20221e); border-radius: 50%; background: var(--ss-accent, #e3ff73); }
+    .domain { margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700; letter-spacing: -1.2px; overflow-wrap: anywhere; }
+    .time { font-size: 76px; font-weight: 700; line-height: 1; letter-spacing: -4px; font-variant-numeric: tabular-nums; }
+    .bar { height: 12px; overflow: hidden; border: 1px solid var(--ss-ink, #20221e); border-radius: 999px; background: var(--ss-gray, #f4f4e8); }
+    .fill { height: 100%; width: 100%; background: var(--ss-accent, #e3ff73); box-shadow: inset -1px 0 0 var(--ss-ink, #20221e); transform: scaleX(0); transform-origin: left; }
+    .meta { color: var(--ss-ink, #20221e); font-size: 12px; }
+    .note { margin: 0; color: var(--ss-muted, #64655b); font-size: 13px; }
+    .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 4px; }
     button {
-      appearance: none; min-height: 28px; padding: 0 10px; border: 1px solid var(--ss-control-line, #808080);
-      border-radius: var(--ss-radius, 2px); background: var(--ss-paper, #ffffff); color: var(--ss-ink, #171717);
-      font-size: 12px; cursor: pointer;
+      appearance: none; min-height: 40px; padding: 0 18px; border: 1px solid var(--ss-ink, #20221e);
+      border-radius: 5px; background: var(--ss-accent, #e3ff73); color: var(--ss-accent-ink, #20221e);
+      font-size: 13px; cursor: pointer; box-shadow: 2px 3px 0 var(--ss-stamp, #dfdfd1);
     }
-    button:hover { background: var(--ss-hover, #f2f2f2); }
-    button:disabled { cursor: not-allowed; opacity: 0.55; }
-    button:focus-visible, .card:focus-visible { outline: 2px solid var(--ss-focus, #111111); outline-offset: 2px; }
+    button:hover { background: var(--ss-accent-hover, #d9f765); }
+    button.link {
+      min-height: 0; padding: 0; border: 0; background: none; box-shadow: none;
+      color: var(--ss-muted, #64655b); font-size: 12px; text-decoration: underline; text-underline-offset: 3px;
+    }
+    button.link:hover { color: var(--ss-ink, #20221e); background: none; }
+    button:disabled { cursor: default; opacity: 0.45; }
+    button:focus-visible, .card:focus-visible { outline: 3px solid var(--ss-focus, #355dad); outline-offset: 3px; }
+    @media (prefers-reduced-motion: reduce) { .fill { transition: none; } }
   `;
 
   let settings = null;
@@ -295,7 +306,7 @@
     const note = element("p", "note");
     note.dataset.note = "";
     const actions = element("div", "actions");
-    const reset = element("button", "");
+    const reset = element("button", "link");
     reset.type = "button";
     reset.dataset.reset = "";
     reset.textContent = "Reset count";
@@ -305,8 +316,16 @@
     close.dataset.close = "";
     close.textContent = "Close tab";
     close.addEventListener("click", onClose);
-    actions.append(reset, close);
-    card.append(element("div", "brand", "Smooth Surfer"), domain, meta, time, bar, note, actions);
+    actions.append(close, reset);
+    card.append(
+      element("div", "brand", "Smooth Surfer · loading delay"),
+      domain,
+      time,
+      bar,
+      meta,
+      note,
+      actions
+    );
     backdrop.append(card);
     root.append(style, backdrop);
     document.documentElement.append(host);
@@ -343,14 +362,14 @@
 
     overlay.domain.textContent = attempt.domain;
     overlay.meta.textContent = attempt.ready
-      ? `Visit ${attempt.step + 1} today · each finished wait grows the next by ${shared.VISIT_DELAY_GROWTH}× · count resets at ${String(shared.VISIT_DELAY_RESET_HOUR).padStart(2, "0")}:00`
+      ? `Visit ${attempt.step + 1} today · finishing makes the next wait ${shared.VISIT_DELAY_GROWTH}× longer · resets ${String(shared.VISIT_DELAY_RESET_HOUR).padStart(2, "0")}:00`
       : "Checking today's count…";
     overlay.time.textContent = attempt.ready ? formatTime(remaining) : "–:––";
     renderProgress(attempt.elapsedMs);
     overlay.reset.disabled = !attempt.ready || attempt.step === 0;
     overlay.note.textContent = document.hidden
       ? "Paused while this tab is hidden."
-      : "Counts down only while this tab is visible. Leaving before it ends adds nothing.";
+      : "Counts down only while this tab is visible. Close the tab now and this visit won’t count.";
   }
 
   function formatTime(ms) {
