@@ -14,6 +14,7 @@ release is a `v*` tag; see [docs/RELEASING.md](docs/RELEASING.md).
 - Rename Review rulings to Hidden posts, Good/Bad ruling to Right/Wrong call, and Recalibrate rules to Improve rules. Add helpful empty states and move storage details behind a disclosure.
 - Redesign the loading-delay countdown, surf break, speed toast, Less like this dialog, Filter sets, Stats, and on-device AI setup.
 - Refresh the store screenshots and add a promo tile, rendered from the real extension. The README now reuses them.
+- Restyle the iPhone setup screen to match, with numbered steps and the new terms.
 
 ## 0.2.15
 
