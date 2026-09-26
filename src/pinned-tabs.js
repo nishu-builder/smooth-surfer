@@ -22,6 +22,9 @@
     let bindings = {};
     let pages = {};
     const pendingChanges = [];
+    // Pin changes this module requested, keyed by tab ID. Any other pin change
+    // came from Chrome's tab menu or a drag and is undone while sharing is on.
+    const expectedPins = new Map();
 
     const enqueue = (operation) => {
       const result = queue.then(operation);
@@ -58,7 +61,15 @@
         await save();
         return;
       }
-      if (!settings.enabled || !(await api.permissions.contains({ permissions: ["tabs"] }))) return;
+      if (!settings.enabled || !(await api.permissions.contains({ permissions: ["tabs"] }))) {
+        // Don't undo menu pins made while paused once sharing resumes.
+        pendingChanges.splice(
+          0,
+          pendingChanges.length,
+          ...pendingChanges.filter((event) => event.source !== "menu")
+        );
+        return;
+      }
       const windows = (
         await api.windows.getAll({ populate: true, windowTypes: ["normal"] })
       ).filter((window) => !window.incognito);
@@ -73,6 +84,7 @@
       // Like Arc, closing a pin only closes that copy. The window gets it back
       // at the saved URL; only an explicit unpin removes it everywhere.
       const closedPins = new Set();
+      const repins = new Set();
       for (const event of changes) {
         const removedUrl = bindings[event.tabId];
         // Chrome can emit pinned:false just before removing a whole window.
@@ -80,6 +92,16 @@
         const unpinned = event.unpinned && live.has(event.tabId) && !closingTabs.has(event.tabId);
         if (removedUrl && event.removed && !event.windowClosing)
           closedPins.add(`${event.windowId}:${removedUrl}`);
+        // Only the pin shortcut changes shared pins. Undo menu pins and unpins.
+        if (event.source === "menu") {
+          const tab = live.get(event.tabId);
+          if (unpinned && removedUrl) repins.add(event.tabId);
+          else if (event.pinChange && tab?.pinned && !bindings[tab.id]) {
+            await updateIfPresent(tab.id, { pinned: false });
+            tab.pinned = false;
+          }
+          continue;
+        }
         if (removedUrl && unpinned) {
           urls = urls.filter((url) => url !== removedUrl);
           for (const [id, url] of Object.entries(bindings)) {
@@ -95,6 +117,20 @@
           delete bindings[event.tabId];
           delete pages[event.tabId];
         }
+      }
+      for (const id of repins) {
+        const tab = live.get(id);
+        if (!tab || tab.pinned) continue;
+        await updateIfPresent(id, { pinned: true });
+        tab.pinned = true;
+        // Chrome appends a re-pinned tab; return it to its shared-order slot.
+        const url = bindings[id];
+        const window = windows.find((item) => item.id === tab.windowId);
+        const index = window.tabs.filter(
+          (other) =>
+            other.id !== id && other.pinned && urls.indexOf(bindings[other.id]) < urls.indexOf(url)
+        ).length;
+        await moveIfPresent(id, index);
       }
       // Bindings always retain the URL at pin time, across navigation and
       // worker restarts. Page state only tracks a copy's initial redirects.
@@ -202,16 +238,35 @@
       await save();
     }
 
-    async function updateIfPresent(id, patch) {
+    async function updateIfPresent(id, patch, source = "sync") {
+      if ("pinned" in patch) expectedPins.set(id, { pinned: patch.pinned, source });
       try {
         await api.tabs.update(id, patch);
+      } catch (error) {
+        expectedPins.delete(id);
+        if ((await api.tabs.query({})).some((tab) => tab.id === id)) throw error;
+      }
+    }
+
+    async function moveIfPresent(id, index) {
+      try {
+        await api.tabs.move(id, { index });
       } catch (error) {
         if ((await api.tabs.query({})).some((tab) => tab.id === id)) throw error;
       }
     }
 
+    // Attribute a pin change to the shortcut, our own sync, or Chrome's menu.
+    function pinSource(tabId, pinned) {
+      const expected = expectedPins.get(tabId);
+      if (expected?.pinned !== pinned) return "menu";
+      expectedPins.delete(tabId);
+      return expected.source;
+    }
+
     const schedule = (event) => {
       if (
+        event?.source === "menu" ||
         event?.removed ||
         event?.unpinned ||
         event?.pinnedUrl ||
@@ -232,7 +287,9 @@
         schedule({
           tabId,
           unpinned: change.pinned === false,
-          pinnedUrl: change.pinned === true ? webUrl(tab.pendingUrl || tab.url) : ""
+          pinnedUrl: change.pinned === true ? webUrl(tab.pendingUrl || tab.url) : "",
+          pinChange: change.pinned === true,
+          ...("pinned" in change ? { source: pinSource(tabId, change.pinned) } : {})
         });
     });
     api.tabs.onRemoved.addListener((tabId, info) =>
@@ -267,7 +324,7 @@
           .filter((window) => !window.incognito)
           .flatMap((window) => window.tabs || [])
           .find((item) => item.id === selected.id);
-        if (current) await updateIfPresent(current.id, { pinned: !current.pinned });
+        if (current) await updateIfPresent(current.id, { pinned: !current.pinned }, "shortcut");
         await reconcile();
       });
     });

@@ -39,6 +39,8 @@ Shared pinned tabs:
   Chrome window, including new ones. Turn off Share pins across windows to stop.
 - Pin or unpin the current tab with Cmd+Shift+P on Mac or Alt+P on
   Windows/Linux. Customize the shortcut in Chrome's extension keyboard shortcuts.
+  While sharing is on, the shortcut is the only way to change pins; pins and
+  unpins from Chrome's tab menu are undone.
 - Shared pins keep the exact URL you saved. Navigating away moves your current
   page into a regular tab and restores the saved pin, preserving your page state
   and browsing history. Other windows keep their pins.

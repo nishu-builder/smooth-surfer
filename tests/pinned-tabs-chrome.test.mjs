@@ -271,11 +271,27 @@ try {
     1,
     "closing a pin keeps it saved"
   );
-  // Unpinning removes it everywhere without closing the pages.
+  // Pin changes this module didn't make stand in for Chrome's tab menu, and
+  // are undone: the unpinned copy is pinned again, the new pin is removed.
   const restoredCopy = (await snapshot())
     .find((window) => window.id === thirdWindow.id)
     .tabs.find((tab) => tab.pinned);
   await evaluate(`chrome.tabs.update(${restoredCopy.id},{pinned:false})`);
+  await until(async () => (await evaluate(`chrome.tabs.get(${restoredCopy.id})`)).pinned);
+  const menuPin = await evaluate(
+    `chrome.tabs.create({windowId:${thirdWindow.id},url:'about:blank',active:false})`
+  );
+  await evaluate(`chrome.tabs.update(${menuPin.id},{pinned:true})`);
+  await until(async () => !(await evaluate(`chrome.tabs.get(${menuPin.id})`)).pinned);
+  await evaluate(`chrome.tabs.remove(${menuPin.id})`);
+  assert.ok(
+    (await snapshot()).every((window) => window.tabs.filter((tab) => tab.pinned).length === 1),
+    "menu changes leave every window's shared pins as they were"
+  );
+  // The shortcut unpins it everywhere without closing the pages.
+  await evaluate(
+    `(async()=>self.__pinCommand('toggle-pin-tab', await chrome.tabs.get(${restoredCopy.id})))()`
+  );
   await until(async () =>
     (await snapshot()).every((window) => window.tabs.every((tab) => !tab.pinned))
   );
