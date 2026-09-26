@@ -7,7 +7,7 @@
 
 Smooth Surfer reduces feed noise and habitual site checking. Clean up YouTube, X/Twitter, Reddit, Substack, and Hacker News; add a loading delay before distracting sites; and keep pinned pages available across Chrome windows. The source also includes an iPhone Safari extension package.
 
-Loading delays, shared pinned tabs, and the basic cleanup switches run locally without an API key. Start with **Loading delay** under a site’s settings or **Share pins across windows** in the Pinned tabs section.
+Loading delays, shared pinned tabs, and the basic cleanup switches run locally without an API key. Start with **Loading delay** under a site’s settings; shared pinned tabs work out of the box.
 
 Choose Claude Haiku 4.5 with an Anthropic key or on-device processing with Chrome's built-in Gemini Nano. Both filter X/Twitter, Reddit, Substack, and Hacker News against your criteria. Claude is the default on desktop and Safari; explicit saved provider choices are preserved. Gemini Nano is an experimental opt-in. On-device processing requires a supported desktop Chrome installation and model setup; it does not silently fall back to Claude. Local mode processes text and supplied image descriptions. Image analysis is available with Claude.
 
@@ -102,8 +102,8 @@ loads, completed waits, early exits, resets, time waited, and visits by hour.
 
 ## Cross-window pinned tabs
 
-Enable **Share pins across windows** in Settings and allow the optional tab
-permission. Pin or unpin the current tab with **Cmd+Shift+P** on Mac or
+**Share pins across windows** is on by default; turn it off in Settings to keep
+pins per window. Pin or unpin the current tab with **Cmd+Shift+P** on Mac or
 **Alt+P** on Windows/Linux, or use Chrome’s normal **Pin** tab-menu action.
 Change the shortcut in `chrome://extensions/shortcuts` if needed. The shortcut
 also works as ordinary Chrome pinning when sharing is off.

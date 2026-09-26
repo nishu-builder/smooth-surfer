@@ -49,7 +49,7 @@
   ];
   const DEFAULT_SETTINGS = {
     enabled: true,
-    crossWindowPinsEnabled: false,
+    crossWindowPinsEnabled: true,
     filterCriteria: [...DEFAULT_FILTER_CRITERIA],
     youtubeGrayscaleThumbnails: true,
     youtubeHideRecommendations: true,

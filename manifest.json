@@ -9,7 +9,7 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "permissions": ["storage", "alarms", "offscreen"],
+  "permissions": ["storage", "alarms", "offscreen", "tabs"],
   "host_permissions": ["https://api.anthropic.com/*"],
   "background": {
     "service_worker": "src/background.js"
@@ -45,6 +45,5 @@
       "js": ["src/feedback.js", "src/content.js"],
       "run_at": "document_idle"
     }
-  ],
-  "optional_permissions": ["tabs"]
+  ]
 }

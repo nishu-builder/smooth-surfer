@@ -10,6 +10,9 @@ const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "u
 assert.equal(manifest.manifest_version, 3);
 assert.ok(manifest.permissions.includes("storage"));
 assert.ok(manifest.permissions.includes("offscreen"));
+// Shared pins are on by default, so tab access is granted at install.
+assert.ok(manifest.permissions.includes("tabs"));
+assert.equal(manifest.optional_permissions, undefined);
 assert.ok(manifest.content_scripts.length > 0);
 assert.equal(manifest.action.default_popup, "popup.html");
 assert.equal(manifest.background.service_worker, "src/background.js");

@@ -34,8 +34,8 @@ Loading delays:
 
 Shared pinned tabs:
 
-- Enable Share pins across windows and allow optional tab access. Existing and
-  new pinned web pages appear in every regular Chrome window, including new ones.
+- On by default: existing and new pinned web pages appear in every regular
+  Chrome window, including new ones. Turn off Share pins across windows to stop.
 - Pin or unpin the current tab with Cmd+Shift+P on Mac or Alt+P on
   Windows/Linux. Customize the shortcut in Chrome's extension keyboard shortcuts.
 - Shared pins keep the exact URL you saved. Navigating away moves your current
@@ -102,8 +102,9 @@ user-selected loading delays, and consistent access to pinned pages.
   or a browser restart.
 - `offscreen`: Hosts the bundled page that accesses Chrome's built-in model for
   optional on-device processing. It does not silently enable cloud processing.
-- Optional `tabs`: Requested only when the user enables Share pins across
-  windows, to read pinned-page URLs and maintain copies across regular windows.
+- `tabs`: Powers Share pins across windows (on by default) by reading
+  pinned-page URLs and maintaining copies across regular windows. Unused when
+  the user turns sharing off.
   Only pinned HTTP/HTTPS URLs are retained locally; private windows are excluded.
 - `api.anthropic.com` host permission: Sends feed text and optional supported
   public image URLs to Anthropic only when Claude is selected and the user's key

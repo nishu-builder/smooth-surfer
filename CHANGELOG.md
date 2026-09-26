@@ -3,6 +3,10 @@
 Notable changes per released version. Versions match `manifest.json`, and a
 release is a `v*` tag; see [docs/RELEASING.md](docs/RELEASING.md).
 
+## Unreleased
+
+- Share pinned tabs across windows by default. Tab access is now granted at install instead of requested from Settings; turn off **Share pins across windows** to keep pins per window.
+
 ## 0.2.14
 
 - Add Cmd+Shift+P on Mac and Alt+P on Windows/Linux to pin or unpin the current tab; customize it in Chrome’s extension keyboard shortcuts.
