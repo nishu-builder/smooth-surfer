@@ -1,17 +1,59 @@
-/* Fogg visual identity reference: docs/STYLE_GUIDE.md.
-   Namespaced variables only; no typography or layout changes to host pages. */
+/* Calm-water identity: docs/STYLE_GUIDE.md.
+   Injected into every page as well as extension pages, so this file defines
+   namespaced variables only; no typography or layout changes to host pages. */
 :root {
+  --ss-canvas: #f3f6f9;
   --ss-paper: #ffffff;
-  --ss-gray: #f2f2f2;
-  --ss-action: #111111;
-  --ss-focus: #111111;
-  --ss-ink: #171717;
-  --ss-muted: #616161;
-  --ss-line: #c9c9c9;
-  --ss-control-line: #808080;
-  --ss-hover: #f2f2f2;
-  --ss-action-hover: #333333;
-  --ss-radius: 2px;
-  --ss-mono: "Gridnik", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  --ss-sans: "Helvetica Neue", Arial, sans-serif;
+  --ss-gray: #eef2f6;
+  --ss-hover: #e9eff5;
+  --ss-line: #dfe6ed;
+  --ss-control-line: #b9c4cf;
+  --ss-ink: #0f1c28;
+  --ss-muted: #5a6a79;
+  --ss-action: #0a66c8;
+  --ss-action-hover: #0857ab;
+  --ss-action-ink: #ffffff;
+  --ss-action-soft: #e5f0fc;
+  --ss-focus: #0a66c8;
+  --ss-good: #1d7a4b;
+  --ss-good-soft: #e3f4ea;
+  --ss-bad: #b3261e;
+  --ss-bad-soft: #fceae8;
+  --ss-warn: #8a5300;
+  --ss-warn-soft: #fff3d9;
+  --ss-warn-line: #f0cf8a;
+  --ss-radius: 8px;
+  --ss-radius-lg: 12px;
+  --ss-shadow: 0 1px 2px rgb(15 28 40 / 6%), 0 2px 8px rgb(15 28 40 / 4%);
+  --ss-shadow-lg: 0 12px 40px rgb(15 28 40 / 18%);
+  --ss-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial,
+    sans-serif;
+  --ss-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ss-canvas: #0b141d;
+    --ss-paper: #121e2a;
+    --ss-gray: #192735;
+    --ss-hover: #1d2d3d;
+    --ss-line: #243545;
+    --ss-control-line: #3c5064;
+    --ss-ink: #e7eef5;
+    --ss-muted: #9aabbb;
+    --ss-action: #5aa8ff;
+    --ss-action-hover: #7bbaff;
+    --ss-action-ink: #04121f;
+    --ss-action-soft: #14304d;
+    --ss-focus: #7bbaff;
+    --ss-good: #5fd39a;
+    --ss-good-soft: #123325;
+    --ss-bad: #ff8a80;
+    --ss-bad-soft: #3a1a18;
+    --ss-warn: #f5c46b;
+    --ss-warn-soft: #33270f;
+    --ss-warn-line: #5c4717;
+    --ss-shadow: 0 1px 2px rgb(0 0 0 / 30%);
+    --ss-shadow-lg: 0 16px 48px rgb(0 0 0 / 50%);
+  }
 }

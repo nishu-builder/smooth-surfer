@@ -11,24 +11,38 @@
   main.tabIndex = -1;
   main.classList.add("workspace-main");
   main.querySelectorAll("[data-workspace-link]").forEach((link) => link.removeAttribute("target"));
+  const icons = {
+    review: '<path d="M3 13 6 5h12l3 8v6H3z"/><path d="M3 13h5l1 3h6l1-3h5"/>',
+    filters: '<path d="M4 5h16l-6 8v5l-4 2v-7z"/>',
+    stats: '<path d="M5 20V11M12 20V4M19 20v-6"/>',
+    settings:
+      '<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>'
+  };
   const routes = [
-    ["review", "Review rulings", "review.html"],
-    ["settings", "Settings", "popup.html?view=settings"],
+    ["review", "Hidden posts", "review.html"],
+    ["filters", "Filter sets", "filters.html"],
     ["stats", "Stats", "popup.html?view=stats"],
-    ["filters", "Filter sets", "filters.html"]
+    ["settings", "Settings", "popup.html?view=settings"]
   ];
   const sidebar = document.createElement("aside");
   sidebar.className = "workspace-sidebar";
   const brand = document.createElement("a");
   brand.className = "workspace-brand";
   brand.href = "review.html";
-  brand.textContent = "Smooth Surfer";
+  const logo = document.createElement("img");
+  logo.src = "icons/icon48.png";
+  logo.alt = "";
+  brand.append(logo, "Smooth Surfer");
   const nav = document.createElement("nav");
   nav.setAttribute("aria-label", "Workspace");
   for (const [key, label, href] of routes) {
     const link = document.createElement("a");
     link.href = href;
-    link.textContent = label;
+    link.insertAdjacentHTML(
+      "afterbegin",
+      `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${icons[key]}</svg>`
+    );
+    link.append(label);
     if (key === page) link.setAttribute("aria-current", "page");
     nav.append(link);
   }
@@ -50,12 +64,15 @@
   if (page === "settings") {
     stats.hidden = true;
     facts.hidden = true;
-    // Use the same controls and save path as the toolbar popup.
-    main.querySelector("[data-filter-panel]").append(facts.querySelector(".switch-row"));
-    main.insertBefore(
-      main.querySelector("[data-filter-panel]"),
-      main.querySelector("header").nextSibling
-    );
+    // Every section starts open on the full page; each still collapses.
+    for (const details of main.querySelectorAll("[data-section]")) {
+      details.removeAttribute("name");
+      details.open = true;
+    }
+    if (window.location.hash === "#ai-filter")
+      window.requestAnimationFrame(() =>
+        main.querySelector("[data-filter-panel]").scrollIntoView({ block: "start" })
+      );
     return;
   }
   for (const section of sections)
