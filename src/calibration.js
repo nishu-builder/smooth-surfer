@@ -25,13 +25,13 @@
         typeof rule !== "string" ||
         (explanation !== undefined && typeof explanation !== "string")
       )
-        throw new Error("Choose Good ruling or Bad ruling.");
+        throw new Error("Choose Right call or Wrong call.");
       return mutate(async (state) => {
         const review = await deps.loadReview();
         const post = reviewItemsWithFeedback(review, state).find((item) => item.id === postId);
         if (!post) throw new Error("This post is no longer in review history.");
         if (!post.criteria.includes(rule) && !post.formats.some((key) => `format:${key}` === rule))
-          throw new Error("This rule did not trigger the saved ruling.");
+          throw new Error("This rule didn’t hide the saved post.");
         const current = resolveCalibratedRule(rule, state.revisions);
         const matches = (item) =>
           item.postKey === post.id && resolveCalibratedRule(item.rule, state.revisions) === current;
@@ -67,7 +67,7 @@
       return mutate((state) => {
         const change = state.undo.find((item) => item.token === token);
         if (!change)
-          throw new Error("Undo is no longer available. You can change the ruling directly.");
+          throw new Error("Undo is no longer available. You can change the call directly.");
         const current = state.feedback.find(
           (item) =>
             item.postKey === change.recorded.postKey &&

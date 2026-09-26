@@ -3,6 +3,17 @@
 Notable changes per released version. Versions match `manifest.json`, and a
 release is a `v*` tag; see [docs/RELEASING.md](docs/RELEASING.md).
 
+## Unreleased
+
+- Redesign every screen in the paper-and-ink style shared with beeper-muse: cream paper, monospace headings and controls, ink borders with offset shadows, a lime accent for what is on, and a matching dark mode.
+- Rebuild the popup around collapsible sections that each summarize their state (“8 of 11 on”, “5 sites · 1s first”). The current site opens first, every setting shows its description, and the header says what was hidden today.
+- Say when the AI filter is on but cannot run, in the header, on each site, and in the AI filter section, with one click to add a key or turn it off. Link to Anthropic’s key page and flag keys that don’t look like Anthropic keys.
+- Add a loading delay for the site you’re on from the popup, and show each delayed site’s visits and next wait in one list.
+- Show the real pin shortcut, a numbered explanation of shared pins, and a link to change the shortcut. Show live video speed keys for the chosen modifier.
+- Open a welcome page on first install that explains what already works and offers AI filter setup, or turns the filter off.
+- Rename Review rulings to Hidden posts, Good/Bad ruling to Right/Wrong call, and Recalibrate rules to Improve rules. Add helpful empty states and move storage details behind a disclosure.
+- Redesign the loading-delay countdown, surf break, speed toast, Less like this dialog, Filter sets, Stats, and on-device AI setup.
+
 ## 0.2.15
 
 - With sharing on, only the pin shortcut (Cmd+Shift+P on Mac, Alt+P on Windows/Linux) pins or unpins tabs. Pins and unpins from Chrome’s tab menu or drags are undone, and a menu-unpinned pin returns to its slot.

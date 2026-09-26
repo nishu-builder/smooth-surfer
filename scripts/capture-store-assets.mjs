@@ -24,17 +24,24 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = path.join(root, "docs", "store-assets");
 const cacheDir = path.join(root, ".cache");
 const canvas = { width: 1280, height: 800, background: "0xf2f2f2" };
-// Popup body is 320px wide; at deviceScaleFactor 2 the column is 640px.
-const popupColumnWidth = 640;
+// Popup body is 360px wide; at deviceScaleFactor 2 the column is 720px.
+const popupColumnWidth = 720;
 // Curated section groups, one store screenshot each. Labels match a section's
-// data-site-section or its lowercased <h2>; "header" is the title row. Stats
-// and Backup are left out of the store set as utility sections.
+// data-site-section or its lowercased <h2>; "header" is the title row. The
+// overview keeps site sections collapsed so their one-line summaries show;
+// the tool sections listed in openSections are expanded before capture.
 const groups = [
-  ["header", "youtube"],
-  ["twitter", "reddit", "substack", "hacker-news"],
-  ["pinned tabs", "visit delay"],
-  ["content filter", "everywhere", "focus schedule"],
-  ["consumption facts"]
+  ["header", "youtube", "twitter", "reddit", "substack", "hacker-news"],
+  ["ai filter"],
+  ["loading delays"],
+  ["pinned tabs"],
+  ["everywhere", "focus hours"]
+];
+const openSections = [
+  "[data-filter-panel]",
+  "[data-visit-delay-panel]",
+  "[data-pinned-tabs-panel]",
+  "[data-everywhere-panel]"
 ];
 
 await mkdir(outDir, { recursive: true });
@@ -169,6 +176,11 @@ function popupSetupExpression() {
   return `(() => {
     document.body.style.maxHeight = "none";
     document.body.style.overflow = "visible";
+    for (const selector of ${JSON.stringify(openSections)}) {
+      const details = document.querySelector(selector + " > details");
+      details.removeAttribute("name");
+      details.open = true;
+    }
     const d = new Date();
     const key =
       d.getFullYear() +

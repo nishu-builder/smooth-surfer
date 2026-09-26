@@ -197,7 +197,7 @@ function fixture() {
   assert.equal(f.state.feedback[0].explanation, "A neutral deadline, not sales pressure.");
   await assert.rejects(
     () => f.api.record({ postId: "p0", rule: "Other", judgment: "bad" }),
-    /did not trigger/
+    /didn’t hide the saved post/
   );
   await assert.rejects(
     () => f.api.record({ postId: "missing", rule: before, judgment: "bad" }),

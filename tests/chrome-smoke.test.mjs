@@ -182,8 +182,9 @@ try {
   assert.match(youtubeStyles.coreWatchThumbFilter, /grayscale/);
   assert.match(youtubeStyles.viewModelThumbFilter, /grayscale/);
 
+  // Room for the 360px popup plus a classic (non-overlay) scrollbar on Linux.
   await client.send("Emulation.setDeviceMetricsOverride", {
-    width: 360,
+    width: 400,
     height: 720,
     deviceScaleFactor: 1,
     mobile: false
@@ -206,7 +207,7 @@ try {
     `(async () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     const filterLabel = [...document.querySelectorAll("label")].find((label) =>
-      label.textContent.includes("Filter out content")
+      label.textContent.includes("AI filter")
     );
     const input = document.querySelector("[data-phrase-input]");
     input.value = "high-pressure AI investing hype";
@@ -261,10 +262,10 @@ try {
   assert.equal(popupState.closedWhiteSpace, "nowrap");
   assert.equal(popupState.openWhiteSpace, "normal");
   assert.equal(popupState.noHorizontalOverflow, true);
-  assert.ok(popupState.checkboxWidth <= 22);
-  assert.ok(popupState.bodyWidth >= 300);
-  assert.ok(popupState.popupWidth >= 300);
-  assert.ok(popupState.popupWidth <= 340);
+  assert.ok(popupState.checkboxWidth <= 40, "settings use compact switches");
+  assert.ok(popupState.bodyWidth >= 340);
+  assert.ok(popupState.popupWidth >= 340);
+  assert.ok(popupState.popupWidth <= 380);
   assert.match(popupState.pillText, /high-pressure AI investing hype/);
   assert.match(popupState.pillText, /missed upside/);
   assert.match(popupState.pillText, /one short sentence/);
@@ -315,7 +316,7 @@ try {
     const stored = JSON.parse(localStorage.getItem("smoothSurferSettings"));
     return {
       pills: [...document.querySelectorAll("[data-domain-list] .pill-label")].map((pill) => pill.textContent),
-      today: document.querySelector("[data-visit-today]").textContent,
+      today: document.querySelector("[data-domain-list]").textContent,
       status: document.querySelector("[data-status]").textContent,
       domains: stored.visitDelayDomains,
       seconds: stored.visitDelaySeconds
@@ -332,7 +333,7 @@ try {
     true
   );
   assert.equal(visitPanel.seconds, 20);
-  assert.match(visitPanel.today, /reddit\.com0 today · 0s waited · next 20s/);
+  assert.match(visitPanel.today, /reddit\.comNo visits yet today · first wait 20s/);
   assert.match(visitPanel.status, /Enter a site like example\.com/);
   await writeFile(
     path.join(cacheDir, "popup-visit-delay.png"),
@@ -1179,11 +1180,26 @@ async function verifyExtensionPopupOpens() {
       return;
     }
 
+    // A fresh install opens the welcome page in front. Check it, then close it
+    // so the page under test stays visible (hidden tabs skip animation frames).
+    let welcome = null;
+    const welcomeDeadline = Date.now() + 10000;
+    while (Date.now() < welcomeDeadline && !welcome) {
+      welcome = (await requestJson(debugPort, "/json")).find((target) =>
+        (target.url || "").endsWith("/welcome.html")
+      );
+      if (!welcome) await delay(200);
+    }
+    assert.ok(welcome, "a fresh install opens the welcome page");
+    await fetch(`http://127.0.0.1:${debugPort}/json/close/${welcome.id}`);
+    await delay(300);
+
     const page = await waitForPageTarget(debugPort);
     const client = await CdpClient.connect(page.webSocketDebuggerUrl);
 
     await client.send("Page.enable");
     await client.send("Runtime.enable");
+    await client.send("Page.bringToFront");
     await navigate(client, `http://127.0.0.1:${barePort}/bare-video.html`);
     await evaluate(
       client,
@@ -1220,7 +1236,7 @@ async function verifyExtensionPopupOpens() {
     const popupClient = await CdpClient.connect(popup.webSocketDebuggerUrl);
     await waitForExpression(
       popupClient,
-      `document.querySelector('[data-review-link]')?.textContent === 'Review rulings (0)'`
+      `document.querySelector('[data-review-count]')?.textContent === '0'`
     );
     const popupLayout = await evaluate(
       popupClient,
@@ -1235,7 +1251,7 @@ async function verifyExtensionPopupOpens() {
     );
     assert.equal(popupLayout.title, "Smooth Surfer");
     assert.equal(popupLayout.bodyOverflow, "visible", "only the popup viewport scrolls");
-    assert.equal(popupLayout.width, 320);
+    assert.equal(popupLayout.width, 360);
     assert.ok(popupLayout.height >= 300, "the popup has a usable rendered height");
     assert.equal(popupLayout.visibility, "visible");
     assert.ok(popupLayout.inputs > 10, "the popup renders its settings controls");
@@ -1285,8 +1301,8 @@ async function verifyExtensionPopupOpens() {
       `document.querySelector('[data-setting="enabled"]')?.checked && Boolean(window.countRequestedAt)`
     );
     assert.equal(
-      await evaluate(client, `document.querySelector('[data-review-link]').textContent`),
-      "Review rulings",
+      await evaluate(client, `document.querySelector('[data-review-count]').textContent`),
+      "",
       "settings are usable while the count is still pending"
     );
     assert.equal(
@@ -1305,7 +1321,7 @@ async function verifyExtensionPopupOpens() {
     );
     await waitForExpression(
       client,
-      `document.querySelector('[data-review-link]').textContent==='Review rulings (3000)'`
+      `document.querySelector('[data-review-count]').textContent==='3,000'`
     );
     assert.equal(
       await evaluate(client, `window.popupBulkReads`),
@@ -1324,7 +1340,7 @@ async function verifyExtensionPopupOpens() {
     );
     await waitForExpression(
       client,
-      `document.querySelector('[data-review-link]').textContent==='Review rulings (0)'`
+      `document.querySelector('[data-review-count]').textContent==='0'`
     );
     await evaluate(
       workerClient,
@@ -1341,7 +1357,7 @@ async function verifyExtensionPopupOpens() {
     await navigate(client, extensionOrigin + "/popup.html");
     await waitForExpression(
       client,
-      `document.querySelector('[data-review-link]')?.textContent === 'Review rulings (3)'`
+      `document.querySelector('[data-review-count]')?.textContent === '3'`
     );
     assert.equal(
       await evaluate(client, `document.querySelector('[data-review-link]').target`),
@@ -1448,7 +1464,7 @@ async function verifyExtensionPopupOpens() {
     );
     assert.match(
       await evaluate(client, `document.getElementById('keyboard-target').textContent`),
-      /^Post 1 · Ruling 1 of 1:/
+      /^Post 1 · Rule 1 of 1:/
     );
     const nativeDesktop = await client.send("Page.captureScreenshot", { format: "png" });
     await writeFile(
@@ -1489,12 +1505,12 @@ async function verifyExtensionPopupOpens() {
     await pressReviewKey("ArrowDown");
     assert.match(
       await evaluate(client, `document.getElementById('keyboard-target').textContent`),
-      /^Post 2 · Ruling 1 of 1:/
+      /^Post 2 · Rule 1 of 1:/
     );
     await pressReviewKey("ArrowUp");
     assert.match(
       await evaluate(client, `document.getElementById('keyboard-target').textContent`),
-      /^Post 1 · Ruling 1 of 1:/,
+      /^Post 1 · Rule 1 of 1:/,
       "up navigates to the previous ruling"
     );
     assert.equal(
@@ -1512,7 +1528,7 @@ async function verifyExtensionPopupOpens() {
     );
     assert.match(
       await evaluate(client, `document.getElementById('keyboard-target').textContent`),
-      /^Post 3 · Ruling 1 of 1:/,
+      /^Post 3 · Rule 1 of 1:/,
       "focus selects the keyboard target"
     );
     await pressReviewKey("ArrowUp");
@@ -1548,7 +1564,7 @@ async function verifyExtensionPopupOpens() {
         client,
         `Array.from(document.querySelector('.ruling .judgments').children).map(node=>node.textContent)`
       ),
-      ["← Bad ruling", "Good ruling →"],
+      ["← Wrong call", "Right call →"],
       "button order matches keyboard directions"
     );
     await navigate(client, extensionOrigin + "/review.html");
@@ -1613,7 +1629,7 @@ async function verifyExtensionPopupOpens() {
         client,
         `getComputedStyle(document.querySelector('.ruling[data-feedback="good"]')).backgroundColor`
       ),
-      "rgb(231, 245, 236)",
+      "rgb(229, 239, 200)",
       "Good confirmation is green"
     );
     await waitForExpression(
@@ -1640,7 +1656,7 @@ async function verifyExtensionPopupOpens() {
     );
     assert.match(
       await evaluate(client, `document.getElementById('keyboard-target').textContent`),
-      /^Post 1 · Ruling 1 of 1:/,
+      /^Post 1 · Rule 1 of 1:/,
       "undo selects the returned ruling"
     );
     // Undo can also be clicked during the visible confirmation.
@@ -1699,7 +1715,7 @@ async function verifyExtensionPopupOpens() {
         client,
         `getComputedStyle(document.querySelector('.ruling[data-feedback="bad"]')).backgroundColor`
       ),
-      "rgb(251, 234, 234)",
+      "rgb(247, 228, 220)",
       "Bad confirmation is red"
     );
     await waitForExpression(
@@ -1755,7 +1771,7 @@ async function verifyExtensionPopupOpens() {
     );
     await waitForExpression(
       client,
-      `!document.getElementById('recalibrate').disabled && document.getElementById('status').textContent.includes('Bad ruling saved')`
+      `!document.getElementById('recalibrate').disabled && document.getElementById('status').textContent.includes('Marked as a wrong call')`
     );
     assert.equal(
       await evaluate(
@@ -2014,7 +2030,7 @@ async function verifyExtensionPopupOpens() {
     await navigate(client, extensionOrigin + "/popup.html");
     await waitForExpression(
       client,
-      `document.querySelector('[data-review-link]').textContent === 'Review rulings (3)'`
+      `document.querySelector('[data-review-count]').textContent === '3'`
     );
     // Categorize one rule at a time while retaining the post for remaining rules.
     await evaluate(
@@ -2103,7 +2119,7 @@ async function verifyExtensionPopupOpens() {
     await navigate(client, extensionOrigin + "/popup.html");
     await waitForExpression(
       client,
-      `document.querySelector('[data-review-link]').textContent==='Review rulings (2)'`
+      `document.querySelector('[data-review-count]').textContent==='2'`
     );
     // Filter sets are previewed before applying; unchecked rules never import.
     await navigate(client, extensionOrigin + "/filters.html");
@@ -2393,7 +2409,7 @@ async function verifyExtensionPopupOpens() {
     );
     await waitForExpression(
       client,
-      `document.querySelector('.workspace-sidebar [aria-current="page"]')?.textContent==='Review rulings'`
+      `document.querySelector('.workspace-sidebar [aria-current="page"]')?.textContent==='Hidden posts'`
     );
     await evaluate(
       client,
@@ -2419,7 +2435,7 @@ async function verifyExtensionPopupOpens() {
     );
     assert.equal(
       await evaluate(client, `document.body.getBoundingClientRect().width`),
-      320,
+      360,
       "full-page views do not change the toolbar popup"
     );
     assert.equal(await evaluate(client, `document.querySelector('.workspace-sidebar')`), null);

@@ -1,17 +1,65 @@
-/* Fogg visual identity reference: docs/STYLE_GUIDE.md.
-   Namespaced variables only; no typography or layout changes to host pages. */
+/* Paper-and-ink identity, shared with beeper-muse: docs/STYLE_GUIDE.md.
+   Injected into every page as well as extension pages, so this file defines
+   namespaced variables only; no typography or layout changes to host pages. */
 :root {
-  --ss-paper: #ffffff;
-  --ss-gray: #f2f2f2;
-  --ss-action: #111111;
-  --ss-focus: #111111;
-  --ss-ink: #171717;
-  --ss-muted: #616161;
-  --ss-line: #c9c9c9;
-  --ss-control-line: #808080;
-  --ss-hover: #f2f2f2;
-  --ss-action-hover: #333333;
-  --ss-radius: 2px;
-  --ss-mono: "Gridnik", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  --ss-sans: "Helvetica Neue", Arial, sans-serif;
+  --ss-canvas: #fffdf4;
+  --ss-paper: #fffef9;
+  --ss-gray: #f4f4e8;
+  --ss-hover: #f1f1e7;
+  --ss-line: #d7d7c9;
+  --ss-control-line: #a7aa99;
+  --ss-ink: #20221e;
+  --ss-muted: #64655b;
+  --ss-action: #20221e;
+  --ss-action-hover: #3a3d35;
+  --ss-action-ink: #fffdf4;
+  --ss-action-soft: #f3f9d8;
+  --ss-accent: #e3ff73;
+  --ss-accent-hover: #d9f765;
+  --ss-accent-ink: #20221e;
+  --ss-focus: #355dad;
+  --ss-stamp: #e7e7dc;
+  --ss-dot: #cecfbb;
+  --ss-good: #38633c;
+  --ss-good-soft: #e5efc8;
+  --ss-bad: #9a3a2c;
+  --ss-bad-soft: #f7e4dc;
+  --ss-warn: #6f5217;
+  --ss-warn-soft: #faf0de;
+  --ss-warn-line: #bba274;
+  --ss-radius: 5px;
+  --ss-radius-lg: 8px;
+  --ss-shadow: 3px 4px 0 var(--ss-stamp);
+  --ss-shadow-sm: 2px 3px 0 #dfdfd1;
+  --ss-shadow-lg: 5px 6px 0 var(--ss-stamp);
+  --ss-sans: Arial, Helvetica, sans-serif;
+  --ss-mono: "SFMono-Regular", ui-monospace, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ss-canvas: #171814;
+    --ss-paper: #1f201b;
+    --ss-gray: #272922;
+    --ss-hover: #2c2e27;
+    --ss-line: #3a3c33;
+    --ss-control-line: #62655a;
+    --ss-ink: #eeeddf;
+    --ss-muted: #a6a798;
+    --ss-action: #eeeddf;
+    --ss-action-hover: #ffffff;
+    --ss-action-ink: #171814;
+    --ss-action-soft: #2b3016;
+    --ss-focus: #8fb0ff;
+    --ss-stamp: #0b0c09;
+    --ss-dot: #34362d;
+    --ss-good: #a9d98c;
+    --ss-good-soft: #243220;
+    --ss-bad: #ff9f8a;
+    --ss-bad-soft: #3a221c;
+    --ss-warn: #f0c878;
+    --ss-warn-soft: #322916;
+    --ss-warn-line: #6b5a33;
+    --ss-shadow-sm: 2px 3px 0 var(--ss-stamp);
+  }
 }

@@ -1,44 +1,99 @@
 # Product style
 
-The visual reference is [Fogg’s identity on Brand Archive](https://brandarchive.xyz/identity/fogg), credited to Kurppa Hosk Bunch (2013). Use its typography and crisp geometry as direction for Smooth Surfer. Our palette is black, white, and neutral gray; do not use the reference’s purple or orange. Keep layouts dense. The reference is Fogg’s identity and stationery, not Brand Archive’s surrounding interface.
+Smooth Surfer shares its visual language with
+[beeper-muse](https://github.com/nishu-builder/beeper-muse): warm paper, ink
+lines, monospace headings, offset "stamp" shadows, and one electric lime accent.
+It should feel like a well-made paper tool, not a generic settings screen.
 
-## CSS tokens
+## Principles
 
-Use `src/theme.css` across the popup, review page, and in-page controls.
+- **Every screen answers “what is happening?” first.** The popup header says what
+  Smooth Surfer did today; each section's summary says what is on (“8 of 11 on”,
+  “5 sites · 1s first”, “Needs API key”) before you open it.
+- **Never let a switch lie.** If a setting is on but cannot run (the AI filter
+  without a key or model), say so where the switch is, in the header, and in the
+  section summary, and offer both fixes: set it up, or turn it off.
+- **Explain inline, not on hover.** Every setting shows a one-line description
+  under its label. Tooltips don't work on touch and hide the information that
+  helps people decide.
+- **Show, then tell.** Prefer a live shortcut key, a numbered “how it works”
+  list, or a small illustration over a paragraph.
+- **One name per idea.** Use the terms below everywhere: popup, pages, in-feed
+  controls, docs, and the store listing.
+- **Calm, not scolding.** A light touch of warmth is fine (“Surf break”, “All
+  caught up”). No guilt, streaks, or motivational slogans.
 
-| Token | Value | Use |
+## Terms
+
+| Use | Not |
+| --- | --- |
+| AI filter | Content filter, Filter out content |
+| Rules | Criteria, filters (for AI rules) |
+| Hidden posts | Review rulings |
+| Right call / Wrong call | Good ruling / Bad ruling |
+| To review, Right calls, Wrong calls, Archived | Uncategorized, Good rulings, Bad rulings |
+| Improve rules | Recalibrate rules |
+| Loading delay | Visit delay |
+| Pinned tabs, shared across windows | Cross-window pins |
+
+## Tokens
+
+Defined in `src/theme.css`, which is also injected into every web page, so it
+holds namespaced variables only. A matching warm dark palette follows
+`prefers-color-scheme`.
+
+| Token | Light | Use |
 | --- | --- | --- |
-| `--ss-paper` | `#FFFFFF` | Main surfaces |
-| `--ss-gray` | `#F2F2F2` | Secondary surfaces |
-| `--ss-action` | `#111111` | Primary actions, links, headings |
-| `--ss-focus` | `#111111` | Focus indicators |
-| `--ss-ink` | `#171717` | Reading text |
-| `--ss-muted` | `#616161` | Supporting text |
-| `--ss-radius` | `2px` | Controls and panels |
+| `--ss-canvas` | `#FFFDF4` | Page and popup background (paper) |
+| `--ss-paper` | `#FFFEF9` | Cards, inputs |
+| `--ss-gray` | `#F4F4E8` | Quiet fills, notices, rule bubbles |
+| `--ss-ink` | `#20221E` | Text, borders on important surfaces |
+| `--ss-muted` | `#64655B` | Supporting text |
+| `--ss-line` | `#D7D7C9` | Dividers, quiet borders |
+| `--ss-accent` | `#E3FF73` | Lime: primary actions, switches that are on, the current page |
+| `--ss-focus` | `#355DAD` | Focus rings (3px, offset 3px) |
+| `--ss-stamp` | `#E7E7DC` | Offset shadow color |
+| `--ss-good` / `--ss-bad` / `--ss-warn` | olive / brick / amber | Confirmations and setup warnings, each with a `-soft` fill |
 
-These are Smooth Surfer’s monochrome interface tokens, adapted from the reference’s geometry rather than its colors.
+## Type
 
-## Typography and layout
+- Monospace (`--ss-mono`, SF Mono → Consolas → Liberation Mono) for headings,
+  section titles, buttons, labels, counts, keys, and small uppercase eyebrows
+  (10–11px, 1px letter-spacing). Large headings are bold with tight negative
+  tracking.
+- Arial/Helvetica (`--ss-sans`) for descriptions, post text, and anything longer
+  than a label. Setting names are bold sans so they scan against mono titles.
+- Keep post previews at 14–15px with about 1.45 line height.
 
-- The reference uses Gridnik by Wim Crouwel. Prefer Gridnik when available; the current CSS uses local system monospace fallbacks. No Gridnik font files are bundled.
-- Use the geometric/monospaced stack at regular weight for headings, navigation, control labels, actions, and metadata. Avoid bold sans-serif setting labels next to monospace headings. Use a neutral sans serif for longer post previews and help text.
-- Keep white surfaces, thin dividers, crisp corners, and consistent alignment. Avoid pill-shaped panels and heavy shadows.
-- Default to compact spacing: 4–8px between related controls, 10–12px inside post cards, and 8px between cards. Headers should not push content down.
-- Keep post previews at 14–15px with 1.4–1.45 line height. Reduce padding before shrinking reading text. Controls should remain at least 28px high.
-- Use black for primary actions and white for surfaces. Supporting fills, borders, and hover states stay neutral gray.
-- Keep decoration out of reading and decision areas. Do not copy Fogg’s logo or artwork into the extension.
-- Preserve visible focus indicators, legible contrast, narrow-screen wrapping, and existing feed geometry.
-- Theme variables are namespaced. Content styles must not restyle the host page.
+## Shapes
 
-## Copy
+- Important surfaces (section lists, post cards, dialogs, the countdown) get a
+  1px ink border and a hard offset shadow: `3px 4px 0 var(--ss-stamp)`, or
+  `5px 6px 0` for the focused or largest element. No blurred shadows.
+- Quiet surfaces (notices, inputs, secondary rows) use `--ss-line` borders and
+  no shadow. Radius is 5px for controls and 6–8px for cards.
+- Primary buttons are lime with an ink border and a small stamp shadow;
+  secondary buttons are paper with an ink border; tertiary actions are
+  underlined text.
+- Switches are lime with an ink knob when on, and a pale track when off.
+- Disclosures use `+` / `−` markers.
+- Dot-grid backgrounds (`radial-gradient` on `--ss-dot`) mark empty or
+  in-between moments: the welcome hero, the countdown, empty inboxes.
 
-- Keep copy terse and factual. Use sentence case and concrete actions: “Good ruling,” “Bad ruling,” “Recalibrate rules,” “Filter added.”
-- Remove slogans, motivational language, and introductions that repeat the controls.
-- Keep details that affect a choice: data sharing, rule scope, persistence, and error recovery.
-- Use the same terms across the popup, review page, feed controls, and listing.
+## Layout
 
-Review cards put the native or saved post first, followed by rule judgments. Use a narrow reading column and clear dividers between posts. At 960px and wider, place the post on the left and its rulings on the right. Mark the selected ruling with a black border and directional judgment buttons; a sticky keyboard bar names the exact post and ruling affected by arrow keys. Avatars, media, and quoted-post frames can follow familiar X shapes; keep the surrounding controls monochrome and compact.
-
-Popup setting rows use a consistent 28px target with 16px checkboxes. Keep page links on one compact navigation row. Active sites use a small text badge; retain the same thin border and alignment as other sections.
-
-Full pages share a 180px left sidebar: Review rulings, Settings, Stats, and Filter sets. The current page uses a black fill and an accessible current-page label. On windows narrower than 700px, navigation becomes a top row. Post and ruling columns respond to the available content width after the sidebar. Settings reuse popup controls in a wider grid; Stats separates hiding-action counts from consumption facts.
+- The popup is 360px wide. Order: header (status, setup banner, this-site card,
+  Hidden posts + Stats + Settings), **Sites** (current site first and open),
+  then **Tools**. Sections in a group stack into one bordered list; only one
+  opens at a time.
+- Full pages share a 220px sidebar (Hidden posts, Filter sets, Stats, Settings);
+  the current page is a lime chip. Below 760px it becomes a top row.
+- Settings reuse the popup's controls in a multi-column layout with every
+  section open. Stats separates hiding counts from consumption facts.
+- Hidden posts puts the post first and its matched rules beside it once the
+  content column is at least 760px wide, stacked below it otherwise. The
+  selected rule has an ink border; a sticky bar names exactly which post and
+  rule the arrow keys will judge.
+- In-page UI (countdown, surf break, speed toast, Less like this) lives in a
+  shadow root or namespaced classes and must never restyle the host page.
+- Preserve visible focus, contrast, reduced motion, and narrow-screen wrapping.

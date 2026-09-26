@@ -10,256 +10,364 @@
 </head>
   <body>
     <main class="popup">
-      <header>
-        <div>
-          <h1>Smooth Surfer</h1>
-          <p data-status>Ready</p>
+      <header class="popup-header" data-state="on">
+        <div class="brand-row">
+          <img class="brand-mark" src="icons/icon48.png" alt="" width="32" height="32">
+          <div class="brand-text">
+            <h1>Smooth Surfer</h1>
+            <p class="status-line"><span class="status-dot" aria-hidden="true"></span><span data-status>Ready</span></p>
+          </div>
+          <label class="switch-row compact master" data-description="Turns every Smooth Surfer effect on or off.">
+            <span class="master-label">On</span>
+            <input type="checkbox" role="switch" data-setting="enabled">
+          </label>
         </div>
-        <label class="switch-row compact" data-description="Turns every Smooth Surfer effect on or off.">
-          <span>Enabled</span>
-          <input type="checkbox" data-setting="enabled">
-        </label>
+
+        <div class="attention" data-attention hidden role="status">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4M12 17h.01"/></svg>
+          <div>
+            <p data-attention-text>AI filter is on but isn’t running yet.</p>
+            <div class="attention-actions">
+              <button type="button" class="small primary" data-attention-setup>Add API key</button>
+              <button type="button" class="small ghost" data-attention-off>Turn off AI filter</button>
+            </div>
+          </div>
+        </div>
+        <div class="model-notice" data-model-notice hidden role="status"><p data-model-notice-text></p><a href="src/local-model-setup.html" target="_blank" rel="noopener" data-model-notice-action>Set up Gemini Nano</a></div>
+
+        <div class="here-card" data-here hidden>
+          <div class="here-text">
+            <span class="eyebrow">This site</span>
+            <strong data-here-host></strong>
+            <span class="here-meta" data-here-meta></span>
+          </div>
+          <button type="button" class="small" data-add-current-domain hidden></button>
+        </div>
+
         <nav class="popup-nav" aria-label="Pages">
-          <a class="review-link" href="review.html" target="_blank" rel="noopener" data-review-link>Review rulings</a>
-          <a class="review-link" href="popup.html?view=settings" target="_blank" rel="noopener">Settings</a>
-          <a class="review-link" href="popup.html?view=stats" target="_blank" rel="noopener">Stats</a>
+          <a class="nav-primary" href="review.html" target="_blank" rel="noopener" data-review-link>
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13 6 5h12l3 8v6H3z"/><path d="M3 13h5l1 3h6l1-3h5"/></svg>
+            <span>Review hidden posts</span>
+            <span class="count" data-review-count data-empty></span>
+          </a>
+          <a class="nav-icon" href="popup.html?view=stats" target="_blank" rel="noopener" title="Stats" aria-label="Stats">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11M12 20V4M19 20v-6"/></svg>
+          </a>
+          <a class="nav-icon" href="popup.html?view=settings" target="_blank" rel="noopener" title="All settings in a tab" aria-label="All settings">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>
+          </a>
         </nav>
-            <div class="model-notice" data-model-notice hidden role="status"><p data-model-notice-text></p><a href="src/local-model-setup.html" target="_blank" rel="noopener" data-model-notice-action>Set up Gemini Nano</a></div>
-</header>
+        <p class="list-label">Sites</p>
+      </header>
 
       <section data-site-section="youtube">
-        <h2>YouTube</h2>
-        <label class="switch-row" data-description="Desaturates YouTube thumbnails so they draw less attention.">
-          <span>Gray thumbnails</span>
-          <input type="checkbox" data-setting="youtubeGrayscaleThumbnails">
-        </label>
-        <label class="switch-row" data-description="Removes YouTube watch-page recommendations while leaving the home feed visible.">
-          <span>Hide recommendations</span>
-          <input type="checkbox" data-setting="youtubeHideRecommendations">
-        </label>
-        <label class="switch-row" data-description="Removes Shorts links and Shorts shelves from YouTube.">
-          <span>Hide Shorts</span>
-          <input type="checkbox" data-setting="youtubeHideShorts">
-        </label>
-        <label class="switch-row" data-description="Redirects away from YouTube Shorts pages if one opens.">
-          <span>Block Shorts pages</span>
-          <input type="checkbox" data-setting="youtubeBlockShorts">
-        </label>
-        <label class="switch-row" data-description="Removes YouTube Playables, games, and gaming shelves.">
-          <span>Hide games</span>
-          <input type="checkbox" data-setting="youtubeHideGames">
-        </label>
-        <label class="switch-row" data-description="Hides live chat panels on YouTube streams and premieres.">
-          <span>Hide live chat</span>
-          <input type="checkbox" data-setting="youtubeHideLiveChat">
-        </label>
-        <label class="switch-row" data-description="Turns YouTube autoplay off when the autoplay toggle is on.">
-          <span>Disable autoplay</span>
-          <input type="checkbox" data-setting="youtubeDisableAutoplay">
-        </label>
-        <label class="switch-row" data-description="Hides end-of-video cards and overlay prompts.">
-          <span>Hide end screens</span>
-          <input type="checkbox" data-setting="youtubeHideEndScreens">
-        </label>
-        <label class="switch-row" data-description="Hides views, likes, subscriber counts, and similar engagement counters.">
-          <span>Hide engagement stats</span>
-          <input type="checkbox" data-setting="youtubeHideEngagementStats">
-        </label>
-        <label class="switch-row" data-description="Hides the comment section under YouTube videos.">
-          <span>Hide comments</span>
-          <input type="checkbox" data-setting="youtubeHideComments">
-        </label>
-        <label class="switch-row" data-description="Shows a countdown before visiting this site. Uses the same domain list and duration as Visit delay below.">
-          <span>Loading delay</span>
-          <input type="checkbox" data-visit-delay-toggle="youtube.com">
-        </label>
+        <details name="ss-section" data-section>
+          <summary><span class="tile" data-site="youtube" aria-hidden="true">YT</span><h2>YouTube</h2><span class="section-state" data-section-state></span></summary>
+          <div class="section-body">
+            <p class="group-label">Browsing</p>
+            <label class="switch-row" data-description="Shows thumbnails in black and white so they pull less.">
+              <span>Gray thumbnails</span>
+              <input type="checkbox" role="switch" data-setting="youtubeGrayscaleThumbnails">
+            </label>
+            <label class="switch-row" data-description="Removes the Up next sidebar on watch pages. Home stays.">
+              <span>Hide recommendations</span>
+              <input type="checkbox" role="switch" data-setting="youtubeHideRecommendations">
+            </label>
+            <label class="switch-row" data-description="Removes Shorts shelves and links.">
+              <span>Hide Shorts</span>
+              <input type="checkbox" role="switch" data-setting="youtubeHideShorts">
+            </label>
+            <label class="switch-row" data-description="Opening a Shorts link takes you to the home page instead.">
+              <span>Block Shorts pages</span>
+              <input type="checkbox" role="switch" data-setting="youtubeBlockShorts">
+            </label>
+            <label class="switch-row" data-description="Removes Playables and gaming shelves.">
+              <span>Hide games</span>
+              <input type="checkbox" role="switch" data-setting="youtubeHideGames">
+            </label>
+            <p class="group-label">Watching</p>
+            <label class="switch-row" data-description="Stops the next video from starting on its own.">
+              <span>Disable autoplay</span>
+              <input type="checkbox" role="switch" data-setting="youtubeDisableAutoplay">
+            </label>
+            <label class="switch-row" data-description="Removes end-of-video cards and overlays.">
+              <span>Hide end screens</span>
+              <input type="checkbox" role="switch" data-setting="youtubeHideEndScreens">
+            </label>
+            <label class="switch-row" data-description="Hides chat on streams and premieres.">
+              <span>Hide live chat</span>
+              <input type="checkbox" role="switch" data-setting="youtubeHideLiveChat">
+            </label>
+            <label class="switch-row" data-description="Hides views, likes, and subscriber counts.">
+              <span>Hide engagement stats</span>
+              <input type="checkbox" role="switch" data-setting="youtubeHideEngagementStats">
+            </label>
+            <label class="switch-row" data-description="Hides the comment section under videos.">
+              <span>Hide comments</span>
+              <input type="checkbox" role="switch" data-setting="youtubeHideComments">
+            </label>
+            <p class="group-label">Habit</p>
+            <label class="switch-row" data-description="A short countdown before YouTube opens.">
+              <span>Loading delay</span>
+              <input type="checkbox" role="switch" data-visit-delay-toggle="youtube.com">
+            </label>
+          </div>
+        </details>
       </section>
 
       <section data-site-section="twitter">
-        <h2>X / Twitter</h2>
-        <label class="switch-row" data-description="Hides promoted posts in X/Twitter feeds.">
-          <span>Remove feed ads</span>
-          <input type="checkbox" data-setting="twitterHideAds">
-        </label>
-        <label class="switch-row" data-description="Uses the selected AI model. Cloud mode needs an Anthropic key; on-device mode needs a downloaded model.">
-          <span>Filter out content</span>
-          <input type="checkbox" data-setting="twitterFilterContent">
-        </label>
-        <label class="switch-row" data-description="Filters this format instantly. No API key needed.">
-          <span>Hide reposts</span><input type="checkbox" data-setting="twitterHideReposts">
-        </label>
-        <label class="switch-row" data-description="Filters this format instantly. No API key needed.">
-          <span>Hide quote posts</span><input type="checkbox" data-setting="twitterHideQuotes">
-        </label>
-        <label class="switch-row" data-description="Filters this format instantly. No API key needed.">
-          <span>Hide video posts</span><input type="checkbox" data-setting="twitterHideVideos">
-        </label>
-        <label class="switch-row" data-description="Hides trending-topic modules on X/Twitter.">
-          <span>Hide trends</span>
-          <input type="checkbox" data-setting="twitterHideTrends">
-        </label>
-        <label class="switch-row" data-description="Starts the X/Twitter home timeline on Following once per page load, while still letting you switch to For You. Needs X in English to find the tab.">
-          <span>Prefer Following</span>
-          <input type="checkbox" data-setting="twitterEnforceFollowing">
-        </label>
-        <label class="switch-row" data-description="Shows a countdown before visiting this site. Uses the same domain list and duration as Visit delay below.">
-          <span>Loading delay</span>
-          <input type="checkbox" data-visit-delay-toggle="x.com">
-        </label>
+        <details name="ss-section" data-section>
+          <summary><span class="tile" data-site="twitter" aria-hidden="true">X</span><h2>X / Twitter</h2><span class="section-state" data-section-state></span></summary>
+          <div class="section-body">
+            <p class="group-label">Feed</p>
+            <label class="switch-row" data-description="Hides promoted posts.">
+              <span>Remove feed ads</span>
+              <input type="checkbox" role="switch" data-setting="twitterHideAds">
+            </label>
+            <label class="switch-row" data-ai-row data-description="Hides posts that match your AI filter rules.">
+              <span>AI filter</span>
+              <input type="checkbox" role="switch" data-setting="twitterFilterContent">
+            </label>
+            <label class="switch-row" data-description="Hides reposts instantly. No AI needed.">
+              <span>Hide reposts</span><input type="checkbox" role="switch" data-setting="twitterHideReposts">
+            </label>
+            <label class="switch-row" data-description="Hides quote posts instantly. No AI needed.">
+              <span>Hide quote posts</span><input type="checkbox" role="switch" data-setting="twitterHideQuotes">
+            </label>
+            <label class="switch-row" data-description="Hides posts with video instantly. No AI needed.">
+              <span>Hide video posts</span><input type="checkbox" role="switch" data-setting="twitterHideVideos">
+            </label>
+            <label class="switch-row" data-description="Removes trending-topic modules.">
+              <span>Hide trends</span>
+              <input type="checkbox" role="switch" data-setting="twitterHideTrends">
+            </label>
+            <label class="switch-row" data-description="Opens Home on Following. You can still switch to For You. Needs X in English.">
+              <span>Prefer Following</span>
+              <input type="checkbox" role="switch" data-setting="twitterEnforceFollowing">
+            </label>
+            <p class="group-label">Habit</p>
+            <label class="switch-row" data-description="A short countdown before X opens.">
+              <span>Loading delay</span>
+              <input type="checkbox" role="switch" data-visit-delay-toggle="x.com">
+            </label>
+          </div>
+        </details>
       </section>
 
       <section data-site-section="reddit">
-        <h2>Reddit</h2>
-        <label class="switch-row" data-description="Hides promoted posts in Reddit feeds.">
-          <span>Remove feed ads</span>
-          <input type="checkbox" data-setting="redditHideAds">
-        </label>
-        <label class="switch-row" data-description="Hides Reddit recommendation units such as suggested communities and because-you-visited posts.">
-          <span>Hide recommendations</span>
-          <input type="checkbox" data-setting="redditHideRecommendations">
-        </label>
-        <label class="switch-row" data-description="Uses the selected AI model. Cloud mode needs an Anthropic key; on-device mode needs a downloaded model.">
-          <span>Filter out content</span>
-          <input type="checkbox" data-setting="redditFilterContent">
-        </label>
-        <label class="switch-row" data-description="Hides comment threads on Reddit post pages.">
-          <span>Hide comments</span>
-          <input type="checkbox" data-setting="redditHideComments">
-        </label>
-        <label class="switch-row" data-description="Shows a countdown before visiting this site. Uses the same domain list and duration as Visit delay below.">
-          <span>Loading delay</span>
-          <input type="checkbox" data-visit-delay-toggle="reddit.com">
-        </label>
+        <details name="ss-section" data-section>
+          <summary><span class="tile" data-site="reddit" aria-hidden="true">R</span><h2>Reddit</h2><span class="section-state" data-section-state></span></summary>
+          <div class="section-body">
+            <p class="group-label">Feed</p>
+            <label class="switch-row" data-description="Hides promoted posts.">
+              <span>Remove feed ads</span>
+              <input type="checkbox" role="switch" data-setting="redditHideAds">
+            </label>
+            <label class="switch-row" data-description="Removes suggested communities and “Because you visited” posts.">
+              <span>Hide recommendations</span>
+              <input type="checkbox" role="switch" data-setting="redditHideRecommendations">
+            </label>
+            <label class="switch-row" data-ai-row data-description="Hides posts that match your AI filter rules.">
+              <span>AI filter</span>
+              <input type="checkbox" role="switch" data-setting="redditFilterContent">
+            </label>
+            <label class="switch-row" data-description="Hides comment threads on post pages.">
+              <span>Hide comments</span>
+              <input type="checkbox" role="switch" data-setting="redditHideComments">
+            </label>
+            <p class="group-label">Habit</p>
+            <label class="switch-row" data-description="A short countdown before Reddit opens.">
+              <span>Loading delay</span>
+              <input type="checkbox" role="switch" data-visit-delay-toggle="reddit.com">
+            </label>
+          </div>
+        </details>
       </section>
 
       <section data-site-section="substack">
-        <h2>Substack</h2>
-        <label class="switch-row" data-description="Hides Substack recommendation modules and network-growth prompts.">
-          <span>Hide recommendations</span>
-          <input type="checkbox" data-setting="substackHideRecommendations">
-        </label>
-        <label class="switch-row" data-description="Uses the selected AI model. Cloud mode needs an Anthropic key; on-device mode needs a downloaded model.">
-          <span>Filter out content</span>
-          <input type="checkbox" data-setting="substackFilterContent">
-        </label>
-        <label class="switch-row" data-description="Shows a countdown before visiting this site. Uses the same domain list and duration as Visit delay below.">
-          <span>Loading delay</span>
-          <input type="checkbox" data-visit-delay-toggle="substack.com">
-        </label>
+        <details name="ss-section" data-section>
+          <summary><span class="tile" data-site="substack" aria-hidden="true">S</span><h2>Substack</h2><span class="section-state" data-section-state></span></summary>
+          <div class="section-body">
+            <p class="group-label">Feed</p>
+            <label class="switch-row" data-description="Removes recommendation modules and growth prompts.">
+              <span>Hide recommendations</span>
+              <input type="checkbox" role="switch" data-setting="substackHideRecommendations">
+            </label>
+            <label class="switch-row" data-ai-row data-description="Hides posts that match your AI filter rules.">
+              <span>AI filter</span>
+              <input type="checkbox" role="switch" data-setting="substackFilterContent">
+            </label>
+            <p class="group-label">Habit</p>
+            <label class="switch-row" data-description="A short countdown before Substack opens.">
+              <span>Loading delay</span>
+              <input type="checkbox" role="switch" data-visit-delay-toggle="substack.com">
+            </label>
+          </div>
+        </details>
       </section>
 
       <section data-site-section="hacker-news">
-        <h2>Hacker News</h2>
-        <label class="switch-row" data-description="Uses the selected AI model. Set it up below to filter stories and comments.">
-          <span>Filter stories/comments</span>
-          <input type="checkbox" data-setting="hackerNewsFilterContent">
-        </label>
-        <label class="switch-row" data-description="Hides Hacker News story scores.">
-          <span>Hide scores</span>
-          <input type="checkbox" data-setting="hackerNewsHideScores">
-        </label>
-        <label class="switch-row" data-description="Shows a countdown before visiting this site. Uses the same domain list and duration as Visit delay below.">
-          <span>Loading delay</span>
-          <input type="checkbox" data-visit-delay-toggle="news.ycombinator.com">
-        </label>
+        <details name="ss-section" data-section>
+          <summary><span class="tile" data-site="hacker-news" aria-hidden="true">HN</span><h2>Hacker News</h2><span class="section-state" data-section-state></span></summary>
+          <div class="section-body">
+            <p class="group-label">Feed</p>
+            <label class="switch-row" data-ai-row data-description="Hides stories and comments that match your AI filter rules.">
+              <span>AI filter</span>
+              <input type="checkbox" role="switch" data-setting="hackerNewsFilterContent">
+            </label>
+            <label class="switch-row" data-description="Hides story points.">
+              <span>Hide scores</span>
+              <input type="checkbox" role="switch" data-setting="hackerNewsHideScores">
+            </label>
+            <p class="group-label">Habit</p>
+            <label class="switch-row" data-description="A short countdown before Hacker News opens.">
+              <span>Loading delay</span>
+              <input type="checkbox" role="switch" data-visit-delay-toggle="news.ycombinator.com">
+            </label>
+          </div>
+        </details>
       </section>
 
-      <section data-filter-panel>
-        <h2>Content filter</h2>
-        <label class="field-row"><span>AI model</span><select data-setting="aiProvider"><option value="anthropic">Claude Haiku · cloud</option><option value="local">Gemini Nano · on-device</option></select></label>
-        <div data-local-model-controls hidden><p class="notice">Experimental. Text stays on this device. Image analysis is unavailable. No cloud fallback.</p><button type="button" data-local-model-setup>Set up on-device AI</button><button type="button" data-local-model-refresh>Check status</button></div>
-        <label class="switch-row" data-description="Optional. Sends up to two supported image URLs per post to Claude alongside text. Adds API cost and latency. Requires an Anthropic key.">
-          <span>Analyze images</span><input type="checkbox" data-setting="imageAnalysisEnabled">
-        </label>
-        <label class="field-row" data-api-key-row>
-          <span>Anthropic key</span>
-          <input type="password" data-secret="anthropicApiKey" placeholder="sk-ant-...">
-        </label>
-        <p class="notice" data-filter-key-status></p>
-        <form class="phrase-form" data-phrase-form>
-          <input type="text" data-phrase-input placeholder="Add filter criterion">
-          <button type="submit">Add</button>
-        </form>
-        <div class="pills" data-phrase-list aria-live="polite"></div>
-      </section>
-
-      <section>
-        <h2>Everywhere</h2>
-        <label class="switch-row" data-description="Pauses after about sixteen screenfuls outside work sites until you choose Keep going.">
-          <span>Pause deep scrolling</span>
-          <input type="checkbox" data-setting="pauseDeepScrolling">
-        </label>
-        <label class="switch-row" data-description="Grayscales media in feed-like surfaces outside work sites.">
-          <span>Gray distracting media</span>
-          <input type="checkbox" data-setting="softenDistractingElements">
-        </label>
-        <label class="switch-row" data-description="Hold the speed modifier with Right Arrow or ] to speed up, Left Arrow or [ to slow down, and \ to reset. Without a modifier, use the bracket and backslash keys.">
-          <span>Video speed keys</span>
-          <input type="checkbox" data-setting="videoSpeedHotkeys">
-        </label>
-        <label class="field-row">
-          <span>Speed key modifier</span>
-          <select data-setting="videoSpeedModifier">
-            <option value="alt">Alt / Option</option>
-            <option value="ctrl">Ctrl</option>
-            <option value="shift">Shift</option>
-            <option value="meta">Cmd / Meta</option>
-            <option value="none">No modifier</option>
-          </select>
-        </label>
-        <label class="switch-row" data-description="Press Cmd+Shift+S (Ctrl+Shift+S on Windows/Linux) twice quickly to open this popup.">
-          <span>Settings shortcut</span>
-          <input type="checkbox" data-setting="settingsHotkeyEnabled">
-        </label>
-      </section>
-
-      <section>
-        <h2>Focus schedule</h2>
-        <label class="switch-row" data-description="Runs Smooth Surfer effects only between the start and end times. Overnight windows like 22:00 to 06:00 work too.">
-          <span>Only during focus hours</span>
-          <input type="checkbox" data-setting="focusScheduleEnabled">
-        </label>
-        <div class="time-row">
-          <label class="field-row">
-            <span>From</span>
-            <input type="time" data-setting="focusScheduleStart">
-          </label>
-          <label class="field-row">
-            <span>To</span>
-            <input type="time" data-setting="focusScheduleEnd">
-          </label>
-        </div>
-      </section>
-
-      <section data-pinned-tabs-panel>
-        <h2>Pinned tabs</h2>
-        <label class="switch-row" data-description="Keeps pinned web pages available in every regular Chrome window.">
-          <span>Share pins across windows</span>
-          <input type="checkbox" data-setting="crossWindowPinsEnabled">
-        </label>
-        <p>Pin or unpin with Cmd+Shift+P on Mac or Alt+P on Windows/Linux. You can change this in Chrome’s extension keyboard shortcuts. With sharing on, pinning or unpinning from Chrome’s tab menu is undone.</p>
-        <p>With sharing on, pins keep their saved URL in every regular Chrome window. Navigating away moves your page into a regular tab and restores the saved pin. Drag pins to set the order for new windows.</p>
-        <p>Closing a pin or a window keeps your pins; a closed pin returns at its saved URL. Unpinning removes a pin everywhere without closing its copies. Private windows are excluded.</p>
+      <p class="list-label">Tools</p>
+      <section data-filter-panel id="ai-filter">
+        <details name="ss-section" data-section>
+          <summary><span class="tile feature" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="m19 15 .7 1.8 1.8.7-1.8.7L19 20l-.7-1.8-1.8-.7 1.8-.7z"/></svg></span><h2>AI filter</h2><span class="section-state" data-section-state></span></summary>
+          <div class="section-body">
+            <p class="section-intro">Hides posts that match rules you write, on X, Reddit, Substack, and Hacker News. Turn it on per site above.</p>
+            <ol class="steps">
+              <li>
+                <label class="field-row"><span>Model</span><select data-setting="aiProvider"><option value="anthropic">Claude Haiku · cloud</option><option value="local">Gemini Nano · on this device</option></select></label>
+                <div class="local-model" data-local-model-controls hidden><p class="notice">Experimental. Text stays on this device. Image analysis is unavailable, and it never falls back to the cloud.</p><div class="button-row"><button type="button" class="small primary" data-local-model-setup>Set up on-device AI</button><button type="button" class="small" data-local-model-refresh>Check status</button></div></div>
+                <div class="field-row" data-api-key-row>
+                  <label for="anthropic-key">Anthropic API key</label>
+                  <input id="anthropic-key" type="password" data-secret="anthropicApiKey" placeholder="sk-ant-…" autocomplete="off" spellcheck="false">
+                  <span class="field-help">Stored only on this device. <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">Get a key</a></span>
+                </div>
+                <p class="notice" data-filter-key-status></p>
+              </li>
+              <li>
+                <p class="group-label">Your rules</p>
+                <form class="phrase-form" data-phrase-form>
+                  <input type="text" data-phrase-input placeholder="Hide posts that…" aria-label="New filter rule">
+                  <button type="submit" class="primary">Add</button>
+                </form>
+                <div class="pills" data-phrase-list aria-live="polite"></div>
+              </li>
+            </ol>
+            <p class="group-label">Options</p>
+            <label class="switch-row" data-description="Also sends up to two post images to Claude. More accurate on memes; slower and costs more.">
+              <span>Analyze images</span><input type="checkbox" role="switch" data-setting="imageAnalysisEnabled">
+            </label>
+            <label class="switch-row" data-description="Labels posts you see with their mood for a daily Consumption Facts label in Stats.">
+              <span>Track consumption</span>
+              <input type="checkbox" role="switch" data-setting="consumptionFactsEnabled">
+            </label>
+          </div>
+        </details>
       </section>
 
       <section data-visit-delay-panel>
-        <h2>Visit delay</h2>
-        <p>Listed sites open behind a countdown. Each finished wait today makes the next one 1.5× longer; leaving early adds nothing. Counts reset at 03:00. Twitter and X are covered by either twitter.com or x.com.</p>
-        <label class="field-row">
-          <span>First wait (seconds)</span>
-          <input type="number" min="1" max="300" step="1" inputmode="numeric" data-setting="visitDelaySeconds">
-        </label>
-        <form class="phrase-form" data-domain-form>
-          <input type="text" data-domain-input placeholder="example.com" autocomplete="off" spellcheck="false">
-          <button type="submit">Add</button>
-        </form>
-        <button type="button" data-add-current-domain hidden></button>
-        <div class="pills" data-domain-list aria-live="polite"></div>
-        <div class="stats" data-visit-today aria-live="polite"></div>
+        <details name="ss-section" data-section>
+          <summary><span class="tile feature" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24"><path d="M6 3h12M6 21h12M7 3c0 5 5 6 5 9s-5 4-5 9M17 3c0 5-5 6-5 9s5 4 5 9"/></svg></span><h2>Loading delays</h2><span class="section-state" data-section-state></span></summary>
+          <div class="section-body">
+            <p class="section-intro">A short countdown before habit sites open. Each wait you finish today makes the next one 1.5× longer; leaving early doesn’t count. Resets daily at 3:00.</p>
+            <label class="field-row inline">
+              <span>First wait</span>
+              <span class="unit-input"><input type="number" min="1" max="300" step="1" inputmode="numeric" data-setting="visitDelaySeconds"><span>sec</span></span>
+            </label>
+            <div class="domain-list" data-domain-list aria-live="polite"></div>
+            <form class="phrase-form" data-domain-form>
+              <input type="text" data-domain-input placeholder="Add a site, like example.com" aria-label="Site to delay" autocomplete="off" spellcheck="false">
+              <button type="submit">Add</button>
+            </form>
+          </div>
+        </details>
+      </section>
+
+      <section data-pinned-tabs-panel>
+        <details name="ss-section" data-section>
+          <summary><span class="tile feature" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24"><path d="M9 3h6l-1 6 3 3H7l3-3z"/><path d="M12 12v9"/></svg></span><h2>Pinned tabs</h2><span class="section-state" data-section-state></span></summary>
+          <div class="section-body">
+            <label class="switch-row" data-description="Your pinned pages appear in every Chrome window, including new ones.">
+              <span>Share pins across windows</span>
+              <input type="checkbox" role="switch" data-setting="crossWindowPinsEnabled">
+            </label>
+            <div class="shortcut-card">
+              <span>Pin or unpin the current tab</span>
+              <kbd data-pin-shortcut>⌘⇧P</kbd>
+            </div>
+            <ul class="how-list">
+              <li>Pins always open at the page you pinned.</li>
+              <li>Navigate away and that page becomes a regular tab; the pin stays put.</li>
+              <li>Close a pin and it comes back. Unpin with the shortcut to remove it everywhere.</li>
+            </ul>
+            <p class="fine">While sharing is on, use the shortcut: Chrome’s own Pin menu is undone. Private windows are left alone. <button type="button" class="link" data-change-shortcuts>Change shortcut</button></p>
+          </div>
+        </details>
+      </section>
+
+      <section data-everywhere-panel>
+        <details name="ss-section" data-section>
+          <summary><span class="tile feature" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z"/></svg></span><h2>Everywhere</h2><span class="section-state" data-section-state></span></summary>
+          <div class="section-body">
+            <p class="section-intro">Works on every site you visit.</p>
+            <label class="switch-row" data-description="After about 16 screens of a feed, pauses until you choose Keep going. Skips work tools like Docs, GitHub, and Slack.">
+              <span>Pause deep scrolling</span>
+              <input type="checkbox" role="switch" data-setting="pauseDeepScrolling">
+            </label>
+            <label class="switch-row" data-description="Mutes the color of images and video in feeds. Skips work tools.">
+              <span>Gray distracting media</span>
+              <input type="checkbox" role="switch" data-setting="softenDistractingElements">
+            </label>
+            <label class="switch-row" data-description="Speed up, slow down, or reset any video from the keyboard.">
+              <span>Video speed keys</span>
+              <input type="checkbox" role="switch" data-setting="videoSpeedHotkeys">
+            </label>
+            <div class="speed-keys" data-speed-keys>
+              <label class="field-row inline">
+                <span>Hold</span>
+                <select data-setting="videoSpeedModifier" aria-label="Speed key modifier">
+                  <option value="alt">Alt / Option</option>
+                  <option value="ctrl">Ctrl</option>
+                  <option value="shift">Shift</option>
+                  <option value="meta">Cmd / Meta</option>
+                  <option value="none">No modifier</option>
+                </select>
+              </label>
+              <p class="key-legend" data-speed-legend></p>
+            </div>
+            <label class="switch-row" data-settings-shortcut-row data-description="Press Cmd+Shift+S twice quickly to open this menu.">
+              <span>Settings shortcut</span>
+              <input type="checkbox" role="switch" data-setting="settingsHotkeyEnabled">
+            </label>
+          </div>
+        </details>
+      </section>
+
+      <section data-focus-panel>
+        <details name="ss-section" data-section>
+          <summary><span class="tile feature" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><h2>Focus hours</h2><span class="section-state" data-section-state></span></summary>
+          <div class="section-body">
+            <label class="switch-row" data-description="Smooth Surfer runs only between these times. Overnight ranges like 22:00–06:00 work too.">
+              <span>Only during focus hours</span>
+              <input type="checkbox" role="switch" data-setting="focusScheduleEnabled">
+            </label>
+            <div class="time-row" data-focus-times>
+              <label class="field-row">
+                <span>From</span>
+                <input type="time" data-setting="focusScheduleStart">
+              </label>
+              <label class="field-row">
+                <span>To</span>
+                <input type="time" data-setting="focusScheduleEnd">
+              </label>
+            </div>
+          </div>
+        </details>
       </section>
 
       <section data-visit-delay-stats hidden>
-        <h2>Visit delay</h2>
+        <h2>Loading delays</h2>
         <p class="notice">Listed sites, today · past 7 days. Visits are finished waits; left early counts waits abandoned before the countdown ended.</p>
         <div data-visit-delay-table></div>
         <h3 class="chart-heading">Visits by hour, past 7 days</h3>
@@ -272,32 +380,32 @@
 
       <section data-consumption-panel>
         <h2>Consumption facts</h2>
-        <label class="switch-row" data-description="Labels posts you actually see with their emotional ingredients, using the selected AI model.">
-          <span>Track consumption</span>
-          <input type="checkbox" data-setting="consumptionFactsEnabled">
-        </label>
         <div class="facts" data-facts-label aria-live="polite"></div>
-        <button type="button" data-clear-facts>Clear consumption facts</button>
+        <button type="button" class="small ghost" data-clear-facts>Clear consumption facts</button>
       </section>
 
       <section data-stats-panel>
         <h2>Stats</h2>
         <div class="stats" data-stats-list aria-live="polite"></div>
-        <button type="button" data-clear-stats>Clear stats</button>
+        <button type="button" class="small ghost" data-clear-stats>Clear stats</button>
       </section>
 
-      <section>
-        <h2>Share ruleset</h2>
-        <p>Save, export, or import a set of filtering rules.</p>
-        <a class="review-link" href="filters.html" target="_blank" rel="noopener" data-workspace-link>Open filter sets</a>
-        <details>
-          <summary>All settings</summary>
-          <p class="notice">Export or import all settings. Your API key is never included.</p>
-          <div class="button-row">
-            <button type="button" data-export-settings>Export settings</button>
-            <button type="button" data-import-settings>Import settings</button>
+      <section data-backup-panel>
+        <details name="ss-section" data-section>
+          <summary><span class="tile feature" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24"><path d="M4 8h16v12H4zM3 4h18v4H3zM10 12h4"/></svg></span><h2>Backup &amp; sharing</h2><span class="section-state" data-section-state></span></summary>
+          <div class="section-body">
+            <a class="row-link" href="filters.html" target="_blank" rel="noopener" data-workspace-link>
+              <span><strong>Filter sets</strong><small>Save, share, or import sets of AI filter rules.</small></span>
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+            </a>
+            <p class="group-label">All settings</p>
+            <div class="button-row">
+              <button type="button" class="small" data-export-settings>Export</button>
+              <button type="button" class="small" data-import-settings>Import</button>
+            </div>
+            <p class="fine">A JSON file of every setting. Your API key is never included.</p>
+            <input type="file" accept="application/json,.json" data-import-file hidden>
           </div>
-          <input type="file" accept="application/json,.json" data-import-file hidden>
         </details>
       </section>
     </main>

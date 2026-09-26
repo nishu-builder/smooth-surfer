@@ -65,7 +65,7 @@
         ? "Saving… Wait before refreshing or closing this page."
         : "Saved on this device. Safe to refresh or close this tab." +
           (drafts.size
-            ? " Draft explanations are kept; choose Good or Bad to use them in recalibration."
+            ? " Draft explanations are kept; mark the call right or wrong to use them."
             : "");
   }
   window.addEventListener("beforeunload", (event) => {
@@ -236,8 +236,8 @@
       const postIndex = [...$("posts").children].indexOf(card) + 1;
       const rulings = [...card.querySelectorAll(".ruling")];
       $("keyboard-target").textContent =
-        `Post ${postIndex} · Ruling ${rulings.indexOf(selected) + 1} of ${rulings.length}: ${selected.querySelector(".trigger-rule").textContent}`;
-    } else $("keyboard-target").textContent = "No ruling selected";
+        `Post ${postIndex} · Rule ${rulings.indexOf(selected) + 1} of ${rulings.length}: ${selected.querySelector(".trigger-rule").textContent}`;
+    } else $("keyboard-target").textContent = "Nothing selected";
   }
   function moveRuling(key, direction) {
     let list = rows();
@@ -256,7 +256,7 @@
       return;
     }
     if (!undoStack.length) {
-      status("Nothing to undo yet. Mark a ruling Good or Bad first.");
+      status("Nothing to undo yet.");
       return;
     }
     saving = true;
@@ -292,7 +292,7 @@
     if (!row.isConnected) return;
     row.dataset.feedback = judgment;
     row.querySelector(".selection-marker").textContent =
-      judgment === "good" ? "Good ruling saved" : "Bad ruling saved";
+      judgment === "good" ? "Right call saved" : "Wrong call saved";
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const target =
       leaving && row.closest(".post").querySelectorAll(".ruling").length === 1
@@ -361,7 +361,7 @@
       review = await loadReview();
       inbox = "archived";
       render();
-      status("Unreviewed posts archived. You can review them here or return them to the queue.");
+      status("Moved the rest to Archived. Review them there, or move them back to To review.");
     } catch (error) {
       status(error.message);
       $("clear").disabled = false;
@@ -402,6 +402,7 @@
   }
   function renderCalibrationOutcome(outcome) {
     const row = el("div", "calibration-result", "");
+    row.dataset.status = outcome.status;
     const titles = {
       updated: "Updated",
       pending: "Next run",
@@ -445,7 +446,7 @@
         el(
           "summary",
           "",
-          `Review ${outcome.evidence.length} checked examples (${outcome.good} Good, ${outcome.bad} Bad available)`
+          `Review ${outcome.evidence.length} checked examples (${outcome.good} right and ${outcome.bad} wrong calls available)`
         )
       );
       for (const example of outcome.evidence) {
@@ -530,18 +531,18 @@
     running = starting || job?.status === "running";
     $("recalibrate").disabled = running || saving;
     $("recalibrate").textContent = running
-      ? "Recalibrating…"
+      ? "Improving…"
       : job?.status === "paused"
-        ? "Resume recalibration"
-        : "Recalibrate rules";
+        ? "Resume improving"
+        : "Improve rules";
     const progress = $("calibration-progress");
     progress.textContent =
       job?.status === "running"
-        ? `${job.phase || "Recalibrating"} · ${job.outcomes.filter((item) => item.status !== "pending").length} rules checked. Progress is saved; reopen Review rulings to resume after the browser pauses.`
+        ? `${job.phase || "Improving rules"} · ${job.outcomes.filter((item) => item.status !== "pending").length} rules checked. Progress is saved; reopen Hidden posts to resume if the browser pauses.`
         : job?.status === "paused"
           ? `Paused: ${job.error} Completed work is saved. Resume when ready.`
           : job?.status === "complete"
-            ? "Recalibration complete. Results saved on this device."
+            ? "Done improving rules. Results saved on this device."
             : "";
     const signature = JSON.stringify([job?.id, job?.status, job?.outcomes]);
     if (signature !== resultSignature) {
@@ -692,18 +693,9 @@
     if (!rows().some((row) => row.dataset.key === activeKey))
       activeKey = rows()[0]?.dataset.key || "";
     selectRuling(activeKey);
-    if (!items.length)
-      $("posts").append(
-        el(
-          "div",
-          "empty",
-          allItems.length
-            ? inbox === "unreviewed" && !query && !$("source").value
-              ? "Nothing left to categorize."
-              : "No rulings in this inbox."
-            : "Filtered posts appear here."
-        )
-      );
+    if (!items.length) $("posts").append(emptyState(allItems.length, query));
+    document.querySelector(".review-controls").hidden = !items.length;
+    document.querySelector(".list-heading").hidden = !items.length;
     $("more").hidden = items.length <= limit;
     renderRevisions();
     renderSuggestions();
@@ -714,7 +706,7 @@
     const row = el("section", "ruling", "");
     row.dataset.rule = rule;
     row.dataset.key = key;
-    row.setAttribute("aria-label", `Ruling: ${rule}`);
+    row.setAttribute("aria-label", `Rule: ${rule}`);
     const isFormat = rule.startsWith("format:");
     const name = isFormat
       ? `Hide ${FORMAT_LABELS[rule.slice(7)]?.toLowerCase() || "this format"}`
@@ -723,13 +715,13 @@
     marker.setAttribute("aria-hidden", "true");
     row.append(marker, el("p", "trigger-rule", name));
     const current = resolveCalibratedRule(rule, calibration.revisions);
-    if (current !== rule) row.append(el("p", "ruling-note", `Recalibrated: ${current}`));
+    if (current !== rule) row.append(el("p", "ruling-note", `Now reads: ${current}`));
     if (isFormat)
       row.append(
         el(
           "p",
           "ruling-note",
-          "Format detection is local. These judgments are saved separately from AI rule calibration."
+          "Format filters run instantly without AI. These calls are saved but aren’t used to reword rules."
         )
       );
     const controls = el("div", "judgments", "");
@@ -737,7 +729,7 @@
     const input = document.createElement("textarea");
     input.maxLength = 800;
     input.rows = 1;
-    input.placeholder = "Explanation (optional)";
+    input.placeholder = "Why? (optional)";
     input.setAttribute("aria-label", `Explanation for ${name}`);
     input.value = drafts.get(key) ?? vote?.explanation ?? "";
     input.addEventListener("input", () => {
@@ -779,14 +771,14 @@
         if (undoStack.length > 50) undoStack.shift();
         calibration = await loadCalibration();
         $("undo-feedback").disabled = false;
-        status(judgment === "good" ? "Good ruling saved." : "Bad ruling saved.");
+        status(judgment === "good" ? "Marked as a right call." : "Marked as a wrong call.");
         await confirmJudgment(row, judgment, judgment !== originInbox);
         removeDraft(key);
         activeKey = advance && nextKey ? nextKey : key;
         render();
         selectRuling(activeKey, true);
         status(
-          `${judgment === "good" ? "Good" : "Bad"} ruling saved. Example kept for recalibration.`
+          `Marked as a ${judgment === "good" ? "right" : "wrong"} call. Saved as an example for Improve rules.`
         );
       } catch (error) {
         undoRequested = false;
@@ -798,7 +790,7 @@
       }
     };
     for (const judgment of ["bad", "good"]) {
-      const node = button(judgment === "good" ? "Good ruling →" : "← Bad ruling", (button) =>
+      const node = button(judgment === "good" ? "Right call →" : "← Wrong call", (button) =>
         save(button, judgment)
       );
       node.dataset.judgment = judgment;
@@ -818,15 +810,15 @@
   }
   function renderRulings(item) {
     const rulings = el("div", "rulings", "");
-    rulings.append(el("h2", "ruling-heading", "Rulings"));
+    rulings.append(el("h2", "ruling-heading", "Matched rules"));
     if (inbox === "archived") {
-      const back = button("Return to queue", async (node) => {
+      const back = button("Move back to To review", async (node) => {
         node.disabled = true;
         try {
           await send({ type: "unarchiveReviewPost", id: item.id });
           review = await loadReview();
           render();
-          status("Returned to Uncategorized.");
+          status("Moved back to To review.");
         } catch (error) {
           status(error.message);
           node.disabled = false;
@@ -839,7 +831,7 @@
     rulings.append(...rules.map((rule) => renderRuling(item, rule)));
     if (!rules.length)
       rulings.append(
-        el("p", "ruling-note", "The matching rule was not recorded for this older ruling.")
+        el("p", "ruling-note", "The matching rule wasn’t recorded for this older post.")
       );
     if (item.reasons.length) rulings.append(el("p", "ruling-reason", item.reasons.join(" · ")));
     return rulings;
@@ -904,7 +896,7 @@
       el(
         "span",
         "",
-        `Filtered ${new Date(item.at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`
+        `Hidden ${new Date(item.at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`
       )
     );
     const url = safePostUrl(item.url);
@@ -938,6 +930,27 @@
     card.append(renderRulings(item));
     return card;
   }
+  function emptyState(total, query) {
+    const box = el("div", "empty", "");
+    const filtered = query || $("source").value;
+    const [title, text] = !total
+      ? [
+          "Nothing hidden yet",
+          "When a filter hides a post, it shows up here so you can check the call."
+        ]
+      : filtered
+        ? ["No matches", "Try a different search or site."]
+        : inbox === "unreviewed"
+          ? ["All caught up", "New hidden posts will show up here."]
+          : ["Nothing here yet", "Calls you make will collect in this inbox."];
+    box.append(el("strong", "", title), el("p", "", text));
+    if (!total) {
+      const link = el("a", "", "Set up the AI filter");
+      link.href = "popup.html?view=settings#ai-filter";
+      box.append(link);
+    }
+    return box;
+  }
   function tweetId(item) {
     if (item.source !== "twitter") return "";
     try {
@@ -970,7 +983,7 @@
         const row = el("div", "revision", "");
         row.append(
           el("p", "", revision.before),
-          el("p", "", `Revised: ${revision.after}`),
+          el("p", "", `Now: ${revision.after}`),
           el(
             "small",
             "",
@@ -980,7 +993,7 @@
           )
         );
         if (!revision.undone) {
-          const undo = button("Undo revision", async (node) => {
+          const undo = button("Undo change", async (node) => {
             node.disabled = true;
             try {
               await send({ type: "undoCalibration", id: revision.id });

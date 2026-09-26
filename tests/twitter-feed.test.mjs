@@ -528,12 +528,12 @@ export async function verifyTwitterFeed({
     `Boolean(document.querySelector('[data-smooth-surfer-feedback]')?.shadowRoot.querySelector('dialog[open]'))`
   );
   await run(`window.feedbackRoot = document.querySelector('[data-smooth-surfer-feedback]').shadowRoot;
-    [...feedbackRoot.querySelectorAll('button')].find(button => button.textContent === 'Suggest filters').click()`);
+    [...feedbackRoot.querySelectorAll('button')].find(button => button.textContent === 'Suggest rules').click()`);
   await wait(`feedbackRoot.querySelectorAll('.suggestions button').length === 3`);
   assert.equal(await run(`messages.some(message => message.type === 'addFilterCriterion')`), false);
   await run(`feedbackRoot.querySelector('.suggestions button').click();
     feedbackRoot.querySelector('textarea').value = 'Giveaway posts asking for reposts';
-    [...feedbackRoot.querySelectorAll('button')].find(button => button.textContent === 'Add filter').click()`);
+    [...feedbackRoot.querySelectorAll('button')].find(button => button.textContent === 'Add rule').click()`);
   await wait(
     `messages.some(message => message.type === 'addFilterCriterion' && message.criterion === 'Giveaway posts asking for reposts')`
   );

@@ -855,7 +855,7 @@
     scrollPause.className = "smooth-surfer-scroll-pause";
     scrollPause.innerHTML = `
       <strong>Surf break</strong>
-      <span>Scrolling paused.</span>
+      <span>You’ve scrolled about 16 screens. Take a breath, or keep going.</span>
       <button type="button">Keep going</button>
     `;
     scrollPause.querySelector("button").addEventListener("click", () => {

@@ -20,17 +20,17 @@ images from X, Reddit, or Substack in each review. It is off by default and adds
 API cost and latency. If classification fails,
 posts remain visible and retries are spaced out.
 
-Open **Review rulings** at the top of the popup to judge each triggering rule in
-a full tab. Mark **Good ruling** or **Bad ruling**, optionally explaining why.
-The post appears first, with its rulings underneath and dividers between posts.
+Open **Review hidden posts** at the top of the popup to check each rule that hid
+a post, in a full tab. Mark it a **Right call** or **Wrong call**, optionally
+explaining why. The post appears first, with its matched rules beside or below it.
 X posts use native embeds; saved copies remain available when an embed cannot load.
-Use Left for Bad, Right for Good, Up/Down to move between rulings, and Cmd/Ctrl+Z
-to undo. Start typing to add an explanation to the selected ruling; Enter returns
-to navigation. A brief green or red confirmation fades before the ruling leaves
-its inbox. Votes save your judgment; they do not restore the post or change a
-rule immediately.
+Use Left for Wrong call, Right for Right call, Up/Down to move between rules, and
+Cmd/Ctrl+Z to undo. Start typing to add an explanation to the selected rule; Enter
+returns to navigation. A brief green or red confirmation fades before the call
+leaves its inbox. Calls save your judgment; they do not restore the post or change
+a rule immediately.
 
-**Recalibrate rules** uses your selected model to propose revisions and replay saved
+**Improve rules** uses your selected model to propose revisions and replay saved
 examples. Corrections and written explanations can be used without both label
 classes. Revisions must improve the replay without introducing regressions;
 written feedback can also justify clearer wording when both versions pass.
@@ -38,29 +38,29 @@ Results show the proposed wording, per-example decisions, and any additional
 rules suggested by your instructions. Suggestions stay available across sessions,
 with controls to add, dismiss, reconsider, or undo an addition.
 Enter saves edited explanations; starting
-recalibration saves remaining drafts on judged rulings. The last 30 revisions support undo. This is
+improving rules saves remaining drafts on judged calls. The last 30 revisions support undo. This is
 calibration against your examples, not a guarantee of future accuracy. See
 [the algorithm](docs/CALIBRATION.md).
 
 Review keeps up to 2,000 recent and archived posts within 6 MB. Recent posts expire
-after seven days; archived posts have no time cutoff. **Archive unreviewed** moves
-pending rulings to **Archived**, where you can judge them or return them to the queue. Feedback is retained
+after seven days; archived posts have no time cutoff. **Archive the rest** moves
+posts still to review to **Archived**, where you can judge them or move them back. Feedback is retained
 separately, up to 2,000 judgments within 2 MB, so archiving does not erase
 what you taught the filter. Both good and bad examples remain visible after the
 seven-day history expires. X embeds and media load lazily from their original hosts.
 
 On X, the **Less like this** button beside a post's actions opens a rule editor.
-Write your own rule or choose **Suggest filters** to ask the selected model for suggestions.
+Write your own rule or choose **Suggest rules** to ask the selected model for suggestions.
 You can edit a suggestion before adding it; suggestions never change your rules
-automatically. New rules apply wherever content filtering is enabled.
+automatically. New rules apply wherever the AI filter is on.
 
 X prioritizes the visible feed and the next two screens, with at most two
 classification batches running at once. Surf break now allows 16 screens of
 scrolling between breaks.
 
 X also has instant switches for reposts, quote posts, and video posts. These
-work without an API key. Filtered formats appear in Review rulings. Their judgments are saved, but
-recalibration only rewrites AI content rules; format switches remain in the popup. Repost detection uses X's
+work without an API key. Filtered formats appear in Hidden posts. Their calls are saved, but
+Improve rules only rewrites AI filter rules; format switches remain in the popup. Repost detection uses X's
 English repost label or a supported repost marker.
 
 Open **Filter sets** from the popup or review page to save named sets, preview
@@ -84,7 +84,7 @@ The popup also includes:
 ## Loading delays
 
 **Loading delay** is on by default for YouTube, X/Twitter, Reddit, Substack, and
-Hacker News; turn it off alongside each site's other controls. These checkboxes and the **Visit delay** domain
+Hacker News; turn it off alongside each site's other controls. These switches and the **Loading delays** site
 list stay in sync. Add any other domain in that list. Either `twitter.com` or
 `x.com` covers both names, including redirects. New rules apply to tabs that are
 already open.
@@ -145,7 +145,9 @@ release.
 After installing, pin Smooth Surfer from Chrome's extensions menu. To enable
 Haiku filtering, open the toolbar popup and save an Anthropic API key. Alternatively,
 choose on-device processing in Settings and complete model setup. Until the
-selected provider is ready, content filtering leaves posts visible.
+selected provider is ready, the AI filter leaves posts visible, and the popup
+says so with a one-click way to set it up or turn it off. A welcome page opens on
+first install to explain what is already on.
 See [on-device setup and limits](docs/LOCAL_MODELS.md).
 
 The iPhone target operates on websites in Safari, not native apps. It initially
@@ -196,15 +198,15 @@ hand-formatted.
 
 Follow the [product style guide](docs/STYLE_GUIDE.md) for interface copy and interactions.
 
-Review has three inboxes: Uncategorized, Good rulings, and Bad rulings. Categorizing a ruling moves it out of the current queue; other uncategorized rules on the same post remain. Counts refer to rulings. Undo restores the prior category and selects that ruling.
+Hidden posts has four inboxes: To review, Right calls, Wrong calls, and Archived. Making a call moves that rule out of the current inbox; other rules on the same post stay. Counts refer to calls (one per rule and post). Undo restores the prior inbox and selects that rule.
 
-Recalibration runs in the background and saves its progress. You can refresh or
-close the review page once it says **Safe to refresh**. Closing Chrome pauses work;
+Improving rules runs in the background and saves its progress. You can refresh or
+close the page once it says **Safe to refresh**. Closing Chrome pauses work;
 it resumes when Chrome reopens. Explanation drafts and the latest results survive
-reloads. The judgment buttons mirror the keyboard: **← Bad ruling** and
-**Good ruling →**.
+reloads. The call buttons mirror the keyboard: **← Wrong call** and
+**Right call →**.
 
-Full-page Review rulings, Settings, Stats, and Filter sets share a sidebar. Open
+Hidden posts, Filter sets, Stats, and Settings share a sidebar. Open
 any page from the popup, then switch sections without opening more tabs. Stats
 shows hidden-item totals for today and the past seven days, broken down by site
 and recorded reason, with consumption facts below. Settings share the same
