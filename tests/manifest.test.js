@@ -12,6 +12,7 @@ assert.ok(manifest.permissions.includes("storage"));
 assert.ok(manifest.permissions.includes("offscreen"));
 // Shared pins are on by default, so tab access is granted at install.
 assert.ok(manifest.permissions.includes("tabs"));
+assert.ok(manifest.permissions.includes("favicon"), "tab search reads icons from Chrome's cache");
 assert.equal(manifest.optional_permissions, undefined);
 assert.ok(manifest.content_scripts.length > 0);
 assert.equal(manifest.action.default_popup, "popup.html");

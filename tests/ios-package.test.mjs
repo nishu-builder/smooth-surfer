@@ -23,6 +23,7 @@ const candidate = {
 const safari = safariManifest(candidate);
 assert(candidate.permissions.includes("offscreen"), "Do not mutate the Chrome manifest");
 assert(!safari.permissions.includes("offscreen"));
+assert(!safari.permissions.includes("favicon"));
 assert(safari.permissions.includes("alarms"));
 assert(safari.permissions.includes("storage"));
 assert.equal(safari.background.service_worker, chromeManifest.background.service_worker);

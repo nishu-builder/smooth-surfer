@@ -67,6 +67,8 @@ loading delays on habit-forming sites, and consistent access to pinned pages.
   state use `chrome.storage.session`.
 - `alarms`: Resumes requested rule-recalibration jobs after worker suspension
   or a browser restart.
+- `favicon`: Shows each tab's icon in tab search (Cmd+K), read from Chrome's
+  local icon cache so no request reaches the site.
 - `offscreen`: Hosts the bundled page that accesses Chrome's built-in model for
   optional on-device processing. It does not silently enable cloud processing.
 - `tabs`: Powers Share pins across windows (on by default) by reading

@@ -1125,9 +1125,19 @@ async function verifyExtensionPopupOpens() {
     }
     const tabSearchPages = {
       "/tab-search-plain": `<title>Plain page</title><script>window.pageKeys=[];document.addEventListener("keydown",(e)=>pageKeys.push(e.key));</script><p>Plain</p>`,
-      "/tab-search-target": `<title>Quarterly planning doc</title><p>Target</p>`,
+      "/tab-search-target": `<title>Quarterly planning doc</title><link rel="icon" href="/tab-search-icon.png"><p>Target</p>`,
       "/tab-search-site": `<title>Site search</title><script>window.siteSearch=0;document.addEventListener("keydown",(e)=>{if((e.metaKey||e.ctrlKey)&&e.key==="k"){e.preventDefault();siteSearch++;}});</script><p>Site</p>`
     };
+    if (request.url === "/tab-search-icon.png") {
+      response.writeHead(200, { "content-type": "image/png" });
+      response.end(
+        Buffer.from(
+          "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGUlEQVR4nGO4acXwnxLMMGrAqAGjBgwXAwC3HBIfP8XhHgAAAABJRU5ErkJggg==",
+          "base64"
+        )
+      );
+      return;
+    }
     if (tabSearchPages[request.url]) {
       sendHtml(response, `<!doctype html><meta charset="utf-8">${tabSearchPages[request.url]}`);
       return;
@@ -1803,7 +1813,9 @@ async function verifyExtensionPopupOpens() {
       await SmoothSurferStorage.saveSecrets({anthropicApiKey:'fixture-not-a-real-key'});
       globalThis.calibrationCalls=[];
       globalThis.calibrationGate=new Promise(resolve=>{globalThis.releaseCalibration=resolve;});
+      const realFetch=globalThis.fetch;
       globalThis.fetch=async(url,options)=>{
+        if(!String(url).startsWith('https://api.anthropic.com/')) return realFetch(url,options);
         const body=JSON.parse(options.body);calibrationCalls.push(body);
         const proposal=body.system.startsWith('Revise one');
         if(proposal) await calibrationGate;
@@ -2529,8 +2541,24 @@ async function verifyExtensionPopupOpens() {
     const searchShortcut = () => pressKey("k", "KeyK", 75, mac ? 4 : 2);
     const searchTree = async () =>
       JSON.stringify(await client.send("DOM.getDocument", { depth: -1, pierce: true }));
-    await searchShortcut();
-    await waitForExpression(client, `Boolean(document.querySelector('.smooth-surfer-tab-search'))`);
+    // The target's icon comes from Chrome's favicon cache, which fills in
+    // shortly after the page loads; reopen until its row shows the icon.
+    let iconShown = false;
+    for (let attempt = 0; attempt < 10 && !iconShown; attempt++) {
+      await searchShortcut();
+      await waitForExpression(
+        client,
+        `Boolean(document.querySelector('.smooth-surfer-tab-search'))`
+      );
+      await delay(200);
+      iconShown = (await searchTree()).includes('"nodeName":"CANVAS"');
+      if (!iconShown) {
+        await pressKey("Escape", "Escape", 27);
+        await waitForExpression(client, `!document.querySelector('.smooth-surfer-tab-search')`);
+        await delay(500);
+      }
+    }
+    assert.ok(iconShown, "tab search shows a cached site icon");
     assert.equal(
       await evaluate(client, `document.querySelector('.smooth-surfer-tab-search').shadowRoot`),
       null,

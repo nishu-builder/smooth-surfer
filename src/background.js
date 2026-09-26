@@ -197,16 +197,43 @@ importScripts(
     const windowId = sender?.tab?.windowId;
     if (windowId === undefined) throw new Error("Tab search needs a tab.");
     const tabs = await chrome.tabs.query({ windowId });
+    const generic = await cachedFavicon("https://invalid.invalid/");
     return {
-      tabs: tabs.map((tab) => ({
-        id: tab.id,
-        title: tab.title || "",
-        url: tab.url || tab.pendingUrl || "",
-        active: tab.active,
-        pinned: tab.pinned,
-        audible: Boolean(tab.audible)
-      }))
+      tabs: await Promise.all(
+        tabs.map(async (tab) => {
+          const url = tab.url || tab.pendingUrl || "";
+          const icon = /^https?:/.test(url) ? await cachedFavicon(url) : "";
+          return {
+            id: tab.id,
+            title: tab.title || "",
+            url,
+            active: tab.active,
+            pinned: tab.pinned,
+            audible: Boolean(tab.audible),
+            // Chrome answers unknown pages with a generic globe; keep the letter.
+            icon: icon === generic ? "" : icon
+          };
+        })
+      )
     };
+  }
+
+  // Icons come from Chrome's local favicon cache: no request reaches the site,
+  // and the page showing the search never loads another site's icon.
+  async function cachedFavicon(pageUrl) {
+    try {
+      const url = new URL(chrome.runtime.getURL("/_favicon/"));
+      url.searchParams.set("pageUrl", pageUrl);
+      url.searchParams.set("size", "32");
+      const response = await fetch(url);
+      if (!response.ok) return "";
+      let binary = "";
+      for (const byte of new Uint8Array(await response.arrayBuffer()))
+        binary += String.fromCharCode(byte);
+      return self.btoa(binary);
+    } catch {
+      return "";
+    }
   }
 
   async function activateWindowTab(sender, tabId) {

@@ -8,8 +8,10 @@ export const iosOutput = path.join(repositoryRoot, "dist", "ios");
 export function safariManifest(chromeManifest) {
   const manifest = structuredClone(chromeManifest);
   // Safari supports MV3 workers, storage, alarms and Chrome's callback APIs.
-  // Chrome's offscreen document API (used for Gemini Nano) is not available.
-  manifest.permissions = (manifest.permissions || []).filter((name) => name !== "offscreen");
+  // Chrome's offscreen document (Gemini Nano) and favicon cache APIs are not available.
+  manifest.permissions = (manifest.permissions || []).filter(
+    (name) => !["offscreen", "favicon"].includes(name)
+  );
   delete manifest.minimum_chrome_version;
   delete manifest.update_url;
   delete manifest.key;
