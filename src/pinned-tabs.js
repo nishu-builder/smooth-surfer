@@ -25,6 +25,11 @@
     // Pin changes this module requested, keyed by tab ID. Any other pin change
     // came from Chrome's tab menu or a drag and is undone while sharing is on.
     const expectedPins = new Map();
+    // Copies this module created for other windows. Each loads once, for its
+    // title and icon, then sleeps until visited; Chrome reloads a discarded
+    // tab when it is selected. The window a page was pinned in keeps it live.
+    const sleepers = new Set();
+    let lazy = true;
 
     const enqueue = (operation) => {
       const result = queue.then(operation);
@@ -52,6 +57,7 @@
     async function reconcile() {
       await load();
       const settings = await storage.loadSettings();
+      lazy = settings.lazyPinnedTabs !== false;
       if (!settings.crossWindowPinsEnabled) {
         pendingChanges.length = 0;
         if (!urls.length && !Object.keys(bindings).length) return;
@@ -84,14 +90,17 @@
       // Like Arc, closing a pin only closes that copy. The window gets it back
       // at the saved URL; only an explicit unpin removes it everywhere.
       const closedPins = new Set();
+      const closedPinWindows = new Set();
       const repins = new Set();
       for (const event of changes) {
         const removedUrl = bindings[event.tabId];
         // Chrome can emit pinned:false just before removing a whole window.
         // Only treat it as a user's unpin if that tab still exists.
         const unpinned = event.unpinned && live.has(event.tabId) && !closingTabs.has(event.tabId);
-        if (removedUrl && event.removed && !event.windowClosing)
+        if (removedUrl && event.removed && !event.windowClosing) {
           closedPins.add(`${event.windowId}:${removedUrl}`);
+          closedPinWindows.add(event.windowId);
+        }
         // Only the pin shortcut changes shared pins. Undo menu pins and unpins.
         if (event.source === "menu") {
           const tab = live.get(event.tabId);
@@ -198,10 +207,32 @@
         tab.pinned = false;
         replacementPositions.set(`${tab.windowId}:${url}`, tab.index);
       }
+      // A closed pin normally comes back. In a window holding nothing but pins
+      // that would make Cmd+W useless, so close the window instead; its saved
+      // pins stay, as with any closed window. A window whose last tab closed
+      // is already closing on its own.
+      const closeWindows = new Set(
+        windows
+          .filter(
+            (window) =>
+              closedPinWindows.has(window.id) &&
+              window.tabs.length &&
+              window.tabs.every((tab) => tab.pinned)
+          )
+          .map((window) => window.id)
+      );
       // Persist the desired list before creating tabs so worker interruption
       // can be repaired by the next event without forgetting a shared pin.
       await save();
+      for (const id of closeWindows) {
+        try {
+          await api.windows.remove(id);
+        } catch {
+          // The user may have closed it already.
+        }
+      }
       for (const window of windows) {
+        if (closeWindows.has(window.id)) continue;
         for (const url of urls) {
           if (window.tabs.some((tab) => tab.pinned && bindings[tab.id] === url)) continue;
           try {
@@ -223,6 +254,7 @@
             });
             bindings[tab.id] = url;
             pages[tab.id] = { loading: true };
+            if (lazy) sleepers.add(tab.id);
             window.tabs.push(tab);
           } catch (error) {
             // A user can close a window while its pins are being populated.
@@ -256,6 +288,30 @@
       }
     }
 
+    // Discard a loaded copy once its icon is known (or shortly after load, for
+    // pages without one). A copy the user has already switched to stays live.
+    function sleepWhenLoaded(tabId, tab, iconWaitOver = false) {
+      if (!sleepers.has(tabId)) return;
+      if (tab.active || !tab.pinned || !lazy) {
+        sleepers.delete(tabId);
+        return;
+      }
+      if (tab.status !== "complete") return;
+      if (!tab.favIconUrl && !iconWaitOver) {
+        setTimeout(
+          () =>
+            api.tabs.get(tabId).then(
+              (latest) => sleepWhenLoaded(tabId, latest, true),
+              () => sleepers.delete(tabId)
+            ),
+          3000
+        );
+        return;
+      }
+      sleepers.delete(tabId);
+      api.tabs.discard(tabId).catch(() => {});
+    }
+
     // Attribute a pin change to the shortcut, our own sync, or Chrome's menu.
     function pinSource(tabId, pinned) {
       const expected = expectedPins.get(tabId);
@@ -280,6 +336,8 @@
         schedule({ tabId: tab.id, pinnedUrl: webUrl(tab.pendingUrl || tab.url) });
     });
     api.tabs.onUpdated.addListener((tabId, change, tab) => {
+      if (change.status === "complete" || change.favIconUrl || tab.active)
+        sleepWhenLoaded(tabId, tab);
       if (
         !tab.incognito &&
         ("pinned" in change || (tab.pinned && (change.url || change.status === "complete")))
@@ -292,14 +350,15 @@
           ...("pinned" in change ? { source: pinSource(tabId, change.pinned) } : {})
         });
     });
-    api.tabs.onRemoved.addListener((tabId, info) =>
+    api.tabs.onRemoved.addListener((tabId, info) => {
+      sleepers.delete(tabId);
       schedule({
         tabId,
         removed: true,
         windowId: info.windowId,
         windowClosing: info.isWindowClosing
-      })
-    );
+      });
+    });
     api.tabs.onMoved.addListener((tabId, info) =>
       schedule({ tabId, orderWindowId: info.windowId })
     );

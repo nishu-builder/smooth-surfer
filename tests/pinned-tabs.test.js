@@ -51,6 +51,7 @@ function harness(saved = {}) {
   const settingsEvent = event();
   const creates = [];
   const moves = [];
+  const discards = [];
   const errors = [];
   const area = (data) => ({
     get: async (keys) =>
@@ -65,7 +66,14 @@ function harness(saved = {}) {
     commands: { onCommand: event() },
     windows: {
       onCreated: event(),
-      getAll: async () => structuredClone(windows.filter((w) => w.type === "normal"))
+      getAll: async () => structuredClone(windows.filter((w) => w.type === "normal")),
+      remove: async (id) => {
+        const w = windows.find((item) => item.id === id);
+        if (!w) throw new Error("No window");
+        windows.splice(windows.indexOf(w), 1);
+        for (const tab of w.tabs)
+          api.tabs.onRemoved.emit(tab.id, { windowId: id, isWindowClosing: true });
+      }
     },
     tabs: {
       onCreated: event(),
@@ -87,6 +95,18 @@ function harness(saved = {}) {
         creates.push(options);
         w.tabs.push(tab);
         api.tabs.onCreated.emit(structuredClone(tab));
+        return structuredClone(tab);
+      },
+      get: async (id) => {
+        const tab = find(id);
+        if (!tab) throw new Error("Tab closed");
+        return structuredClone(tab);
+      },
+      discard: async (id) => {
+        const tab = find(id);
+        if (!tab) throw new Error("Tab closed");
+        discards.push(id);
+        tab.discarded = true;
         return structuredClone(tab);
       },
       move: async (id, { index }) => {
@@ -127,6 +147,7 @@ function harness(saved = {}) {
     settings,
     creates,
     moves,
+    discards,
     find,
     settle,
     focusWindow: (id) => (focusedWindowId = id),
@@ -268,6 +289,64 @@ const pins = (h, id) => h.windows.find((w) => w.id === id).tabs.filter((tab) => 
   await rest.settle();
   assert.equal(rest.local.smoothSurferPinnedTabs.length, 0);
   assert.equal(pins(rest, 1).length, 1, "disable leaves existing tabs pinned");
+
+  // Copies in other windows sleep after loading; the original stays live.
+  const lazy = harness();
+  await lazy.settle();
+  const copy = pins(lazy, 2)[0];
+  const loaded = { ...copy, status: "complete", favIconUrl: "https://mail.google.com/icon.png" };
+  lazy.api.tabs.onUpdated.emit(copy.id, { status: "complete" }, loaded);
+  lazy.api.tabs.onUpdated.emit(1, { status: "complete" }, { ...lazy.find(1), status: "complete" });
+  await lazy.settle();
+  assert.deepEqual(lazy.discards, [copy.id], "only the copy sleeps, once it has loaded");
+  const awake = harness({ settings: { lazyPinnedTabs: false } });
+  await awake.settle();
+  const liveCopy = pins(awake, 2)[0];
+  awake.api.tabs.onUpdated.emit(
+    liveCopy.id,
+    { status: "complete" },
+    { ...liveCopy, status: "complete", favIconUrl: "https://mail.google.com/icon.png" }
+  );
+  await awake.settle();
+  assert.deepEqual(awake.discards, [], "with sleeping off, copies stay live");
+
+  // Cmd+W in a window holding only pins closes that window instead of
+  // bringing the pin straight back.
+  const onlyPins = harness({
+    windows: [
+      {
+        id: 1,
+        type: "normal",
+        incognito: false,
+        tabs: [
+          { id: 1, windowId: 1, url: "https://a.example/", pinned: true, active: true },
+          { id: 2, windowId: 1, url: "https://b.example/", pinned: true }
+        ]
+      },
+      {
+        id: 2,
+        type: "normal",
+        incognito: false,
+        tabs: [{ id: 3, windowId: 2, url: "https://example.com/", pinned: false, active: true }]
+      }
+    ]
+  });
+  await onlyPins.settle();
+  const copiesBeforeClose = onlyPins.creates.length;
+  onlyPins.closeTab(1);
+  await onlyPins.settle();
+  assert.equal(
+    onlyPins.windows.some((w) => w.id === 1),
+    false,
+    "closing a pin in a window of only pins closes the window"
+  );
+  assert.equal(onlyPins.creates.length, copiesBeforeClose, "the closed pin is not recreated");
+  assert.equal(onlyPins.local.smoothSurferPinnedTabs.length, 2, "saved pins survive");
+  assert.equal(pins(onlyPins, 2).length, 2, "other windows keep their pins");
+  onlyPins.closeTab(pins(onlyPins, 2)[0].id);
+  await onlyPins.settle();
+  assert.equal(pins(onlyPins, 2).length, 2, "beside a regular tab, a closed pin comes back");
+  assert.equal(onlyPins.windows.length, 1);
 
   const race = harness();
   await race.settle();

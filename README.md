@@ -120,8 +120,13 @@ you pinned. Sharing is on by default; turn it off to keep pins per window.
 
 - Navigating away from a pin moves that page into a regular tab (keeping its
   history) and restores the pin at its saved URL. Reloading keeps it pinned.
-- Closing a pin or a window keeps your pins; a closed pin comes back. Unpinning
+- Closing a pin or a window keeps your pins; a closed pin comes back. In a window
+  that holds only pins, closing one (Cmd+W) closes the window instead. Unpinning
   with the shortcut removes a pin everywhere without closing its copies.
+- Copies in other windows load once for their title and icon, then sleep until
+  you click them, so they use no memory in the meantime. The window you pinned a
+  page in keeps it live. Turn off **Load pins when opened** to keep every copy
+  live, for example for unread counts.
 - While sharing is on, the shortcut is the only way to change pins. Pinning or
   unpinning from Chrome's tab menu is undone. Change the shortcut at
   `chrome://extensions/shortcuts`.

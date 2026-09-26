@@ -494,6 +494,8 @@
     document.querySelector('[data-setting="videoSpeedModifier"]').disabled =
       !settings.enabled || !settings.videoSpeedHotkeys;
     document.querySelector("[data-speed-keys]").hidden = !settings.videoSpeedHotkeys;
+    document.querySelector('[data-setting="lazyPinnedTabs"]').disabled =
+      !settings.enabled || !settings.crossWindowPinsEnabled;
     document
       .querySelectorAll("[data-focus-times] input")
       .forEach((input) => (input.disabled = !settings.enabled || !settings.focusScheduleEnabled));

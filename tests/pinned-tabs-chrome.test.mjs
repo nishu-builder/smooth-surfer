@@ -426,8 +426,59 @@ try {
       .tabs.some((tab) => tab.pinned && tab.url === fixtureOrigin + "/link-start")
   );
 
+  // In a window that holds only pins, closing a pin (Cmd+W) closes the window
+  // rather than restoring the pin. Saved pins and other windows are unchanged.
+  const savedBefore = (await evaluate(`chrome.storage.local.get("smoothSurferPinnedTabs")`))
+    .smoothSurferPinnedTabs.length;
+  const pinsOnly = await evaluate(`chrome.windows.create({url:'about:blank',focused:false})`);
+  await until(async () => {
+    const window = (await snapshot()).find((item) => item.id === pinsOnly.id);
+    return window?.tabs.filter((tab) => tab.pinned).length === savedBefore;
+  });
+  // Copies load once for their title and icon, then sleep until visited.
+  await until(async () =>
+    (await snapshot())
+      .find((window) => window.id === pinsOnly.id)
+      .tabs.filter((tab) => tab.pinned)
+      .every((tab) => tab.discarded && tab.url)
+  );
+  const sleeping = (await snapshot())
+    .find((window) => window.id === pinsOnly.id)
+    .tabs.find((tab) => tab.pinned);
+  await evaluate(`chrome.tabs.update(${sleeping.id},{active:true})`);
+  await until(async () => {
+    const tab = await evaluate(`chrome.tabs.get(${sleeping.id})`);
+    return !tab.discarded && tab.status === "complete" && tab.url === sleeping.url && tab.pinned;
+  });
+  const blank = (await snapshot())
+    .find((window) => window.id === pinsOnly.id)
+    .tabs.find((tab) => !tab.pinned);
+  await evaluate(`chrome.tabs.remove(${blank.id})`);
+  await until(async () =>
+    (await snapshot()).find((window) => window.id === pinsOnly.id).tabs.every((tab) => tab.pinned)
+  );
+  const windowCount = (await snapshot()).length;
+  const onlyPin = (await snapshot())
+    .find((window) => window.id === pinsOnly.id)
+    .tabs.find((tab) => tab.pinned);
+  await evaluate(`chrome.tabs.remove(${onlyPin.id})`);
+  await until(async () => !(await snapshot()).some((window) => window.id === pinsOnly.id));
+  assert.equal((await snapshot()).length, windowCount - 1);
+  assert.equal(
+    (await evaluate(`chrome.storage.local.get("smoothSurferPinnedTabs")`)).smoothSurferPinnedTabs
+      .length,
+    savedBefore,
+    "closing a pins-only window keeps every saved pin"
+  );
+  assert.ok(
+    (await snapshot()).every(
+      (window) => window.tabs.filter((tab) => tab.pinned).length === savedBefore
+    ),
+    "other windows keep their pins"
+  );
+
   console.log(
-    "Pinned tabs Chrome passed (registered shortcut and handler, windows, URL departures, links, SPA form state, history, unpin/close, saved ordering)."
+    "Pinned tabs Chrome passed (registered shortcut and handler, windows, URL departures, links, SPA form state, history, unpin/close, sleeping copies, pins-only window close, saved ordering)."
   );
 } finally {
   socket?.close();
