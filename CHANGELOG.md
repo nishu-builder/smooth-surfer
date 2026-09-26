@@ -3,6 +3,11 @@
 Notable changes per released version. Versions match `manifest.json`, and a
 release is a `v*` tag; see [docs/RELEASING.md](docs/RELEASING.md).
 
+## Unreleased
+
+- In a window that holds only pinned tabs, closing a pin with Cmd+W now closes the window instead of bringing the pin straight back. Saved pins are kept.
+- Pinned copies in other windows load once for their title and icon, then sleep until you open them. Turn off **Load pins when opened** in Pinned tabs to keep every copy live.
+
 ## 0.3.0
 
 - Redesign every screen in the paper-and-ink style shared with beeper-muse: cream paper, monospace headings and controls, ink borders with offset shadows, a lime accent for what is on, and a matching dark mode.

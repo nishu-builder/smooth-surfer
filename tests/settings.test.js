@@ -26,6 +26,8 @@ const defaults = settings.normalizeSettings();
 assert.equal(settings.DEFAULT_SETTINGS.aiProvider, "anthropic");
 assert.equal(settings.DEFAULT_SETTINGS.crossWindowPinsEnabled, true);
 assert.equal(settings.normalizeSettings({}).crossWindowPinsEnabled, true);
+assert.equal(settings.normalizeSettings({}).lazyPinnedTabs, true, "pin copies sleep by default");
+assert.equal(settings.normalizeSettings({ lazyPinnedTabs: false }).lazyPinnedTabs, false);
 assert.equal(defaults.aiProvider, "anthropic");
 assert.equal(
   settings.normalizeSettings({ enabled: true }).aiProvider,

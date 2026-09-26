@@ -50,6 +50,7 @@
   const DEFAULT_SETTINGS = {
     enabled: true,
     crossWindowPinsEnabled: true,
+    lazyPinnedTabs: true,
     filterCriteria: [...DEFAULT_FILTER_CRITERIA],
     youtubeGrayscaleThumbnails: true,
     youtubeHideRecommendations: true,
@@ -183,6 +184,7 @@
     next.videoSpeedModifier = normalizeModifier(next.videoSpeedModifier);
     next.settingsHotkeyEnabled = Boolean(next.settingsHotkeyEnabled);
     next.crossWindowPinsEnabled = Boolean(next.crossWindowPinsEnabled);
+    next.lazyPinnedTabs = Boolean(next.lazyPinnedTabs);
     next.focusScheduleEnabled = Boolean(next.focusScheduleEnabled);
     next.focusScheduleStart = normalizeTime(
       next.focusScheduleStart,

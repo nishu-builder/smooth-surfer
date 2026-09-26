@@ -292,6 +292,10 @@
               <span>Share pins across windows</span>
               <input type="checkbox" role="switch" data-setting="crossWindowPinsEnabled">
             </label>
+            <label class="switch-row" data-description="Pins copied into other windows load their icon, then sleep until you click them. Turn off to keep every copy live, for example for unread counts.">
+              <span>Load pins when opened</span>
+              <input type="checkbox" role="switch" data-setting="lazyPinnedTabs">
+            </label>
             <div class="shortcut-card">
               <span>Pin or unpin the current tab</span>
               <kbd data-pin-shortcut>⌘⇧P</kbd>
@@ -300,6 +304,7 @@
               <li>Pins always open at the page you pinned.</li>
               <li>Navigate away and that page becomes a regular tab; the pin stays put.</li>
               <li>Close a pin and it comes back. Unpin with the shortcut to remove it everywhere.</li>
+              <li>In a window with only pins, closing one closes the window.</li>
             </ul>
             <p class="fine">While sharing is on, use the shortcut: Chrome’s own Pin menu is undone. Private windows are left alone. <button type="button" class="link" data-change-shortcuts>Change shortcut</button></p>
           </div>
