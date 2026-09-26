@@ -5,6 +5,7 @@ release is a `v*` tag; see [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Unreleased
 
+- With sharing on, only the pin shortcut (Cmd+Shift+P on Mac, Alt+P on Windows/Linux) pins or unpins tabs. Pins and unpins from Chrome’s tab menu or drags are undone, and a menu-unpinned pin returns to its slot.
 - Turn on loading delays by default for YouTube, X/Twitter, Reddit, Substack, and Hacker News. Existing saved site lists are unchanged.
 - Close a shared pin without unpinning it, as in Arc: the pin returns at its saved URL in that window, and other windows keep theirs. Unpin to remove a pin everywhere.
 - Share pinned tabs across windows by default. Tab access is now granted at install instead of requested from Settings; turn off **Share pins across windows** to keep pins per window.

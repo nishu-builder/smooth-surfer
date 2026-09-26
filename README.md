@@ -104,9 +104,13 @@ loads, completed waits, early exits, resets, time waited, and visits by hour.
 
 **Share pins across windows** is on by default; turn it off in Settings to keep
 pins per window. Pin or unpin the current tab with **Cmd+Shift+P** on Mac or
-**Alt+P** on Windows/Linux, or use Chrome’s normal **Pin** tab-menu action.
-Change the shortcut in `chrome://extensions/shortcuts` if needed. The shortcut
-also works as ordinary Chrome pinning when sharing is off.
+**Alt+P** on Windows/Linux. While sharing is on, the shortcut is the only way to
+change pins: pinning or unpinning from Chrome’s tab menu, or by dragging, is
+undone. Change the shortcut in `chrome://extensions/shortcuts` if needed. With
+sharing off, the shortcut and Chrome’s menu both work as ordinary pinning.
+
+Chrome may still ask you to press Cmd+W twice to close a pinned tab. That prompt
+comes from Chrome and extensions can’t change it.
 
 Existing and newly pinned HTTP/HTTPS pages appear as inactive pinned copies in every
 regular Chrome window, including windows opened later. Pins remember the exact

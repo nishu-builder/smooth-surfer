@@ -50,6 +50,7 @@ function harness(saved = {}) {
   let permitted = saved.permitted !== false;
   const settingsEvent = event();
   const creates = [];
+  const moves = [];
   const errors = [];
   const area = (data) => ({
     get: async (keys) =>
@@ -88,6 +89,16 @@ function harness(saved = {}) {
         api.tabs.onCreated.emit(structuredClone(tab));
         return structuredClone(tab);
       },
+      move: async (id, { index }) => {
+        const tab = find(id);
+        if (!tab) throw new Error("Tab closed");
+        moves.push({ id, index });
+        const w = windows.find((item) => item.id === tab.windowId);
+        w.tabs.splice(w.tabs.indexOf(tab), 1);
+        w.tabs.splice(index, 0, tab);
+        api.tabs.onMoved.emit(id, { windowId: w.id, toIndex: index });
+        return structuredClone(tab);
+      },
       update: async (id, change) => {
         const tab = find(id);
         if (!tab) throw new Error("Tab closed");
@@ -115,6 +126,7 @@ function harness(saved = {}) {
     session,
     settings,
     creates,
+    moves,
     find,
     settle,
     focusWindow: (id) => (focusedWindowId = id),
@@ -122,6 +134,8 @@ function harness(saved = {}) {
       Object.assign(settings, patch);
       settingsEvent.emit();
     },
+    // The pin shortcut, as Chrome delivers it with the tab it was pressed on.
+    togglePin: (id) => api.commands.onCommand.emit("toggle-pin-tab", structuredClone(find(id))),
     grant: () => {
       permitted = true;
       api.permissions.onAdded.emit({ permissions: ["tabs"] });
@@ -187,7 +201,29 @@ const pins = (h, id) => h.windows.find((w) => w.id === id).tabs.filter((tab) => 
   await h.settle();
   for (const id of [1, 2, 5]) assert.equal(pins(h, id).length, 3);
 
+  // Chrome's tab menu can't unpin a shared pin; it is pinned again in place.
+  const gmailOrder = pins(h, 1).map((tab) => tab.id);
   await h.api.tabs.update(gmailReplacement.id, { pinned: false });
+  await h.settle();
+  assert.equal(h.find(gmailReplacement.id).pinned, true, "menu unpin is undone");
+  assert.deepEqual(h.moves.at(-1), { id: gmailReplacement.id, index: 0 }, "back in its slot");
+  assert.deepEqual(
+    pins(h, 1).map((tab) => tab.id),
+    gmailOrder
+  );
+  for (const id of [1, 2, 5]) assert.equal(pins(h, id).length, 3);
+  assert.equal(h.local.smoothSurferPinnedTabs.length, 3);
+
+  // Chrome's tab menu can't add a shared pin either.
+  const regular = h.windows.find((w) => w.id === 2).tabs.find((tab) => !tab.pinned);
+  await h.api.tabs.update(regular.id, { pinned: true });
+  await h.settle();
+  assert.equal(h.find(regular.id).pinned, false, "menu pin is undone");
+  for (const id of [1, 2, 5]) assert.equal(pins(h, id).length, 3);
+  assert.equal(h.local.smoothSurferPinnedTabs.length, 3);
+
+  // The shortcut is the way to unpin everywhere.
+  h.togglePin(gmailReplacement.id);
   await h.settle();
   for (const id of [1, 2, 5]) assert.equal(pins(h, id).length, 2);
   assert.ok(h.find(gmailCopy.id), "unpin keeps other copies open");
@@ -209,7 +245,7 @@ const pins = (h, id) => h.windows.find((w) => w.id === id).tabs.filter((tab) => 
   assert.equal(pins(h, 1).length, 2);
 
   // Unpinning is the explicit way to remove a pin everywhere.
-  await h.api.tabs.update(otherCopy.id, { pinned: false });
+  h.togglePin(otherCopy.id);
   await h.settle();
   for (const id of [1, 2, 5]) assert.equal(pins(h, id).length, 1);
   assert.equal(h.local.smoothSurferPinnedTabs.length, 1);
@@ -391,8 +427,17 @@ const pins = (h, id) => h.windows.find((w) => w.id === id).tabs.filter((tab) => 
 
   const quick = harness();
   await quick.settle();
-  await quick.api.tabs.update(2, { pinned: true });
-  await quick.api.tabs.update(2, { url: "https://example.com/next" });
+  // Navigate right after the shortcut pins, before reconciliation runs.
+  const update = quick.api.tabs.update;
+  quick.api.tabs.update = async (id, change) => {
+    const result = await update(id, change);
+    if (change.pinned) {
+      quick.api.tabs.update = update;
+      await update(id, { url: "https://example.com/next" });
+    }
+    return result;
+  };
+  quick.togglePin(2);
   await quick.settle();
   assert.ok(
     quick.local.smoothSurferPinnedTabs.includes("https://example.com/"),
@@ -403,7 +448,7 @@ const pins = (h, id) => h.windows.find((w) => w.id === id).tabs.filter((tab) => 
   const inFlight = harness();
   await inFlight.settle();
   inFlight.find(2).pendingUrl = "https://example.com/loading";
-  await inFlight.api.tabs.update(2, { pinned: true });
+  inFlight.togglePin(2);
   await inFlight.settle();
   assert.equal(inFlight.find(2).pinned, true, "pinning a pending URL waits for it to commit");
   delete inFlight.find(2).pendingUrl;
@@ -440,6 +485,20 @@ const pins = (h, id) => h.windows.find((w) => w.id === id).tabs.filter((tab) => 
   await off.settle();
   assert.equal(off.find(2).pinned, true, "the shortcut also works for ordinary Chrome pins");
   assert.equal(off.local.smoothSurferPinnedTabs, undefined);
+  await off.api.tabs.update(2, { pinned: false });
+  await off.settle();
+  assert.equal(off.find(2).pinned, false, "with sharing off, Chrome's menu works normally");
+
+  // Menu pins made while paused are left alone when the extension resumes.
+  const paused = harness();
+  await paused.settle();
+  paused.changeSettings({ enabled: false });
+  await paused.settle();
+  await paused.api.tabs.update(2, { pinned: true });
+  await paused.settle();
+  paused.changeSettings({ enabled: true });
+  await paused.settle();
+  assert.equal(paused.find(2).pinned, true);
   console.log(
     "Pinned tabs passed (shortcut, URL departures, redirects, reload, permissions, windows, unpin/close, concurrency, restart, privacy)."
   );
