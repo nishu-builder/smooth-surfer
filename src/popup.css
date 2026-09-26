@@ -505,13 +505,13 @@ section > h2 {
   padding: 12px 12px 0;
 }
 
-section:not(:has(> details)) {
+section:not(:has(> details[data-section])) {
   display: grid;
   gap: 8px;
   padding-bottom: 12px;
 }
 
-section:not(:has(> details)) > :not(h2) {
+section:not(:has(> details[data-section])) > :not(h2) {
   margin: 0 12px;
 }
 

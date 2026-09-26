@@ -128,15 +128,19 @@
   function renderSaved() {
     $("saved-sets").replaceChildren(...saved.map((pack) => setRow(pack, true)));
     if (!saved.length) {
-      const empty = node("p", "No saved sets.");
+      const empty = node("p", "None yet. Save your current rules below.");
       empty.className = "help";
       $("saved-sets").append(empty);
     }
   }
   function preview(pack) {
     selected = normalizeFilterSet(pack);
+    document.querySelectorAll(".set-row").forEach((row) => {
+      row.toggleAttribute("data-selected", row.firstElementChild.textContent === selected.name);
+    });
     $("preview-name").textContent = selected.name;
-    $("preview-help").textContent = "Select rules to add. Existing rules stay in place.";
+    $("preview-help").textContent =
+      "Uncheck anything you don’t want. Your existing rules stay in place.";
     $("choices").replaceChildren();
     const choice = (text) => {
       const label = node("label", "");
