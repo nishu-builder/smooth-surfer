@@ -79,8 +79,11 @@ importScripts(
   chrome.runtime.onStartup.addListener(() => {
     void calibration.resumeJob();
   });
-  chrome.runtime.onInstalled.addListener(() => {
+  chrome.runtime.onInstalled.addListener((details) => {
     void calibration.resumeJob();
+    // First install only: explain what is already on and offer AI filter setup.
+    if (details?.reason === "install")
+      void chrome.tabs.create({ url: chrome.runtime.getURL("welcome.html") }).catch(() => {});
   });
   void calibration.resumeJob();
 
