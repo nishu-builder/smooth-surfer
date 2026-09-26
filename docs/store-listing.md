@@ -44,8 +44,8 @@ Shared pinned tabs:
   and browsing history. Other windows keep their pins.
 - Drag pinned tabs into your preferred order; new windows preserve the last
   arrangement you made.
-- Closing a window keeps your shared pins.
-  Unpinning or closing an individual pin unpins other copies without closing them.
+- Closing a window or a pin keeps your shared pins; a closed pin returns at its
+  saved URL. Unpinning removes a pin everywhere without closing other copies.
 - Private windows are excluded. Saved pin URLs stay on this device.
 
 Per-site cleanup:

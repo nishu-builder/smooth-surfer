@@ -70,12 +70,17 @@
       const closingTabs = new Set(
         changes.filter((event) => event.windowClosing).map((event) => event.tabId)
       );
+      // Like Arc, closing a pin only closes that copy. The window gets it back
+      // at the saved URL; only an explicit unpin removes it everywhere.
+      const closedPins = new Set();
       for (const event of changes) {
         const removedUrl = bindings[event.tabId];
         // Chrome can emit pinned:false just before removing a whole window.
         // Only treat it as a user's unpin if that tab still exists.
         const unpinned = event.unpinned && live.has(event.tabId) && !closingTabs.has(event.tabId);
-        if (removedUrl && (unpinned || (event.removed && !event.windowClosing))) {
+        if (removedUrl && event.removed && !event.windowClosing)
+          closedPins.add(`${event.windowId}:${removedUrl}`);
+        if (removedUrl && unpinned) {
           urls = urls.filter((url) => url !== removedUrl);
           for (const [id, url] of Object.entries(bindings)) {
             if (url !== removedUrl) continue;
@@ -164,14 +169,21 @@
         for (const url of urls) {
           if (window.tabs.some((tab) => tab.pinned && bindings[tab.id] === url)) continue;
           try {
+            const key = `${window.id}:${url}`;
+            // A closed pin returns to its slot in the shared order.
+            const index = replacementPositions.has(key)
+              ? replacementPositions.get(key)
+              : closedPins.has(key)
+                ? window.tabs.filter(
+                    (tab) => tab.pinned && urls.indexOf(bindings[tab.id]) < urls.indexOf(url)
+                  ).length
+                : undefined;
             const tab = await api.tabs.create({
               windowId: window.id,
               url,
               pinned: true,
               active: false,
-              ...(replacementPositions.has(`${window.id}:${url}`)
-                ? { index: replacementPositions.get(`${window.id}:${url}`) }
-                : {})
+              ...(index === undefined ? {} : { index })
             });
             bindings[tab.id] = url;
             pages[tab.id] = { loading: true };
@@ -224,7 +236,12 @@
         });
     });
     api.tabs.onRemoved.addListener((tabId, info) =>
-      schedule({ tabId, removed: true, windowClosing: info.isWindowClosing })
+      schedule({
+        tabId,
+        removed: true,
+        windowId: info.windowId,
+        windowClosing: info.isWindowClosing
+      })
     );
     api.tabs.onMoved.addListener((tabId, info) =>
       schedule({ tabId, orderWindowId: info.windowId })
