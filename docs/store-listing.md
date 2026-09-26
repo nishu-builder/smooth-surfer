@@ -19,8 +19,9 @@ and keep your pinned pages available across Chrome windows.
 
 Loading delays:
 
-- Turn on Loading delay alongside a site's other settings, or add any domain
-  to the Visit delay list. Both controls stay in sync.
+- Loading delay is on by default for YouTube, X/Twitter, Reddit, Substack, and
+  Hacker News. Turn it off in a site's settings, or add any domain to the Visit
+  delay list. Both controls stay in sync.
 - Start with a one-second wait by default, or choose a first wait from 1 to
   300 seconds. Each completed wait makes the next one 1.5 times longer,
   rounded to whole seconds and capped at 20 minutes.

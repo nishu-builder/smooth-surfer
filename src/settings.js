@@ -88,7 +88,13 @@
     focusScheduleStart: "09:00",
     focusScheduleEnd: "17:00",
     visitDelaySeconds: 1,
-    visitDelayDomains: []
+    visitDelayDomains: [
+      "youtube.com",
+      "x.com",
+      "reddit.com",
+      "substack.com",
+      "news.ycombinator.com"
+    ]
   };
   // Visit delay: listed sites open behind a countdown. Each finished wait makes
   // the next one 1.5× longer; leaving early adds nothing. Steps and stats live

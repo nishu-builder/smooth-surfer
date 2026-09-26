@@ -5,6 +5,7 @@ release is a `v*` tag; see [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Unreleased
 
+- Turn on loading delays by default for YouTube, X/Twitter, Reddit, Substack, and Hacker News. Existing saved site lists are unchanged.
 - Share pinned tabs across windows by default. Tab access is now granted at install instead of requested from Settings; turn off **Share pins across windows** to keep pins per window.
 
 ## 0.2.14

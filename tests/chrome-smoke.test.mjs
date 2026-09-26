@@ -270,6 +270,33 @@ try {
   assert.match(popupState.pillText, /one short sentence/);
   assert.ok(popupState.stored.filterCriteria.includes("high-pressure AI investing hype"));
 
+  // Every built-in site starts with a loading delay. Clear them so the checks
+  // below start from an empty list.
+  const defaultDelays = await evaluate(
+    client,
+    `(async () => {
+    const toggles = [...document.querySelectorAll("[data-visit-delay-toggle]")];
+    const before = {
+      pills: [...document.querySelectorAll("[data-domain-list] .pill-label")].map((pill) => pill.textContent),
+      checked: toggles.every((input) => input.checked)
+    };
+    while (document.querySelector("[data-remove-domain]")) {
+      document.querySelector("[data-remove-domain]").click();
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    }
+    return { ...before, cleared: toggles.every((input) => !input.checked) };
+  })()`
+  );
+  assert.deepEqual(defaultDelays.pills, [
+    "youtube.com",
+    "x.com",
+    "reddit.com",
+    "substack.com",
+    "news.ycombinator.com"
+  ]);
+  assert.equal(defaultDelays.checked, true);
+  assert.equal(defaultDelays.cleared, true);
+
   // Visit delay settings: sites are added from a form, normalized, listed as
   // removable pills, and the first-wait field saves through the same path.
   const visitPanel = await evaluate(
