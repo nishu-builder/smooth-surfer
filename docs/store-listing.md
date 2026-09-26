@@ -1,6 +1,6 @@
 # Chrome Web Store listing
 
-Source copy for the Chrome Web Store developer dashboard, updated for 0.2.15.
+Source copy for the Chrome Web Store developer dashboard, updated for 0.3.0.
 Package publishing does not update the long description, privacy answers, or
 screenshots automatically; apply those fields in the dashboard before submission.
 
@@ -22,7 +22,8 @@ X, Reddit, Substack, and Hacker News. Turn each one on or off per site.
 Filter posts with your own rules
 Describe what you don't want to see in plain English, and Smooth Surfer hides
 matching posts. Use Claude with your own Anthropic API key, or Chrome's
-on-device model. Review what was hidden and refine your rules from there.
+on-device model. Check each hidden post as a right or wrong call, then improve
+your rules from your answers.
 
 A pause before habit sites
 Distracting sites open behind a short countdown that grows each time you visit
@@ -33,10 +34,22 @@ Pin a tab with Cmd+Shift+P (Alt+P on Windows/Linux) and it appears in every
 Chrome window. Pins stay at their saved page, and closing one brings it back
 instead of losing it.
 
+Everything works as soon as you install it, and every setting explains itself.
 No account, no analytics, and no Smooth Surfer servers. Open source:
 https://github.com/nishu-builder/smooth-surfer
 
 **Category:** Productivity → Workflow & Planning
+
+**Screenshots** (1280×800, in this order, from [store-assets/](store-assets/);
+regenerate with `node scripts/capture-store-assets.mjs`):
+
+1. `01-overview.png`: Calmer feeds, already working.
+2. `02-ai-filter.png`: Hide posts you'd rather not see.
+3. `03-hidden-posts.png`: Check every call.
+4. `04-loading-delay.png`: A pause before habit sites.
+5. `05-pinned-tabs.png`: Pins in every window.
+
+**Small promo tile** (440×280): `promo-tile-440x280.png`
 
 **Language:** English
 

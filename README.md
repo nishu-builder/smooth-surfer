@@ -3,213 +3,202 @@
 [![CI](https://github.com/nishu-builder/smooth-surfer/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/nishu-builder/smooth-surfer/actions/workflows/ci.yml)
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/cgmineplcpnmdfokdblnnapnbpknfghe?label=Chrome%20Web%20Store)](https://chromewebstore.google.com/detail/smooth-surfer/cgmineplcpnmdfokdblnnapnbpknfghe)
 
-<img src="icons/icon1024.png" alt="Smooth Surfer icon" width="420">
+Calmer feeds, a pause before habit sites, and pinned tabs that follow you into
+every Chrome window. It works as soon as you install it: no account, no
+analytics, and no Smooth Surfer servers.
 
-Smooth Surfer reduces feed noise and habitual site checking. Clean up YouTube, X/Twitter, Reddit, Substack, and Hacker News; add a loading delay before distracting sites; and keep pinned pages available across Chrome windows. The source also includes an iPhone Safari extension package.
+**[Install from the Chrome Web Store →](https://chromewebstore.google.com/detail/smooth-surfer/cgmineplcpnmdfokdblnnapnbpknfghe)**
 
-Loading delays, shared pinned tabs, and the basic cleanup switches run locally without an API key. Loading delays for the built-in sites and shared pinned tabs work out of the box.
+![The Smooth Surfer menu: each site and tool shows what is on at a glance](docs/store-assets/01-overview.png)
 
-Choose Claude Haiku 4.5 with an Anthropic key or on-device processing with Chrome's built-in Gemini Nano. Both filter X/Twitter, Reddit, Substack, and Hacker News against your criteria. Claude is the default on desktop and Safari; explicit saved provider choices are preserved. Gemini Nano is an experimental opt-in. On-device processing requires a supported desktop Chrome installation and model setup; it does not silently fall back to Claude. Local mode processes text and supplied image descriptions. Image analysis is available with Claude.
+## What it does
 
-On X/Twitter, posts stay in place while classification runs. Confirmed matches
-fade out, and removals above your reading position keep their space until you
-scroll back, avoiding sudden jumps. Cached decisions apply immediately when a
-post reappears. By default, filtering reads post text, link previews, and supplied
-image descriptions. **Analyze images** optionally includes up to two public post
-images from X, Reddit, or Substack in each review. It is off by default and adds
-API cost and latency. If classification fails,
-posts remain visible and retries are spaced out.
+### Calmer feeds
 
-Open **Review hidden posts** at the top of the popup to check each rule that hid
-a post, in a full tab. Mark it a **Right call** or **Wrong call**, optionally
-explaining why. The post appears first, with its matched rules beside or below it.
-X posts use native embeds; saved copies remain available when an embed cannot load.
-Use Left for Wrong call, Right for Right call, Up/Down to move between rules, and
-Cmd/Ctrl+Z to undo. Start typing to add an explanation to the selected rule; Enter
-returns to navigation. A brief green or red confirmation fades before the call
-leaves its inbox. Calls save your judgment; they do not restore the post or change
-a rule immediately.
+Cleanup switches for five sites, most on by default. Open the toolbar menu on a
+site and its section opens first, with every switch described in one line.
 
-**Improve rules** uses your selected model to propose revisions and replay saved
-examples. Corrections and written explanations can be used without both label
-classes. Revisions must improve the replay without introducing regressions;
-written feedback can also justify clearer wording when both versions pass.
-Results show the proposed wording, per-example decisions, and any additional
-rules suggested by your instructions. Suggestions stay available across sessions,
-with controls to add, dismiss, reconsider, or undo an addition.
-Enter saves edited explanations; starting
-improving rules saves remaining drafts on judged calls. The last 30 revisions support undo. This is
-calibration against your examples, not a guarantee of future accuracy. See
+| Site | Switches |
+| --- | --- |
+| YouTube | Gray thumbnails, hide recommendations, Shorts, games, live chat, end screens, engagement counts, and comments; block Shorts pages; disable autoplay |
+| X / Twitter | Remove feed ads; hide reposts, quote posts, video posts, and trends; prefer the Following tab |
+| Reddit | Remove feed ads; hide recommendations and comments |
+| Substack | Hide recommendations |
+| Hacker News | Hide scores |
+
+X, Reddit, Substack, and Hacker News can also use the AI filter below. On X,
+posts stay in place while they are checked; matches fade out, and removals above
+your reading position keep their space so the page never jumps.
+
+### AI filter
+
+![Hide posts you'd rather not see, with rules written in plain words](docs/store-assets/02-ai-filter.png)
+
+Describe posts you'd rather not see, like “engagement bait” or “posts that stoke
+FOMO,” and matching posts are hidden. It starts with four editable rules.
+
+- **Claude Haiku 4.5** (default) runs with your own Anthropic API key. Optional
+  **Analyze images** also sends up to two public post images; it is off by
+  default and adds cost and latency.
+- **Gemini Nano** (experimental) runs on this computer through Chrome's
+  built-in model. It handles text only and never falls back to the cloud. See
+  [on-device setup and limits](docs/LOCAL_MODELS.md).
+
+If the filter is switched on but can't run yet (no key, or no model), the menu
+says so in its header and on each site, with one click to set it up or turn it
+off. If a request fails, posts stay visible and retries are spaced out.
+
+On X, the **Less like this** button beside a post opens a rule editor. Write a
+rule, or choose **Suggest rules** and edit one before adding it. Suggestions
+never change your rules on their own.
+
+### Hidden posts
+
+![Check every call on the Hidden posts page](docs/store-assets/03-hidden-posts.png)
+
+Every post the filter hid appears in **Hidden posts**, with the rule that matched.
+Mark each one a **Right call** or **Wrong call** (← and → on the keyboard),
+optionally explaining why, then choose **Improve rules**. Your selected model
+proposes rewordings and replays your saved examples. A revision is kept only
+if it fixes mistakes without introducing new ones, and the last 30 revisions can
+be undone. It is calibration against your examples, not a guarantee; see
 [the algorithm](docs/CALIBRATION.md).
 
-Review keeps up to 2,000 recent and archived posts within 6 MB. Recent posts expire
-after seven days; archived posts have no time cutoff. **Archive the rest** moves
-posts still to review to **Archived**, where you can judge them or move them back. Feedback is retained
-separately, up to 2,000 judgments within 2 MB, so archiving does not erase
-what you taught the filter. Both good and bad examples remain visible after the
-seven-day history expires. X embeds and media load lazily from their original hosts.
+<details>
+<summary>Inboxes, keyboard, and storage</summary>
 
-On X, the **Less like this** button beside a post's actions opens a rule editor.
-Write your own rule or choose **Suggest rules** to ask the selected model for suggestions.
-You can edit a suggestion before adding it; suggestions never change your rules
-automatically. New rules apply wherever the AI filter is on.
+- Inboxes: **To review**, **Right calls**, **Wrong calls**, and **Archived**.
+  Counts are per rule and post, so a post that matched two rules counts twice.
+- Keys: ← Wrong call, → Right call, ↑/↓ move, Cmd/Ctrl+Z undo. Start typing to
+  explain the selected call; Enter returns to the keys.
+- X posts show as native embeds, with saved copies as a fallback.
+- Up to 2,000 hidden and archived posts within 6 MB stay on this device. Hidden
+  posts expire after seven days; archived ones don't. **Archive the rest** moves
+  everything still to review into Archived. Calls are stored separately (up to
+  2,000 within 2 MB), so archiving never erases what you taught the filter.
+- Improving rules runs in the background and resumes after Chrome restarts.
 
-X prioritizes the visible feed and the next two screens, with at most two
-classification batches running at once. Surf break now allows 16 screens of
-scrolling between breaks.
+</details>
 
-X also has instant switches for reposts, quote posts, and video posts. These
-work without an API key. Filtered formats appear in Hidden posts. Their calls are saved, but
-Improve rules only rewrites AI filter rules; format switches remain in the popup. Repost detection uses X's
-English repost label or a supported repost marker.
+**Filter sets** save named bundles of rules, preview the Quiet browsing and Work
+presets, and import or export sets as JSON. Importing adds only what you check,
+up to 20 sets per device, and never includes API keys.
 
-Open **Filter sets** from the popup or review page to save named sets, preview
-Quiet browsing and Work presets, or share a set as JSON. Import previews every
-rule and format switch; only checked selections are added, preserving existing
-rules. Up to 20 sets stay on this device. Sets exclude API keys, image analysis,
-and unrelated settings.
+### A pause before habit sites
 
-The popup also includes:
+![A loading delay countdown before x.com](docs/store-assets/04-loading-delay.png)
 
-- A Consumption Facts label: a nutrition-facts-style breakdown of the emotional ingredients (outrage, joy, humor, fear, curiosity/beauty, memes, polls) in the posts you actually saw today. It uses the same selected-model classification calls as filtering.
-- Comment hiding for YouTube and Reddit.
-- Video speed keys on any site: `Alt+Right` or `Alt+]` faster, `Alt+Left` or `Alt+[` slower, and `Alt+\` reset. Alt is Option on Mac. The modifier is configurable (Alt/Ctrl/Shift/Cmd, or no modifier) in the popup. With no modifier, use the bracket and backslash keys; plain arrows keep their normal page behavior.
-- A settings shortcut: press `Cmd+Shift+S` (`Ctrl+Shift+S` on Windows/Linux) twice quickly to open the popup.
-- [Loading delays](#loading-delays) with a one-second starting default, per-site checkboxes, a smooth countdown, and visit statistics.
-- [Shared pinned tabs](#cross-window-pinned-tabs) that keep their saved URL across regular Chrome windows. Pin or unpin with `Cmd+Shift+P` (`Alt+P` on Windows/Linux).
-- A focus schedule that runs effects only during chosen hours.
-- A stats panel counting what was hidden per site today and this week.
-- Settings export/import as JSON (the API key is never exported).
+Listed sites open behind a short countdown. It's on for YouTube, X, Reddit,
+Substack, and Hacker News by default, and you can add any site from the menu,
+including the one you're on.
 
-## Loading delays
+<details>
+<summary>How the countdown grows</summary>
 
-**Loading delay** is on by default for YouTube, X/Twitter, Reddit, Substack, and
-Hacker News; turn it off alongside each site's other controls. These switches and the **Loading delays** site
-list stay in sync. Add any other domain in that list. Either `twitter.com` or
-`x.com` covers both names, including redirects. New rules apply to tabs that are
-already open.
+- The first wait is 1 second by default (1–300 seconds). Each wait you finish
+  that day makes the next one 1.5× longer, up to 20 minutes. Counts reset at
+  03:00 local time.
+- The countdown runs only while the tab is visible. Closing the tab early doesn't
+  advance the next wait. **Reset count** returns to the first wait.
+- A finished tab keeps its pass across reloads, and waits again after 30 minutes
+  in the background. `twitter.com` and `x.com` cover each other.
+- Stats shows loads, finished waits, early exits, resets, time waited, and visits
+  by hour.
 
-The first wait defaults to **1 second**, configurable from 1 to 300 seconds.
-Existing saved durations are preserved. Each completed wait increases the next
-wait that day by 1.5×, rounded to whole seconds, up to 20 minutes. The smooth
-progress bar and countdown pause while the tab is hidden. Leaving early records
-an abandoned attempt without advancing the next wait.
+</details>
 
-A tab that finishes keeps its pass across reloads. It waits again after spending
-30 minutes in the background; a new tab starts a fresh visit. **Reset count**
-returns to the first wait, and counts reset at 03:00 local time. Stats shows page
-loads, completed waits, early exits, resets, time waited, and visits by hour.
+### Pinned tabs in every window
 
-## Cross-window pinned tabs
+![Pinned tabs shared across every Chrome window](docs/store-assets/05-pinned-tabs.png)
 
-**Share pins across windows** is on by default; turn it off in Settings to keep
-pins per window. Pin or unpin the current tab with **Cmd+Shift+P** on Mac or
-**Alt+P** on Windows/Linux. While sharing is on, the shortcut is the only way to
-change pins: pinning or unpinning from Chrome’s tab menu, or by dragging, is
-undone. Change the shortcut in `chrome://extensions/shortcuts` if needed. With
-sharing off, the shortcut and Chrome’s menu both work as ordinary pinning.
+Press **Cmd+Shift+P** (Alt+P on Windows and Linux) to pin or unpin a tab. Pins
+appear in every regular Chrome window, including new ones, always at the page
+you pinned. Sharing is on by default; turn it off to keep pins per window.
 
-Chrome may still ask you to press Cmd+W twice to close a pinned tab. That prompt
-comes from Chrome and extensions can’t change it.
+<details>
+<summary>How shared pins behave</summary>
 
-Existing and newly pinned HTTP/HTTPS pages appear as inactive pinned copies in every
-regular Chrome window, including windows opened later. Pins remember the exact
-URL you pinned. Navigating to a different URL (including a path, query, or fragment
-change) turns that page into a regular tab, preserving its history and current
-state, and restores an inactive pin at the saved URL. Other windows keep their
-pins. Reloading the same URL leaves it pinned. A restored pin’s initial redirects
-are allowed to finish before later navigation splits it into a regular tab.
+- Navigating away from a pin moves that page into a regular tab (keeping its
+  history) and restores the pin at its saved URL. Reloading keeps it pinned.
+- Closing a pin or a window keeps your pins; a closed pin comes back. Unpinning
+  with the shortcut removes a pin everywhere without closing its copies.
+- While sharing is on, the shortcut is the only way to change pins. Pinning or
+  unpinning from Chrome's tab menu is undone. Change the shortcut at
+  `chrome://extensions/shortcuts`.
+- Drag pins to reorder them; new windows use the last order you arranged.
+- Private windows are excluded, and saved URLs stay on this device. Chrome may
+  still ask you to press Cmd+W twice to close a pinned tab; extensions can't
+  change that.
 
-Reorder pinned tabs by dragging them in any regular window. New windows use the
-last order you arranged; existing windows keep their own current arrangement.
-The saved order survives a browser restart.
+</details>
 
-Closing a window or an individual pin keeps the saved pins. A closed pin comes
-back in its window at the saved URL, and other windows keep their copies.
-Unpinning is the only way to remove a pin from the shared list; it unpins the
-other copies without closing their pages. Disabling sharing leaves existing tabs alone. Private windows are excluded;
-the saved URLs stay on this device. Pinned tabs appear as small icons at the far
-left of Chrome’s tab bar.
+### Everywhere
+
+- **Pause deep scrolling:** after about 16 screens of a feed, a surf break waits
+  for you to choose Keep going.
+- **Gray distracting media:** mutes images and video in feeds. Both of these
+  skip work tools like Docs, GitHub, and Slack.
+- **Video speed keys:** on any site, hold Alt/Option with → or `]` to speed up,
+  ← or `[` to slow down, and `\` to reset. The modifier is configurable, or off
+  entirely (brackets only).
+- **Focus hours:** run Smooth Surfer only between set times, including overnight
+  ranges.
+- **Settings shortcut:** press Cmd+Shift+S (Ctrl+Shift+S) twice to open the menu.
+- **Stats** counts what was hidden per site and why. With **Track consumption**
+  on, a nutrition-style **Consumption Facts** label breaks down the mood of the
+  posts you actually saw today.
+- **Backup:** export or import every setting as JSON. Your API key is never
+  included.
+
+## Privacy
+
+Settings sync with your Chrome profile; your API key, hidden posts, calls, and
+statistics stay on this device. Post content leaves the browser only when you
+choose Claude: then feed text (and images, if you turn that on) goes to Anthropic
+with your own key. See [PRIVACY.md](PRIVACY.md) for details.
 
 ## Install
 
-Most people want the published build from the Chrome Web Store — it stays up to
-date automatically:
+Most people want the [Chrome Web Store build](https://chromewebstore.google.com/detail/smooth-surfer/cgmineplcpnmdfokdblnnapnbpknfghe),
+which updates automatically. A welcome page opens after installing; pin Smooth
+Surfer from Chrome's extensions menu to keep it one click away.
 
-**[Install Smooth Surfer from the Chrome Web Store →](https://chromewebstore.google.com/detail/smooth-surfer/cgmineplcpnmdfokdblnnapnbpknfghe)**
-
-The store build is packaged from this repository; see
-[docs/RELEASING.md](docs/RELEASING.md) for how a tagged commit becomes a store
-release.
-
-After installing, pin Smooth Surfer from Chrome's extensions menu. To enable
-Haiku filtering, open the toolbar popup and save an Anthropic API key. Alternatively,
-choose on-device processing in Settings and complete model setup. Until the
-selected provider is ready, the AI filter leaves posts visible, and the popup
-says so with a one-click way to set it up or turn it off. A welcome page opens on
-first install to explain what is already on.
-See [on-device setup and limits](docs/LOCAL_MODELS.md).
-
-The iPhone target operates on websites in Safari, not native apps. It initially
-uses Claude for AI filtering; Chrome's built-in model is unavailable on iOS.
-Building the iPhone package does not install it from the App Store. See the
-[iPhone build instructions](docs/iphone.md) and [platform scope](docs/PLATFORM_SCOPE.md).
-
-## Build from source
-
-To run the extension straight from this repo (for development, or to use an
-unreleased version):
+To run it from source (for development or an unreleased version):
 
 ```sh
 git clone git@github.com:nishu-builder/smooth-surfer.git
-cd smooth-surfer
 ```
 
-1. Open `chrome://extensions`.
-2. Enable `Developer mode`.
-3. Click `Load unpacked`.
-4. Select the `smooth-surfer` folder.
-5. Pin Smooth Surfer from Chrome's extensions menu.
+1. Open `chrome://extensions` and turn on **Developer mode**.
+2. Click **Load unpacked** and select the `smooth-surfer` folder.
+3. After pulling changes, reload the extension there and refresh open tabs.
 
-After changing files or pulling updates, reload the extension on
-`chrome://extensions`, then refresh open target tabs.
+### iPhone
 
-## Checks
+The repository also builds an iPhone Safari extension. It works on websites in
+Safari, not in native apps, and uses Claude for the AI filter, since Chrome's
+built-in model isn't available on iOS. It isn't on the App Store; see the
+[iPhone build instructions](docs/iphone.md) and [platform scope](docs/PLATFORM_SCOPE.md).
 
-The extension itself has no dependencies and ships as plain source, so the
-tests run with nothing installed:
+## Development
+
+The extension is plain JavaScript, HTML, and CSS with no runtime dependencies,
+so the tests run without installing anything:
 
 ```sh
-npm run check   # syntax checks, unit tests, and the Chrome smoke test
+npm run check     # syntax checks, unit tests, and headless Chrome tests
+npm ci            # dev tools for the commands below
+npm run verify    # ESLint + Prettier check + npm run check
 ```
 
-Linting and formatting need the dev dependencies (`npm ci`):
+The Chrome tests that load the real extension need a build that honors
+`--load-extension`. Branded Chrome 137+ doesn't; point `CHROME_BIN` at Chrome
+for Testing (CI downloads it automatically on Linux).
 
-```sh
-npm run lint          # ESLint
-npm run format        # Prettier, writing changes
-npm run verify        # lint + format check + npm run check
-```
-
-Prettier covers JavaScript and JSON; HTML, CSS and Markdown stay
-hand-formatted.
-
-## Product design
-
-Follow the [product style guide](docs/STYLE_GUIDE.md) for interface copy and interactions.
-
-Hidden posts has four inboxes: To review, Right calls, Wrong calls, and Archived. Making a call moves that rule out of the current inbox; other rules on the same post stay. Counts refer to calls (one per rule and post). Undo restores the prior inbox and selects that rule.
-
-Improving rules runs in the background and saves its progress. You can refresh or
-close the page once it says **Safe to refresh**. Closing Chrome pauses work;
-it resumes when Chrome reopens. Explanation drafts and the latest results survive
-reloads. The call buttons mirror the keyboard: **← Wrong call** and
-**Right call →**.
-
-Hidden posts, Filter sets, Stats, and Settings share a sidebar. Open
-any page from the popup, then switch sections without opening more tabs. Stats
-shows hidden-item totals for today and the past seven days, broken down by site
-and recorded reason, with consumption facts below. Settings share the same
-controls and saved values as the toolbar popup.
-
-Future work is tracked in [TODO.md](TODO.md). The Gmail inbox queue is planned and is not part of this release.
+- [Product style guide](docs/STYLE_GUIDE.md): the paper-and-ink look, terms,
+  and interface principles.
+- Store and README graphics: `node scripts/capture-store-assets.mjs` renders
+  everything in [docs/store-assets](docs/store-assets) from the real extension.
+- [Releasing](docs/RELEASING.md): how a `v*` tag becomes a Chrome Web Store
+  release. See the [changelog](CHANGELOG.md) for what changed.
+- Planned work is in [TODO.md](TODO.md).

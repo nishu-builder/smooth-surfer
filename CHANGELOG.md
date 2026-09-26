@@ -3,7 +3,7 @@
 Notable changes per released version. Versions match `manifest.json`, and a
 release is a `v*` tag; see [docs/RELEASING.md](docs/RELEASING.md).
 
-## Unreleased
+## 0.3.0
 
 - Redesign every screen in the paper-and-ink style shared with beeper-muse: cream paper, monospace headings and controls, ink borders with offset shadows, a lime accent for what is on, and a matching dark mode.
 - Rebuild the popup around collapsible sections that each summarize their state (“8 of 11 on”, “5 sites · 1s first”). The current site opens first, every setting shows its description, and the header says what was hidden today.
@@ -13,6 +13,7 @@ release is a `v*` tag; see [docs/RELEASING.md](docs/RELEASING.md).
 - Open a welcome page on first install that explains what already works and offers AI filter setup, or turns the filter off.
 - Rename Review rulings to Hidden posts, Good/Bad ruling to Right/Wrong call, and Recalibrate rules to Improve rules. Add helpful empty states and move storage details behind a disclosure.
 - Redesign the loading-delay countdown, surf break, speed toast, Less like this dialog, Filter sets, Stats, and on-device AI setup.
+- Refresh the store screenshots and add a promo tile, rendered from the real extension. The README now reuses them.
 
 ## 0.2.15
 
