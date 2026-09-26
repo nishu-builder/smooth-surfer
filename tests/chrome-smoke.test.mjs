@@ -2330,7 +2330,11 @@ async function verifyExtensionPopupOpens() {
       ),
       [
         ["x.com", "9 · 14", "3 · 5", "1 · 1", "0 · 1", "47s · 1m 12s"],
-        ["reddit.com", "0 · 2", "0 · 1", "0 · 0", "0 · 0", "0s · 10s"]
+        ["reddit.com", "0 · 2", "0 · 1", "0 · 0", "0 · 0", "0s · 10s"],
+        // Default delayed sites without history follow in list order.
+        ["youtube.com", "0 · 0", "0 · 0", "0 · 0", "0 · 0", "0s · 0s"],
+        ["substack.com", "0 · 0", "0 · 0", "0 · 0", "0 · 0", "0s · 0s"],
+        ["news.ycombinator.com", "0 · 0", "0 · 0", "0 · 0", "0 · 0", "0s · 0s"]
       ],
       "visit delay totals use today and the same seven-day window"
     );
