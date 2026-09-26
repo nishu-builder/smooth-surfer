@@ -182,8 +182,9 @@ try {
   assert.match(youtubeStyles.coreWatchThumbFilter, /grayscale/);
   assert.match(youtubeStyles.viewModelThumbFilter, /grayscale/);
 
+  // Room for the 360px popup plus a classic (non-overlay) scrollbar on Linux.
   await client.send("Emulation.setDeviceMetricsOverride", {
-    width: 360,
+    width: 400,
     height: 720,
     deviceScaleFactor: 1,
     mobile: false
