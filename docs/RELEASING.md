@@ -65,10 +65,11 @@ are GitHub dashboard toggles only a maintainer can set:
    (keep them equal; the workflow checks the tag against the manifest), and move the pending
    entries in [CHANGELOG.md](../CHANGELOG.md) under that version.
 3. `npm run check`
-4. If the UI or site styling changed, refresh screenshots:
+4. If the UI changed, refresh the store and README graphics:
    `node scripts/capture-store-assets.mjs`
-   (needs ffmpeg; downloads Chrome for Testing into `.cache/` on Linux if no
-   `CHROME_BIN` is set — plain Chrome 137+ ignores `--load-extension`).
+   (uses `CHROME_BIN` or Chrome for Testing under `.cache/`, downloading it on
+   Linux; plain Chrome 137+ ignores `--load-extension`). It writes five 1280×800
+   screenshots and a 440×280 promo tile to `docs/store-assets/`.
 5. Apply updated description, privacy answers, and screenshots from
    [store-listing.md](store-listing.md) in the developer dashboard. The package
    upload API does not update these listing fields.

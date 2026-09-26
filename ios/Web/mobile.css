@@ -10,12 +10,13 @@
     font-size: 16px;
   }
   .feedback-note textarea { min-height: 44px; }
-  .pill summary { grid-template-columns: 10px minmax(0, 1fr) 44px; }
-  .pill-plain { grid-template-columns: minmax(0, 1fr) 44px; }
-  .pill button { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
-  .switch-row, .switch-row.compact { grid-template-columns: minmax(0, 1fr) 24px; }
-  input[type="checkbox"] { width: 24px; height: 24px; }
-  .switch-row::after { display: none; }
+  .pill summary { grid-template-columns: minmax(0, 1fr) 44px; }
+  .domain-row { grid-template-columns: minmax(0, 1fr) auto 44px; }
+  .pill button, .domain-row button.remove { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
+  .switch-row input[type="checkbox"] { width: 44px; height: 26px; }
+  .switch-row input[type="checkbox"]::before { width: 20px; height: 20px; }
+  .switch-row input[type="checkbox"]:checked::before { transform: translateX(18px); }
+  section > details > summary { min-height: 52px; }
   .review-controls { flex-wrap: wrap; }
   .inboxes { display: flex; flex-wrap: wrap; }
   .inboxes button { flex: 1 1 auto; }

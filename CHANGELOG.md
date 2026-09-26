@@ -3,8 +3,45 @@
 Notable changes per released version. Versions match `manifest.json`, and a
 release is a `v*` tag; see [docs/RELEASING.md](docs/RELEASING.md).
 
-## Unreleased
+## 0.3.0
 
+- Redesign every screen in the paper-and-ink style shared with beeper-muse: cream paper, monospace headings and controls, ink borders with offset shadows, a lime accent for what is on, and a matching dark mode.
+- Rebuild the popup around collapsible sections that each summarize their state (“8 of 11 on”, “5 sites · 1s first”). The current site opens first, every setting shows its description, and the header says what was hidden today.
+- Say when the AI filter is on but cannot run, in the header, on each site, and in the AI filter section, with one click to add a key or turn it off. Link to Anthropic’s key page and flag keys that don’t look like Anthropic keys.
+- Add a loading delay for the site you’re on from the popup, and show each delayed site’s visits and next wait in one list.
+- Show the real pin shortcut, a numbered explanation of shared pins, and a link to change the shortcut. Show live video speed keys for the chosen modifier.
+- Open a welcome page on first install that explains what already works and offers AI filter setup, or turns the filter off.
+- Rename Review rulings to Hidden posts, Good/Bad ruling to Right/Wrong call, and Recalibrate rules to Improve rules. Add helpful empty states and move storage details behind a disclosure.
+- Redesign the loading-delay countdown, surf break, speed toast, Less like this dialog, Filter sets, Stats, and on-device AI setup.
+- Refresh the store screenshots and add a promo tile, rendered from the real extension. The README now reuses them.
+- Restyle the iPhone setup screen to match, with numbered steps and the new terms.
+
+## 0.2.15
+
+- With sharing on, only the pin shortcut (Cmd+Shift+P on Mac, Alt+P on Windows/Linux) pins or unpins tabs. Pins and unpins from Chrome’s tab menu or drags are undone, and a menu-unpinned pin returns to its slot.
+- Turn on loading delays by default for YouTube, X/Twitter, Reddit, Substack, and Hacker News. Existing saved site lists are unchanged.
+- Close a shared pin without unpinning it, as in Arc: the pin returns at its saved URL in that window, and other windows keep theirs. Unpin to remove a pin everywhere.
+- Share pinned tabs across windows by default. Tab access is now granted at install instead of requested from Settings; turn off **Share pins across windows** to keep pins per window.
+
+## 0.2.14
+
+- Add Cmd+Shift+P on Mac and Alt+P on Windows/Linux to pin or unpin the current tab; customize it in Chrome’s extension keyboard shortcuts.
+- Keep shared pins tied to their saved URL. Navigating away turns the current page into a regular tab and restores the saved pin without interrupting the page or changing other windows.
+
+## 0.2.13
+
+- Keep posts visible while cloud filtering decisions are pending, preventing allowed posts from collapsing and reappearing on Reddit and other feeds.
+- Repair Reddit hide states before the next frame when posts are remounted or their CSS classes are replaced. Ignore late filtering replies for recycled posts.
+- Keep blocked X/Twitter rows collapsed during staged rebuilds, including empty wrappers and rebuilds that interrupt a fade. Restore rows when replacement posts or feed modules arrive.
+
+## 0.2.12
+
+- Stop an X/Twitter hide/show loop when hidden posts lose their video player, media captions, text, or promoted label. Keep blocked decisions attached to the post’s permalink across rerenders and remounts; release them for new post IDs, changed filters, and explicit restores.
+- Keep a blocked post’s fade from being canceled by media or text changes within the same post.
+
+## 0.2.11
+
+- Support Option/Alt + Right/Left Arrow for video speed changes, alongside the existing bracket shortcuts. Preserve normal arrow-key behavior when no modifier is selected or while editing text.
 - Stop Reddit posts from flickering between hidden and visible. A hide decision now stays with the post until settings change, even when hiding it removes the recommendation label or changes which image size Reddit loads.
 
 ## 0.2.10

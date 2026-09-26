@@ -1,9 +1,14 @@
-:root, body { width: auto; min-width: 280px; background: var(--ss-paper); }
-.model-setup { max-width: 640px; margin: 24px auto; padding: 16px; }
-.model-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-.model-setup progress { width: 100%; margin-bottom: 8px; }
-
-.model-setup p { margin: 12px 0; }
-
-.model-actions a, .model-actions a:visited { color: var(--ss-ink); }
-.model-setup progress { accent-color: var(--ss-ink); }
+:root, body { width: auto; min-width: 280px; }
+.model-setup { display: grid; gap: 14px; max-width: 640px; margin: 48px auto; padding: 0 24px 48px; }
+.model-setup h1 { font: 700 30px/1.15 var(--ss-mono); letter-spacing: -1.4px; }
+.model-setup h2 { margin-top: 12px; font: 600 14px var(--ss-mono); }
+.model-setup .lede { color: var(--ss-muted); font-size: 15px; }
+.tag { display: inline-block; padding: 1px 8px; border: 1px solid var(--ss-warn-line); border-radius: 999px; background: var(--ss-warn-soft); color: var(--ss-warn); font: 11px var(--ss-mono); letter-spacing: 0; vertical-align: 6px; }
+.status-card { display: grid; gap: 12px; padding: 18px; border: 1px solid var(--ss-ink); border-radius: 8px; background: var(--ss-paper); box-shadow: var(--ss-shadow); }
+.status-card [data-model-status] { font-size: 14px; }
+.model-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.model-actions a { margin-left: 4px; font: 12px var(--ss-mono); }
+.model-setup progress { width: 100%; height: 12px; accent-color: var(--ss-ink); }
+.checklist { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; font-size: 14px; }
+.checklist li { position: relative; padding-left: 26px; color: var(--ss-muted); }
+.checklist li::before { content: ""; position: absolute; top: 6px; left: 4px; width: 9px; height: 9px; border: 1px solid var(--ss-ink); border-radius: 50%; background: var(--ss-accent); }

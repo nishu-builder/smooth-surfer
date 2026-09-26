@@ -1,6 +1,6 @@
 # On-device AI
 
-Choose **Gemini Nano · on-device** under Settings → Content filter. Open **Set up on-device AI**, then download the model. Keep that tab open during setup. Once ready, it can be closed; feed filtering uses an offscreen extension document. Chrome retains the model across browser restarts and extension updates. Availability is checked before opening a model session. If Chrome removes the model or an inference fails, filtering reports the error instead of switching providers.
+Choose **Gemini Nano · on-device** under Settings → AI filter. Open **Set up on-device AI**, then download the model. Keep that tab open during setup. Once ready, it can be closed; feed filtering uses an offscreen extension document. Chrome retains the model across browser restarts and extension updates. Availability is checked before opening a model session. If Chrome removes the model or an inference fails, filtering reports the error instead of switching providers.
 
 This implementation is experimental: real-model quality and latency validation remain outstanding.
 
@@ -18,7 +18,7 @@ The first implementation uses Chrome's built-in Prompt API, not an external loca
 
 Settings shows live counts for checked, filtered, waiting, and failed posts, plus current/last model request time and the latest error. Counts cover the current background-worker session and reset when Chrome restarts it. Model availability alone does not mean any posts have been classified. Review history includes blocked posts; allowed posts do not create new rulings there.
 
-Completed rulings are saved from a snapshot captured when the post was queued, even if X has since removed or recycled its row. Changing settings or restoring a post still invalidates those late rulings. Reload the feed after reloading the extension so it can reconnect.
+Completed decisions are saved from a snapshot captured when the post was queued, even if X has since removed or recycled its row. Changing settings or restoring a post still invalidates those late rulings. Reload the feed after reloading the extension so it can reconnect.
 
 ## Implementation and verification
 

@@ -24,6 +24,8 @@ assert.equal(
 
 const defaults = settings.normalizeSettings();
 assert.equal(settings.DEFAULT_SETTINGS.aiProvider, "anthropic");
+assert.equal(settings.DEFAULT_SETTINGS.crossWindowPinsEnabled, true);
+assert.equal(settings.normalizeSettings({}).crossWindowPinsEnabled, true);
 assert.equal(defaults.aiProvider, "anthropic");
 assert.equal(
   settings.normalizeSettings({ enabled: true }).aiProvider,
@@ -360,7 +362,16 @@ assert.equal(
 {
   const S = require("../src/settings.js");
   assert.equal(defaults.visitDelaySeconds, 1);
-  assert.deepEqual(defaults.visitDelayDomains, []);
+  assert.deepEqual(defaults.visitDelayDomains, [
+    "youtube.com",
+    "x.com",
+    "reddit.com",
+    "substack.com",
+    "news.ycombinator.com"
+  ]);
+  assert.deepEqual(S.normalizeSettings({}).visitDelayDomains, defaults.visitDelayDomains);
+  // A saved empty list means the user removed every site; keep it empty.
+  assert.deepEqual(S.normalizeSettings({ visitDelayDomains: [] }).visitDelayDomains, []);
   assert.equal(S.normalizeSettings({ visitDelaySeconds: "0" }).visitDelaySeconds, 1);
   assert.equal(S.normalizeSettings({ visitDelaySeconds: 900 }).visitDelaySeconds, 300);
   assert.equal(S.normalizeSettings({ visitDelaySeconds: "abc" }).visitDelaySeconds, 1);

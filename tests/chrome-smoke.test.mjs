@@ -15,6 +15,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { verifyFeedRendering } from "./feed-render.test.mjs";
+
 import { verifyTwitterFeed, twitterFilterFixture } from "./twitter-feed.test.mjs";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -180,8 +182,9 @@ try {
   assert.match(youtubeStyles.coreWatchThumbFilter, /grayscale/);
   assert.match(youtubeStyles.viewModelThumbFilter, /grayscale/);
 
+  // Room for the 360px popup plus a classic (non-overlay) scrollbar on Linux.
   await client.send("Emulation.setDeviceMetricsOverride", {
-    width: 360,
+    width: 400,
     height: 720,
     deviceScaleFactor: 1,
     mobile: false
@@ -204,7 +207,7 @@ try {
     `(async () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     const filterLabel = [...document.querySelectorAll("label")].find((label) =>
-      label.textContent.includes("Filter out content")
+      label.textContent.includes("AI filter")
     );
     const input = document.querySelector("[data-phrase-input]");
     input.value = "high-pressure AI investing hype";
@@ -259,14 +262,41 @@ try {
   assert.equal(popupState.closedWhiteSpace, "nowrap");
   assert.equal(popupState.openWhiteSpace, "normal");
   assert.equal(popupState.noHorizontalOverflow, true);
-  assert.ok(popupState.checkboxWidth <= 22);
-  assert.ok(popupState.bodyWidth >= 300);
-  assert.ok(popupState.popupWidth >= 300);
-  assert.ok(popupState.popupWidth <= 340);
+  assert.ok(popupState.checkboxWidth <= 40, "settings use compact switches");
+  assert.ok(popupState.bodyWidth >= 340);
+  assert.ok(popupState.popupWidth >= 340);
+  assert.ok(popupState.popupWidth <= 380);
   assert.match(popupState.pillText, /high-pressure AI investing hype/);
   assert.match(popupState.pillText, /missed upside/);
   assert.match(popupState.pillText, /one short sentence/);
   assert.ok(popupState.stored.filterCriteria.includes("high-pressure AI investing hype"));
+
+  // Every built-in site starts with a loading delay. Clear them so the checks
+  // below start from an empty list.
+  const defaultDelays = await evaluate(
+    client,
+    `(async () => {
+    const toggles = [...document.querySelectorAll("[data-visit-delay-toggle]")];
+    const before = {
+      pills: [...document.querySelectorAll("[data-domain-list] .pill-label")].map((pill) => pill.textContent),
+      checked: toggles.every((input) => input.checked)
+    };
+    while (document.querySelector("[data-remove-domain]")) {
+      document.querySelector("[data-remove-domain]").click();
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    }
+    return { ...before, cleared: toggles.every((input) => !input.checked) };
+  })()`
+  );
+  assert.deepEqual(defaultDelays.pills, [
+    "youtube.com",
+    "x.com",
+    "reddit.com",
+    "substack.com",
+    "news.ycombinator.com"
+  ]);
+  assert.equal(defaultDelays.checked, true);
+  assert.equal(defaultDelays.cleared, true);
 
   // Visit delay settings: sites are added from a form, normalized, listed as
   // removable pills, and the first-wait field saves through the same path.
@@ -286,7 +316,7 @@ try {
     const stored = JSON.parse(localStorage.getItem("smoothSurferSettings"));
     return {
       pills: [...document.querySelectorAll("[data-domain-list] .pill-label")].map((pill) => pill.textContent),
-      today: document.querySelector("[data-visit-today]").textContent,
+      today: document.querySelector("[data-domain-list]").textContent,
       status: document.querySelector("[data-status]").textContent,
       domains: stored.visitDelayDomains,
       seconds: stored.visitDelaySeconds
@@ -303,7 +333,7 @@ try {
     true
   );
   assert.equal(visitPanel.seconds, 20);
-  assert.match(visitPanel.today, /reddit\.com0 today · 0s waited · next 20s/);
+  assert.match(visitPanel.today, /reddit\.comNo visits yet today · first wait 20s/);
   assert.match(visitPanel.status, /Enter a site like example\.com/);
   await writeFile(
     path.join(cacheDir, "popup-visit-delay.png"),
@@ -421,6 +451,114 @@ try {
   assert.equal(speedState.afterBareKey, 1);
   assert.equal(speedState.afterSingleTap, 0);
   assert.deepEqual(speedState.messages, [{ type: "openSmoothSurferSettings" }]);
+
+  // Modified arrows change speed before the player's own key handler can seek.
+  const arrowSpeedState = await evaluate(
+    client,
+    `(() => {
+    const video = document.querySelector('#speed-video');
+    let playerKeys = 0;
+    video.addEventListener('keydown', () => playerKeys++);
+    const press = (code, modifiers = {}, target = video, rate = 1) => {
+      video.playbackRate = rate;
+      const event = new KeyboardEvent('keydown', {code, bubbles:true, cancelable:true, ...modifiers});
+      target.dispatchEvent(event);
+      return [video.playbackRate, event.defaultPrevented];
+    };
+    const update = patch => window.__smoothSurferStorageListeners.forEach(listener => listener({
+      [SmoothSurferSettings.STORAGE_KEY]: {newValue:{...SmoothSurferSettings.DEFAULT_SETTINGS,...patch}}
+    }, 'sync'));
+    const results = {
+      faster: press('ArrowRight', {altKey:true}),
+      slower: press('ArrowLeft', {altKey:true}),
+      playerKeysAfterHandled: playerKeys,
+      bareRight: press('ArrowRight'),
+      bareLeft: press('ArrowLeft'),
+      wrongModifier: press('ArrowRight', {ctrlKey:true}),
+      extraModifier: press('ArrowRight', {altKey:true,shiftKey:true}),
+      maximum: press('ArrowRight', {altKey:true}, video, 4),
+      minimum: press('ArrowLeft', {altKey:true}, video, 0.25)
+    };
+    results.editable = ['input','textarea','div'].map(tag => {
+      const editor = document.createElement(tag);
+      if (tag === 'div') editor.contentEditable = 'true';
+      document.body.append(editor);
+      const state = press('ArrowLeft', {altKey:true}, editor);
+      editor.remove();
+      return state;
+    });
+    results.modifiers = ['ctrl','shift','meta'].map(modifier => {
+      update({videoSpeedModifier:modifier});
+      return press('ArrowRight', {[modifier+'Key']:true});
+    });
+    update({videoSpeedModifier:'none'});
+    results.noModifierArrow = press('ArrowRight');
+    results.noModifierBracket = press('BracketRight');
+    update({videoSpeedHotkeys:false});
+    results.disabledHotkeys = press('ArrowRight', {altKey:true});
+    update({enabled:false});
+    results.disabledExtension = press('ArrowRight', {altKey:true});
+    update({});
+    video.remove();
+    results.noVideo = press('ArrowRight', {altKey:true}, document.body);
+    document.body.append(video);
+    video.playbackRate = 1;
+    return results;
+  })()`
+  );
+  assert.deepEqual(arrowSpeedState, {
+    faster: [1.25, true],
+    slower: [0.75, true],
+    playerKeysAfterHandled: 0,
+    bareRight: [1, false],
+    bareLeft: [1, false],
+    wrongModifier: [1, false],
+    extraModifier: [1, false],
+    maximum: [4, true],
+    minimum: [0.25, true],
+    editable: [
+      [1, false],
+      [1, false],
+      [1, false]
+    ],
+    modifiers: [
+      [1.25, true],
+      [1.25, true],
+      [1.25, true]
+    ],
+    noModifierArrow: [1, false],
+    noModifierBracket: [1.25, true],
+    disabledHotkeys: [1, false],
+    disabledExtension: [1, false],
+    noVideo: [1, false]
+  });
+  // Trusted browser input also exercises cancellation of native Alt+Left navigation.
+  for (const [key, keyCode, rate] of [
+    ["ArrowRight", 39, 1.25],
+    ["ArrowLeft", 37, 1]
+  ]) {
+    await client.send("Input.dispatchKeyEvent", {
+      type: "keyDown",
+      key,
+      code: key,
+      windowsVirtualKeyCode: keyCode,
+      modifiers: 1
+    });
+    await client.send("Input.dispatchKeyEvent", {
+      type: "keyUp",
+      key,
+      code: key,
+      windowsVirtualKeyCode: keyCode,
+      modifiers: 1
+    });
+    assert.equal(
+      await evaluate(client, `document.querySelector('#speed-video')?.playbackRate`),
+      rate
+    );
+  }
+  console.log(
+    "Video speed shortcuts passed (arrows, brackets, modifiers, editing, player propagation, browser navigation)."
+  );
 
   await navigate(client, `http://youtube.com.test:${fixturePort}/youtube-content.html`);
   await waitForExpression(
@@ -606,6 +744,7 @@ try {
   assert.equal(twitterContentState.linkedinHidden, false);
   assert.equal(twitterContentState.trendDisplay, "none");
 
+  await verifyFeedRendering({ client, navigate, evaluate, waitForExpression, fixturePort });
   await verifyTwitterFeed({
     client,
     navigate,
@@ -1041,11 +1180,26 @@ async function verifyExtensionPopupOpens() {
       return;
     }
 
+    // A fresh install opens the welcome page in front. Check it, then close it
+    // so the page under test stays visible (hidden tabs skip animation frames).
+    let welcome = null;
+    const welcomeDeadline = Date.now() + 10000;
+    while (Date.now() < welcomeDeadline && !welcome) {
+      welcome = (await requestJson(debugPort, "/json")).find((target) =>
+        (target.url || "").endsWith("/welcome.html")
+      );
+      if (!welcome) await delay(200);
+    }
+    assert.ok(welcome, "a fresh install opens the welcome page");
+    await fetch(`http://127.0.0.1:${debugPort}/json/close/${welcome.id}`);
+    await delay(300);
+
     const page = await waitForPageTarget(debugPort);
     const client = await CdpClient.connect(page.webSocketDebuggerUrl);
 
     await client.send("Page.enable");
     await client.send("Runtime.enable");
+    await client.send("Page.bringToFront");
     await navigate(client, `http://127.0.0.1:${barePort}/bare-video.html`);
     await evaluate(
       client,
@@ -1082,7 +1236,7 @@ async function verifyExtensionPopupOpens() {
     const popupClient = await CdpClient.connect(popup.webSocketDebuggerUrl);
     await waitForExpression(
       popupClient,
-      `document.querySelector('[data-review-link]')?.textContent === 'Review rulings (0)'`
+      `document.querySelector('[data-review-count]')?.textContent === '0'`
     );
     const popupLayout = await evaluate(
       popupClient,
@@ -1097,7 +1251,7 @@ async function verifyExtensionPopupOpens() {
     );
     assert.equal(popupLayout.title, "Smooth Surfer");
     assert.equal(popupLayout.bodyOverflow, "visible", "only the popup viewport scrolls");
-    assert.equal(popupLayout.width, 320);
+    assert.equal(popupLayout.width, 360);
     assert.ok(popupLayout.height >= 300, "the popup has a usable rendered height");
     assert.equal(popupLayout.visibility, "visible");
     assert.ok(popupLayout.inputs > 10, "the popup renders its settings controls");
@@ -1147,8 +1301,8 @@ async function verifyExtensionPopupOpens() {
       `document.querySelector('[data-setting="enabled"]')?.checked && Boolean(window.countRequestedAt)`
     );
     assert.equal(
-      await evaluate(client, `document.querySelector('[data-review-link]').textContent`),
-      "Review rulings",
+      await evaluate(client, `document.querySelector('[data-review-count]').textContent`),
+      "",
       "settings are usable while the count is still pending"
     );
     assert.equal(
@@ -1167,7 +1321,7 @@ async function verifyExtensionPopupOpens() {
     );
     await waitForExpression(
       client,
-      `document.querySelector('[data-review-link]').textContent==='Review rulings (3000)'`
+      `document.querySelector('[data-review-count]').textContent==='3,000'`
     );
     assert.equal(
       await evaluate(client, `window.popupBulkReads`),
@@ -1186,7 +1340,7 @@ async function verifyExtensionPopupOpens() {
     );
     await waitForExpression(
       client,
-      `document.querySelector('[data-review-link]').textContent==='Review rulings (0)'`
+      `document.querySelector('[data-review-count]').textContent==='0'`
     );
     await evaluate(
       workerClient,
@@ -1203,7 +1357,7 @@ async function verifyExtensionPopupOpens() {
     await navigate(client, extensionOrigin + "/popup.html");
     await waitForExpression(
       client,
-      `document.querySelector('[data-review-link]')?.textContent === 'Review rulings (3)'`
+      `document.querySelector('[data-review-count]')?.textContent === '3'`
     );
     assert.equal(
       await evaluate(client, `document.querySelector('[data-review-link]').target`),
@@ -1310,7 +1464,7 @@ async function verifyExtensionPopupOpens() {
     );
     assert.match(
       await evaluate(client, `document.getElementById('keyboard-target').textContent`),
-      /^Post 1 · Ruling 1 of 1:/
+      /^Post 1 · Rule 1 of 1:/
     );
     const nativeDesktop = await client.send("Page.captureScreenshot", { format: "png" });
     await writeFile(
@@ -1351,12 +1505,12 @@ async function verifyExtensionPopupOpens() {
     await pressReviewKey("ArrowDown");
     assert.match(
       await evaluate(client, `document.getElementById('keyboard-target').textContent`),
-      /^Post 2 · Ruling 1 of 1:/
+      /^Post 2 · Rule 1 of 1:/
     );
     await pressReviewKey("ArrowUp");
     assert.match(
       await evaluate(client, `document.getElementById('keyboard-target').textContent`),
-      /^Post 1 · Ruling 1 of 1:/,
+      /^Post 1 · Rule 1 of 1:/,
       "up navigates to the previous ruling"
     );
     assert.equal(
@@ -1374,7 +1528,7 @@ async function verifyExtensionPopupOpens() {
     );
     assert.match(
       await evaluate(client, `document.getElementById('keyboard-target').textContent`),
-      /^Post 3 · Ruling 1 of 1:/,
+      /^Post 3 · Rule 1 of 1:/,
       "focus selects the keyboard target"
     );
     await pressReviewKey("ArrowUp");
@@ -1410,7 +1564,7 @@ async function verifyExtensionPopupOpens() {
         client,
         `Array.from(document.querySelector('.ruling .judgments').children).map(node=>node.textContent)`
       ),
-      ["← Bad ruling", "Good ruling →"],
+      ["← Wrong call", "Right call →"],
       "button order matches keyboard directions"
     );
     await navigate(client, extensionOrigin + "/review.html");
@@ -1475,7 +1629,7 @@ async function verifyExtensionPopupOpens() {
         client,
         `getComputedStyle(document.querySelector('.ruling[data-feedback="good"]')).backgroundColor`
       ),
-      "rgb(231, 245, 236)",
+      "rgb(229, 239, 200)",
       "Good confirmation is green"
     );
     await waitForExpression(
@@ -1502,7 +1656,7 @@ async function verifyExtensionPopupOpens() {
     );
     assert.match(
       await evaluate(client, `document.getElementById('keyboard-target').textContent`),
-      /^Post 1 · Ruling 1 of 1:/,
+      /^Post 1 · Rule 1 of 1:/,
       "undo selects the returned ruling"
     );
     // Undo can also be clicked during the visible confirmation.
@@ -1561,7 +1715,7 @@ async function verifyExtensionPopupOpens() {
         client,
         `getComputedStyle(document.querySelector('.ruling[data-feedback="bad"]')).backgroundColor`
       ),
-      "rgb(251, 234, 234)",
+      "rgb(247, 228, 220)",
       "Bad confirmation is red"
     );
     await waitForExpression(
@@ -1617,7 +1771,7 @@ async function verifyExtensionPopupOpens() {
     );
     await waitForExpression(
       client,
-      `!document.getElementById('recalibrate').disabled && document.getElementById('status').textContent.includes('Bad ruling saved')`
+      `!document.getElementById('recalibrate').disabled && document.getElementById('status').textContent.includes('Marked as a wrong call')`
     );
     assert.equal(
       await evaluate(
@@ -1876,7 +2030,7 @@ async function verifyExtensionPopupOpens() {
     await navigate(client, extensionOrigin + "/popup.html");
     await waitForExpression(
       client,
-      `document.querySelector('[data-review-link]').textContent === 'Review rulings (3)'`
+      `document.querySelector('[data-review-count]').textContent === '3'`
     );
     // Categorize one rule at a time while retaining the post for remaining rules.
     await evaluate(
@@ -1965,7 +2119,7 @@ async function verifyExtensionPopupOpens() {
     await navigate(client, extensionOrigin + "/popup.html");
     await waitForExpression(
       client,
-      `document.querySelector('[data-review-link]').textContent==='Review rulings (2)'`
+      `document.querySelector('[data-review-count]').textContent==='2'`
     );
     // Filter sets are previewed before applying; unchecked rules never import.
     await navigate(client, extensionOrigin + "/filters.html");
@@ -2192,7 +2346,11 @@ async function verifyExtensionPopupOpens() {
       ),
       [
         ["x.com", "9 · 14", "3 · 5", "1 · 1", "0 · 1", "47s · 1m 12s"],
-        ["reddit.com", "0 · 2", "0 · 1", "0 · 0", "0 · 0", "0s · 10s"]
+        ["reddit.com", "0 · 2", "0 · 1", "0 · 0", "0 · 0", "0s · 10s"],
+        // Default delayed sites without history follow in list order.
+        ["youtube.com", "0 · 0", "0 · 0", "0 · 0", "0 · 0", "0s · 0s"],
+        ["substack.com", "0 · 0", "0 · 0", "0 · 0", "0 · 0", "0s · 0s"],
+        ["news.ycombinator.com", "0 · 0", "0 · 0", "0 · 0", "0 · 0", "0s · 0s"]
       ],
       "visit delay totals use today and the same seven-day window"
     );
@@ -2251,7 +2409,7 @@ async function verifyExtensionPopupOpens() {
     );
     await waitForExpression(
       client,
-      `document.querySelector('.workspace-sidebar [aria-current="page"]')?.textContent==='Review rulings'`
+      `document.querySelector('.workspace-sidebar [aria-current="page"]')?.textContent==='Hidden posts'`
     );
     await evaluate(
       client,
@@ -2277,7 +2435,7 @@ async function verifyExtensionPopupOpens() {
     );
     assert.equal(
       await evaluate(client, `document.body.getBoundingClientRect().width`),
-      320,
+      360,
       "full-page views do not change the toolbar popup"
     );
     assert.equal(await evaluate(client, `document.querySelector('.workspace-sidebar')`), null);
@@ -2638,7 +2796,9 @@ function videoContentFixture() {
         // Stand in for the extension messaging channel so the settings-open
         // shortcut has somewhere to deliver its message.
         window.__smoothSurferMessages = [];
+        window.__smoothSurferStorageListeners = [];
         window.chrome = {
+          storage: {onChanged: {addListener(listener) {window.__smoothSurferStorageListeners.push(listener);}}},
           runtime: {
             lastError: null,
             sendMessage(message, callback) {

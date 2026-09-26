@@ -13,6 +13,7 @@
     matchVisitDomain,
     getVisitDelayDayKey,
     getVisitDelayStatus,
+    isWithinFocusWindow,
     REVIEW_KEY,
     CALIBRATION_KEY
   } = window.SmoothSurferSettings;
@@ -99,7 +100,6 @@
   const phraseInput = document.querySelector("[data-phrase-input]");
   const phraseList = document.querySelector("[data-phrase-list]");
   const popup = document.querySelector(".popup");
-  const header = document.querySelector("header");
   const siteSections = Array.from(document.querySelectorAll("[data-site-section]"));
   const defaultSiteSectionOrder = [...siteSections];
   const statsList = document.querySelector("[data-stats-list]");
@@ -110,7 +110,20 @@
   const domainInput = document.querySelector("[data-domain-input]");
   const domainList = document.querySelector("[data-domain-list]");
   const addCurrentDomainButton = document.querySelector("[data-add-current-domain]");
-  const visitToday = document.querySelector("[data-visit-today]");
+  const header = document.querySelector("header");
+  const attention = document.querySelector("[data-attention]");
+  const hereCard = document.querySelector("[data-here]");
+  const isMac = /Mac|iPhone|iPad/.test(
+    window.navigator.platform || window.navigator.userAgent || ""
+  );
+  const isWorkspace = () => Boolean(document.body.dataset.workspace);
+  const AI_SETTINGS = {
+    twitterFilterContent: "X",
+    redditFilterContent: "Reddit",
+    substackFilterContent: "Substack",
+    hackerNewsFilterContent: "Hacker News"
+  };
+  let pinShortcut = isMac ? "⌘⇧P" : "Alt+P";
   const visitTable = document.querySelector("[data-visit-delay-table]");
   const visitHours = document.querySelector("[data-visit-delay-hours]");
   const visitHourTable = document.querySelector("[data-visit-delay-hour-table]");
@@ -118,6 +131,8 @@
   const importButton = document.querySelector("[data-import-settings]");
   const importFile = document.querySelector("[data-import-file]");
   let activePlatform = "unknown";
+  let statusTimer = 0;
+  let overviewQueued = false;
 
   Promise.all([loadSettings(), loadSecrets()]).then(([loadedSettings, loadedSecrets]) => {
     settings = normalizeSettings(loadedSettings);
@@ -127,10 +142,12 @@
   loadStats().then((loadedStats) => {
     stats = loadedStats;
     renderStats();
+    renderStatusLine();
   });
   watchStats((nextStats) => {
     stats = nextStats;
     renderStats();
+    renderStatusLine();
   });
   loadConsumption().then((loadedConsumption) => {
     consumption = loadedConsumption;
@@ -170,8 +187,11 @@
           Number.isSafeInteger(response.count) &&
           response.count >= 0
         ) {
-          const link = document.querySelector("[data-review-link]");
-          if (link) link.textContent = `Review rulings (${response.count})`;
+          const badge = document.querySelector("[data-review-count]");
+          if (badge) {
+            badge.textContent = response.count.toLocaleString();
+            badge.toggleAttribute("data-empty", response.count === 0);
+          }
         }
         if (reviewCountDirty) scheduleReviewCount();
       });
@@ -194,6 +214,12 @@
     activeHost = host;
     renderActiveSection();
     renderVisitDelay();
+    const active = siteSections.find((section) => section.dataset.siteSection === platform);
+    const target =
+      window.location.hash === "#ai-filter"
+        ? document.querySelector("[data-filter-panel]")
+        : active;
+    if (target && !isWorkspace()) target.querySelector("details").open = true;
   });
 
   domainForm.addEventListener("submit", (event) => {
@@ -206,6 +232,17 @@
   });
 
   domainList.addEventListener("click", (event) => {
+    const reset = event.target.closest("button[data-reset-domain]");
+
+    if (reset) {
+      reset.disabled = true;
+      visitDelayCommand(reset.dataset.resetDomain, "reset").then(
+        () => setStatus("Back to the first wait"),
+        () => setStatus("Not saved")
+      );
+      return;
+    }
+
     const button = event.target.closest("button[data-remove-domain]");
 
     if (!button) {
@@ -220,40 +257,57 @@
     });
   });
 
-  visitToday.addEventListener("click", (event) => {
-    const button = event.target.closest("button[data-reset-domain]");
-
-    if (!button) {
+  // Descriptions are visible under each setting rather than hidden in tooltips.
+  // The settings-shortcut copy follows this platform's modifier keys.
+  document.querySelector("[data-settings-shortcut-row]").dataset.description = isMac
+    ? "Press ⌘⇧S twice quickly to open this menu from any page."
+    : "Press Ctrl+Shift+S twice quickly to open this menu from any page.";
+  document.querySelectorAll(".switch-row[data-description]").forEach((row, index) => {
+    const title = row.querySelector("span");
+    const input = row.querySelector("input");
+    if (row.classList.contains("compact")) {
+      row.title = row.dataset.description;
       return;
     }
-
-    button.disabled = true;
-    visitDelayCommand(button.dataset.resetDomain, "reset").then(
-      () => setStatus("Count reset"),
-      () => setStatus("Not saved")
-    );
+    title.id = `setting-${index}`;
+    const hint = document.createElement("small");
+    hint.className = "hint";
+    hint.id = `setting-${index}-hint`;
+    hint.textContent = row.dataset.description;
+    title.after(hint);
+    input.setAttribute("aria-labelledby", title.id);
+    input.setAttribute("aria-describedby", hint.id);
   });
 
+  document.querySelector("[data-attention-setup]").addEventListener("click", openAiSetup);
+  document.querySelector("[data-attention-off]").addEventListener("click", () => {
+    saveSettings(Object.fromEntries(Object.keys(AI_SETTINGS).map((key) => [key, false])));
+    setStatus("AI filter turned off");
+  });
+  popup.addEventListener("click", (event) => {
+    if (event.target.closest("[data-setup-ai]")) {
+      event.preventDefault();
+      openAiSetup();
+    }
+  });
+  document.querySelector("[data-change-shortcuts]").addEventListener("click", () => {
+    try {
+      chrome.tabs.create({ url: "chrome://extensions/shortcuts" });
+    } catch {
+      setStatus("Open your browser’s extension shortcuts");
+    }
+  });
+  if (typeof chrome !== "undefined" && chrome.commands?.getAll) {
+    chrome.commands.getAll((commands) => {
+      const command = (commands || []).find((entry) => entry.name === "toggle-pin-tab");
+      if (command) pinShortcut = command.shortcut || "Not set";
+      render();
+    });
+  }
+
   settingInputs.forEach((input) => {
-    input.addEventListener("change", async () => {
+    input.addEventListener("change", () => {
       const value = input.type === "checkbox" ? input.checked : input.value;
-      if (input.dataset.setting === "crossWindowPinsEnabled" && value) {
-        try {
-          if (
-            typeof chrome === "undefined" ||
-            !chrome.permissions?.request ||
-            !(await chrome.permissions.request({ permissions: ["tabs"] }))
-          ) {
-            input.checked = false;
-            setStatus("Allow tab access to share pinned pages across windows.");
-            return;
-          }
-        } catch (error) {
-          input.checked = false;
-          setStatus(error.message);
-          return;
-        }
-      }
       saveSettings({ [input.dataset.setting]: value });
     });
   });
@@ -437,12 +491,217 @@
     localModelControls.hidden = settings.aiProvider !== "local";
     document.querySelector('[data-setting="imageAnalysisEnabled"]').disabled =
       !settings.enabled || settings.aiProvider === "local";
+    document.querySelector('[data-setting="videoSpeedModifier"]').disabled =
+      !settings.enabled || !settings.videoSpeedHotkeys;
+    document.querySelector("[data-speed-keys]").hidden = !settings.videoSpeedHotkeys;
+    document
+      .querySelectorAll("[data-focus-times] input")
+      .forEach((input) => (input.disabled = !settings.enabled || !settings.focusScheduleEnabled));
+    document.querySelectorAll(".switch-row").forEach((row) => {
+      row.classList.toggle("is-disabled", Boolean(row.querySelector("input")?.disabled));
+    });
     renderFilterKeyStatus();
-    phraseInput.disabled = !settings.enabled || !isAnyContentFilterEnabled();
+    phraseInput.disabled = !settings.enabled;
     phraseForm.querySelector("button").disabled = phraseInput.disabled;
     renderActiveSection();
     renderPhrases();
     renderVisitDelay();
+    renderSpeedLegend();
+    document.querySelector("[data-pin-shortcut]").textContent = pinShortcut;
+    renderOverview();
+  }
+
+  // Whether the AI filter can run with the chosen provider: "off" when no site
+  // uses it, "setup" when it is switched on but cannot run yet.
+  function aiState() {
+    if (!settings.enabled || !isAnyContentFilterEnabled()) return "off";
+    if (settings.aiProvider === "local") {
+      if (!localModelState || localModelState.checking) return "checking";
+      return localModelState.state === "available" && !localModelState.error ? "ready" : "setup";
+    }
+    return secrets.anthropicApiKey ? "ready" : "setup";
+  }
+
+  function aiSiteNames() {
+    const names = Object.entries(AI_SETTINGS)
+      .filter(([key]) => settings[key])
+      .map(([, name]) => name);
+    return names.length > 2
+      ? `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}`
+      : names.join(" and ");
+  }
+
+  function openAiSetup() {
+    const details = document.querySelector("[data-filter-panel] > details");
+    details.open = true;
+    details.scrollIntoView({ block: "start", behavior: "smooth" });
+    const target =
+      settings.aiProvider === "local"
+        ? document.querySelector("[data-local-model-setup]")
+        : document.querySelector("[data-secret='anthropicApiKey']");
+    window.setTimeout(() => target.focus({ preventScroll: true }), 50);
+  }
+
+  // Header status, the setup banner, and the one-line state beside each
+  // section, so the popup can be read without opening anything.
+  function renderOverview() {
+    const ai = aiState();
+    const outsideFocus =
+      settings.focusScheduleEnabled &&
+      !isWithinFocusWindow(settings.focusScheduleStart, settings.focusScheduleEnd);
+    header.dataset.state =
+      !settings.enabled || outsideFocus ? "paused" : ai === "setup" ? "attention" : "on";
+    document.querySelector(".master-label").textContent = settings.enabled ? "On" : "Paused";
+
+    attention.hidden = ai !== "setup" || settings.aiProvider === "local";
+    document.querySelector("[data-attention-text]").textContent =
+      `AI filter is on for ${aiSiteNames()} but can’t run without an Anthropic API key.`;
+
+    document.querySelectorAll("[data-ai-row]").forEach((row) => {
+      const hint = row.querySelector(".hint");
+      const blocked = ai === "setup" && row.querySelector("input").checked;
+      hint.textContent = blocked ? "Not running yet. Needs setup." : row.dataset.description;
+      hint.dataset.tone = blocked ? "warn" : "";
+      let chip = row.querySelector(".setup-chip");
+      if (blocked && !chip) {
+        chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "small setup-chip";
+        chip.dataset.setupAi = "";
+        chip.textContent = "Set up AI filter";
+        row.append(chip);
+      } else if (!blocked && chip) chip.remove();
+    });
+
+    const states = {
+      filter: () => {
+        const rules = settings.filterCriteria.length;
+        if (ai === "off") return ["Off", ""];
+        if (ai === "setup")
+          return [settings.aiProvider === "local" ? "Needs setup" : "Needs API key", "warn"];
+        if (ai === "checking") return ["Checking…", ""];
+        return [
+          `${settings.aiProvider === "local" ? "Nano" : "Claude"} · ${rules} ${rules === 1 ? "rule" : "rules"}`,
+          "good"
+        ];
+      },
+      visitDelay: () => {
+        const count = settings.visitDelayDomains.length;
+        return [
+          count
+            ? `${count} ${count === 1 ? "site" : "sites"} · ${settings.visitDelaySeconds}s first`
+            : "Off",
+          ""
+        ];
+      },
+      pinnedTabs: () => [
+        settings.crossWindowPinsEnabled ? `Shared · ${pinShortcut}` : "Per window",
+        ""
+      ],
+      focus: () => [
+        settings.focusScheduleEnabled
+          ? `${settings.focusScheduleStart}–${settings.focusScheduleEnd}`
+          : "Always on",
+        ""
+      ],
+      backup: () => ["", ""]
+    };
+    document.querySelectorAll("section").forEach((section) => {
+      const state = section.querySelector("[data-section-state]");
+      if (!state) return;
+      const key = Object.keys(section.dataset).find((name) => states[name.replace(/Panel$/, "")]);
+      let [text, tone] = key ? states[key.replace(/Panel$/, "")]() : ["", ""];
+      if (!key) {
+        const inputs = [...section.querySelectorAll(".switch-row input")];
+        const on = inputs.filter((input) => input.checked).length;
+        const blocked =
+          ai === "setup" && section.querySelector("[data-ai-row] input:checked") !== null;
+        [text, tone] = [on ? `${on} of ${inputs.length} on` : "Off", blocked ? "dot" : ""];
+      }
+      if (!settings.enabled && tone !== "warn") [text, tone] = ["Paused", ""];
+      state.textContent = text;
+      state.dataset.tone = tone;
+    });
+
+    renderStatusLine();
+    renderHere();
+  }
+
+  function statusSummary() {
+    if (!settings.enabled) return "Paused everywhere";
+    if (
+      settings.focusScheduleEnabled &&
+      !isWithinFocusWindow(settings.focusScheduleStart, settings.focusScheduleEnd)
+    )
+      return `Resting until ${settings.focusScheduleStart} · focus hours`;
+    const ai = aiState();
+    if (ai === "setup") return "AI filter needs setup";
+    if (ai === "checking") return "Checking on-device model…";
+    const today = hiddenToday();
+    return today
+      ? `${today.toLocaleString()} ${today === 1 ? "distraction" : "distractions"} hidden today`
+      : "Nothing hidden yet today";
+  }
+
+  function renderStatusLine() {
+    if (!statusTimer) status.textContent = statusSummary();
+  }
+
+  function hiddenToday() {
+    const platforms = stats.days[localDayKey(new Date())] || {};
+    let total = 0;
+    for (const reasons of Object.values(platforms))
+      for (const count of Object.values(reasons)) total += count;
+    return total;
+  }
+
+  // Unsupported pages get a one-click loading delay for the site you are on.
+  function renderHere() {
+    const domain = normalizeVisitDomain(activeHost);
+    const listed = domain ? matchVisitDomain(domain, settings.visitDelayDomains) : "";
+    hereCard.hidden = isWorkspace() || !domain || activePlatform !== "unknown";
+    if (hereCard.hidden) return;
+    hereCard.querySelector("[data-here-host]").textContent = domain;
+    if (listed) {
+      const status = getVisitDelayStatus(visitDelay, listed, settings.visitDelaySeconds);
+      hereCard.querySelector("[data-here-meta]").textContent =
+        `Loading delay on · next wait ${formatDuration(status.waitMs)}`;
+    } else {
+      hereCard.querySelector("[data-here-meta]").textContent =
+        "Add a short countdown before it opens.";
+    }
+  }
+
+  function renderSpeedLegend() {
+    const names = isMac
+      ? { alt: "⌥", ctrl: "⌃", shift: "⇧", meta: "⌘" }
+      : { alt: "Alt", ctrl: "Ctrl", shift: "Shift", meta: "Win" };
+    const modifier = names[settings.videoSpeedModifier];
+    const keys = modifier
+      ? [
+          [[modifier, "→"], "faster"],
+          [[modifier, "←"], "slower"],
+          [[modifier, "\\"], "reset"]
+        ]
+      : [
+          [["]"], "faster"],
+          [["["], "slower"],
+          [["\\"], "reset"]
+        ];
+    const legend = document.querySelector("[data-speed-legend]");
+    legend.replaceChildren(
+      ...keys.map(([combo, label]) => {
+        const item = document.createElement("span");
+        combo.forEach((key) => {
+          const node = document.createElement("kbd");
+          node.className = "key";
+          node.textContent = key;
+          item.append(node);
+        });
+        item.append(` ${label}`);
+        return item;
+      })
+    );
   }
 
   function addVisitDomain(value) {
@@ -494,56 +753,58 @@
     addCurrentDomainButton.hidden =
       !usable ||
       !currentDomain ||
-      domains.includes(currentDomain) ||
-      Boolean(document.body.dataset.workspace);
-    addCurrentDomainButton.textContent = `Add ${currentDomain}`;
+      Boolean(matchVisitDomain(currentDomain, domains)) ||
+      isWorkspace();
+    addCurrentDomainButton.textContent = "Add delay";
+    addCurrentDomainButton.className = "small primary";
 
     domainList.replaceChildren();
     if (domains.length === 0) {
       const empty = document.createElement("div");
       empty.className = "empty";
-      empty.textContent = "No sites listed.";
+      empty.textContent = "No sites yet. Add one below.";
       domainList.append(empty);
     }
     domains.forEach((domain) => {
-      const pill = document.createElement("div");
-      pill.className = "pill pill-plain";
+      const status = getVisitDelayStatus(visitDelay, domain, settings.visitDelaySeconds);
+      const row = document.createElement("div");
+      row.className = "domain-row";
+      const text = document.createElement("span");
       const label = document.createElement("span");
       label.className = "pill-label";
       label.textContent = domain;
       label.title = domain;
-      const remove = document.createElement("button");
-      remove.type = "button";
-      remove.dataset.removeDomain = domain;
-      remove.title = `Remove ${domain}`;
-      remove.textContent = "x";
-      remove.disabled = !usable;
-      pill.append(label, remove);
-      domainList.append(pill);
-    });
-
-    visitToday.replaceChildren();
-    domains.forEach((domain) => {
-      const status = getVisitDelayStatus(visitDelay, domain, settings.visitDelaySeconds);
-      const row = document.createElement("div");
-      row.className = "stats-row";
-      const label = document.createElement("span");
-      label.textContent = domain;
-      const counts = document.createElement("span");
-      counts.textContent = `${status.step} today · ${formatDuration(status.waitedMs)} waited · next ${formatDuration(status.waitMs)}`;
-      row.append(label, counts);
+      const meta = document.createElement("span");
+      meta.className = "domain-meta";
+      meta.textContent = status.step
+        ? `${status.step} ${status.step === 1 ? "visit" : "visits"} today · ${formatDuration(status.waitedMs)} waited · next ${formatDuration(status.waitMs)}`
+        : `No visits yet today · first wait ${formatDuration(status.waitMs)}`;
+      text.append(label, meta);
+      row.append(text);
       if (status.step > 0) {
         const reset = document.createElement("button");
         reset.type = "button";
+        reset.className = "ghost";
         reset.dataset.resetDomain = domain;
         reset.textContent = "Reset";
+        reset.title = `Go back to the first wait for ${domain}`;
         reset.disabled = !usable;
         row.append(reset);
-      }
-      visitToday.append(row);
+      } else row.append(document.createElement("span"));
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "remove";
+      remove.dataset.removeDomain = domain;
+      remove.title = `Remove ${domain}`;
+      remove.setAttribute("aria-label", `Remove ${domain}`);
+      remove.textContent = "×";
+      remove.disabled = !usable;
+      row.append(remove);
+      domainList.append(row);
     });
 
     renderVisitDelayStats(domains);
+    renderOverviewSoon();
   }
 
   function renderVisitDelayStats(domains) {
@@ -670,11 +931,12 @@
   }
 
   function renderFilterKeyStatus() {
-    status.textContent = window.SmoothSurferModelStatus.summary();
     const hasKey = Boolean(secrets.anthropicApiKey);
     const hasContentFilter = isAnyContentFilterEnabled();
 
     filterKeyStatus.hidden = !hasContentFilter;
+    filterKeyStatus.dataset.tone = "";
+    renderOverviewSoon();
     if (settings.aiProvider === "local") {
       const messages = {
         available: "Model ready.",
@@ -710,11 +972,17 @@
       if (state?.checkedAt)
         parts.push(`Checked ${new Date(state.checkedAt).toLocaleTimeString()}.`);
       filterKeyStatus.textContent = parts.join(" ");
+      filterKeyStatus.dataset.tone =
+        state?.state === "available" && !error ? "good" : state && !state.checking ? "warn" : "";
       return;
     }
-    filterKeyStatus.textContent = hasKey
-      ? "Claude Haiku filtering is active."
-      : "Content filtering is off until an Anthropic key is saved.";
+    const key = secrets.anthropicApiKey.trim();
+    filterKeyStatus.dataset.tone = !hasKey ? "warn" : key.startsWith("sk-ant-") ? "good" : "warn";
+    filterKeyStatus.textContent = !hasKey
+      ? "AI filter is off until an Anthropic key is saved."
+      : key.startsWith("sk-ant-")
+        ? "Key saved. Claude Haiku is filtering your feeds."
+        : "Key saved, but Anthropic keys usually start with sk-ant-. Check it if posts aren’t being filtered.";
   }
 
   function renderPhrases() {
@@ -723,7 +991,7 @@
     if (settings.filterCriteria.length === 0) {
       const empty = document.createElement("div");
       empty.className = "empty";
-      empty.textContent = "No criteria";
+      empty.textContent = "No rules yet. Describe posts you’d rather not see.";
       phraseList.append(empty);
       return;
     }
@@ -745,8 +1013,9 @@
       removeButton.type = "button";
       removeButton.dataset.removePhrase = phrase;
       removeButton.title = "Remove " + phrase;
-      removeButton.textContent = "x";
-      removeButton.disabled = !settings.enabled || !settings.twitterFilterContent;
+      removeButton.setAttribute("aria-label", "Remove rule: " + phrase);
+      removeButton.textContent = "×";
+      removeButton.disabled = !settings.enabled;
 
       summary.append(label, removeButton);
       pill.append(summary);
@@ -755,25 +1024,24 @@
   }
 
   function renderActiveSection() {
-    if (document.body.dataset.workspace) return;
-    let insertAfter = header;
-
-    defaultSiteSectionOrder.forEach((section) => {
-      popup.insertBefore(section, insertAfter.nextSibling);
-      insertAfter = section;
-    });
-
-    siteSections.forEach((section) => {
-      const isActive = section.dataset.siteSection === activePlatform;
-      section.dataset.activeSite = String(isActive);
-    });
-
+    if (isWorkspace()) return;
     const activeSection = siteSections.find(
       (section) => section.dataset.siteSection === activePlatform
     );
+    const order = activeSection
+      ? [activeSection, ...defaultSiteSectionOrder.filter((section) => section !== activeSection)]
+      : defaultSiteSectionOrder;
 
-    if (activeSection) {
-      popup.insertBefore(activeSection, header.nextSibling);
+    siteSections.forEach((section) => {
+      section.dataset.activeSite = String(section === activeSection);
+    });
+
+    // Moving a node blurs its focused control, so reorder only when needed.
+    let previous = header;
+    for (const section of order) {
+      if (previous.nextElementSibling !== section)
+        popup.insertBefore(section, previous.nextSibling);
+      previous = section;
     }
   }
 
@@ -1017,9 +1285,20 @@
 
   function setStatus(message) {
     status.textContent = message;
-    window.setTimeout(() => {
-      status.textContent = window.SmoothSurferModelStatus.summary();
+    window.clearTimeout(statusTimer);
+    statusTimer = window.setTimeout(() => {
+      statusTimer = 0;
+      renderStatusLine();
     }, 900);
+  }
+
+  function renderOverviewSoon() {
+    if (overviewQueued) return;
+    overviewQueued = true;
+    window.queueMicrotask(() => {
+      overviewQueued = false;
+      renderOverview();
+    });
   }
 
   function debounce(callback, delay) {

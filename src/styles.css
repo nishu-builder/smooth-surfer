@@ -92,20 +92,29 @@ html.smooth-surfer-hacker-news-hide-scores .score {
 
 .smooth-surfer-scroll-pause {
   position: fixed;
-  right: 16px;
-  bottom: 16px;
+  right: 20px;
+  bottom: 20px;
   z-index: 2147483647;
   display: grid;
-  gap: 8px;
-  width: min(320px, calc(100vw - 32px));
-  border: 1px solid var(--ss-control-line);
-  border-radius: var(--ss-radius);
+  gap: 6px;
+  width: min(300px, calc(100vw - 40px));
+  border: 1px solid var(--ss-ink);
+  border-radius: 8px;
   background: var(--ss-paper);
-  border-top: 2px solid var(--ss-focus);
-  box-shadow: 0 14px 40px rgba(12, 18, 28, 0.18);
+  box-shadow: 4px 5px 0 var(--ss-stamp);
   color: var(--ss-ink);
-  padding: 8px;
-  font: 13px/1.4 var(--ss-sans);
+  padding: 16px;
+  font: 13px/1.5 var(--ss-sans);
+  text-align: left;
+}
+
+.smooth-surfer-scroll-pause strong {
+  font: 700 15px/1.3 var(--ss-mono);
+  letter-spacing: -0.5px;
+}
+
+.smooth-surfer-scroll-pause span {
+  color: var(--ss-muted);
 }
 
 .smooth-surfer-speed-toast {
@@ -114,11 +123,13 @@ html.smooth-surfer-hacker-news-hide-scores .score {
   left: 50%;
   z-index: 2147483647;
   transform: translateX(-50%);
-  border-radius: var(--ss-radius);
-  background: var(--ss-action);
-  color: var(--ss-paper);
-  font: 14px/1 var(--ss-mono);
-  padding: 8px 12px;
+  border: 1px solid #20221e;
+  border-radius: 999px;
+  background: var(--ss-accent);
+  box-shadow: 2px 3px 0 rgb(32 34 30 / 25%);
+  color: #20221e;
+  font: 700 14px/1 var(--ss-mono);
+  padding: 8px 14px;
   opacity: 0;
   pointer-events: none;
   transition: opacity 120ms ease-in-out;
@@ -130,15 +141,20 @@ html.smooth-surfer-hacker-news-hide-scores .score {
 
 .smooth-surfer-scroll-pause button {
   appearance: none;
-  border: 1px solid var(--ss-control-line);
-  border-radius: var(--ss-radius);
-  background: var(--ss-action);
-  color: var(--ss-paper);
+  justify-self: start;
+  margin-top: 6px;
+  border: 1px solid var(--ss-ink);
+  border-radius: 5px;
+  background: var(--ss-paper);
+  color: var(--ss-ink);
   cursor: pointer;
-  font: inherit;
-  font-weight: 700;
-  min-height: 28px;
-  padding: 0 10px;
+  font: 12px/1 var(--ss-mono);
+  min-height: 34px;
+  padding: 0 14px;
+}
+
+.smooth-surfer-scroll-pause button:hover {
+  background: var(--ss-hover);
 }
 
 /* Keep timeline geometry stable until a decision is ready. Only confirmed
@@ -175,8 +191,8 @@ html.smooth-surfer-hacker-news-hide-scores .score {
   background: transparent !important;
   cursor: pointer !important;
 }
-.smooth-surfer-less-like:hover { color: var(--ss-action) !important; background: var(--ss-hover) !important; }
-.smooth-surfer-less-like:focus-visible { outline: 2px solid var(--ss-focus) !important; }
+.smooth-surfer-less-like:hover { color: #20221e !important; background: var(--ss-accent) !important; }
+.smooth-surfer-less-like:focus-visible { outline: 3px solid var(--ss-focus) !important; }
 .smooth-surfer-less-like svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.6; }
 
 /* Visit delay: the countdown lives in a shadow root on this host so page CSS
