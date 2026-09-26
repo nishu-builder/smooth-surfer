@@ -120,9 +120,10 @@ Reorder pinned tabs by dragging them in any regular window. New windows use the
 last order you arranged; existing windows keep their own current arrangement.
 The saved order survives a browser restart.
 
-Closing a window keeps the saved pins. Unpinning or closing an individual pin
-removes it from the shared list and unpins its other copies without closing their
-pages. Disabling sharing leaves existing tabs alone. Private windows are excluded;
+Closing a window or an individual pin keeps the saved pins. A closed pin comes
+back in its window at the saved URL, and other windows keep their copies.
+Unpinning is the only way to remove a pin from the shared list; it unpins the
+other copies without closing their pages. Disabling sharing leaves existing tabs alone. Private windows are excluded;
 the saved URLs stay on this device. Pinned tabs appear as small icons at the far
 left of Chrome’s tab bar.
 

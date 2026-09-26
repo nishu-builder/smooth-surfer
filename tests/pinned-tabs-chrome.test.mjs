@@ -252,7 +252,30 @@ try {
   const copy = windows
     .find((window) => window.id === thirdWindow.id)
     .tabs.find((tab) => tab.pinned);
+  // Closing a pin closes only that copy. Its window restores it inactive.
   await evaluate(`chrome.tabs.remove(${copy.id})`);
+  await until(async () =>
+    (await snapshot()).every((window) =>
+      window.tabs.some(
+        (tab) =>
+          tab.pinned &&
+          tab.id !== copy.id &&
+          !tab.active &&
+          (tab.pendingUrl || tab.url) === "https://pins-two.example.test/"
+      )
+    )
+  );
+  assert.equal(
+    (await evaluate(`chrome.storage.local.get('smoothSurferPinnedTabs')`)).smoothSurferPinnedTabs
+      .length,
+    1,
+    "closing a pin keeps it saved"
+  );
+  // Unpinning removes it everywhere without closing the pages.
+  const restoredCopy = (await snapshot())
+    .find((window) => window.id === thirdWindow.id)
+    .tabs.find((tab) => tab.pinned);
+  await evaluate(`chrome.tabs.update(${restoredCopy.id},{pinned:false})`);
   await until(async () =>
     (await snapshot()).every((window) => window.tabs.every((tab) => !tab.pinned))
   );

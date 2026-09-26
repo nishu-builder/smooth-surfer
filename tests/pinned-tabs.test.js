@@ -127,8 +127,9 @@ function harness(saved = {}) {
       api.permissions.onAdded.emit({ permissions: ["tabs"] });
     },
     closeTab: (id, isWindowClosing = false) => {
+      const windowId = find(id)?.windowId;
       for (const w of windows) w.tabs = w.tabs.filter((tab) => tab.id !== id);
-      api.tabs.onRemoved.emit(id, { isWindowClosing });
+      api.tabs.onRemoved.emit(id, { windowId, isWindowClosing });
     }
   };
 }
@@ -192,11 +193,25 @@ const pins = (h, id) => h.windows.find((w) => w.id === id).tabs.filter((tab) => 
   assert.ok(h.find(gmailCopy.id), "unpin keeps other copies open");
   assert.equal(h.find(gmailCopy.id).pinned, false);
 
+  // Closing a pin closes only that copy; its window gets it back in place.
   const closing = pins(h, 1).find((tab) => tab.url === "https://one.example/");
   const otherCopy = pins(h, 2).find((tab) => tab.url === closing.url);
+  const orderBefore = pins(h, 1).map((tab) => tab.url);
   h.closeTab(closing.id);
   await h.settle();
-  assert.equal(h.find(otherCopy.id).pinned, false, "closing one pin unpins other copies");
+  assert.equal(h.find(otherCopy.id).pinned, true, "closing one pin leaves other copies");
+  assert.equal(h.local.smoothSurferPinnedTabs.length, 2, "closing a pin keeps it saved");
+  const restored = h.creates.at(-1);
+  assert.equal(restored.windowId, 1);
+  assert.equal(restored.url, closing.url);
+  assert.equal(restored.active, false);
+  assert.equal(restored.index, orderBefore.indexOf(closing.url), "restored in its slot");
+  assert.equal(pins(h, 1).length, 2);
+
+  // Unpinning is the explicit way to remove a pin everywhere.
+  await h.api.tabs.update(otherCopy.id, { pinned: false });
+  await h.settle();
+  for (const id of [1, 2, 5]) assert.equal(pins(h, id).length, 1);
   assert.equal(h.local.smoothSurferPinnedTabs.length, 1);
 
   const closingWindow = h.windows.find((w) => w.id === 5);
@@ -226,10 +241,10 @@ const pins = (h, id) => h.windows.find((w) => w.id === id).tabs.filter((tab) => 
   await race.settle();
   assert.equal(
     race.creates.length,
-    countBeforeClose,
-    "a queued load event must not recreate a just-closed pin"
+    countBeforeClose + 1,
+    "a queued load event and the close restore the pin exactly once"
   );
-  assert.equal(race.local.smoothSurferPinnedTabs.length, 0);
+  assert.equal(race.local.smoothSurferPinnedTabs.length, 1);
 
   const ordering = harness();
   await ordering.settle();
