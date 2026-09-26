@@ -55,7 +55,8 @@
     }
     button.link:hover { color: var(--ss-ink, #20221e); background: none; }
     button:disabled { cursor: default; opacity: 0.45; }
-    button:focus-visible, .card:focus-visible { outline: 3px solid var(--ss-focus, #355dad); outline-offset: 3px; }
+    button:focus-visible { outline: 3px solid var(--ss-focus, #355dad); outline-offset: 3px; }
+    .card:focus { outline: none; }
     @media (prefers-reduced-motion: reduce) { .fill { transition: none; } }
   `;
 

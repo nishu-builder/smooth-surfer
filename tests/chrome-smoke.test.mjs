@@ -1180,11 +1180,26 @@ async function verifyExtensionPopupOpens() {
       return;
     }
 
+    // A fresh install opens the welcome page in front. Check it, then close it
+    // so the page under test stays visible (hidden tabs skip animation frames).
+    let welcome = null;
+    const welcomeDeadline = Date.now() + 10000;
+    while (Date.now() < welcomeDeadline && !welcome) {
+      welcome = (await requestJson(debugPort, "/json")).find((target) =>
+        (target.url || "").endsWith("/welcome.html")
+      );
+      if (!welcome) await delay(200);
+    }
+    assert.ok(welcome, "a fresh install opens the welcome page");
+    await fetch(`http://127.0.0.1:${debugPort}/json/close/${welcome.id}`);
+    await delay(300);
+
     const page = await waitForPageTarget(debugPort);
     const client = await CdpClient.connect(page.webSocketDebuggerUrl);
 
     await client.send("Page.enable");
     await client.send("Runtime.enable");
+    await client.send("Page.bringToFront");
     await navigate(client, `http://127.0.0.1:${barePort}/bare-video.html`);
     await evaluate(
       client,
