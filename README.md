@@ -148,6 +148,10 @@ you pinned. Sharing is on by default; turn it off to keep pins per window.
   entirely (brackets only).
 - **Focus hours:** run Smooth Surfer only between set times, including overnight
   ranges.
+- **Tab search:** press Cmd+K (Ctrl+K) to search this window's tabs by title or
+  address, then Enter to switch. Sites that use Cmd+K themselves, like GitHub or
+  Slack, keep it. It can't open on Chrome's own pages, such as the New Tab page;
+  Chrome's Search tabs (Cmd+Shift+A) covers every window.
 - **Settings shortcut:** press Cmd+Shift+S (Ctrl+Shift+S) twice to open the menu.
 - **Stats** counts what was hidden per site and why. With **Track consumption**
   on, a nutrition-style **Consumption Facts** label breaks down the mood of the

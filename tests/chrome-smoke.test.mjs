@@ -1123,6 +1123,15 @@ async function verifyExtensionPopupOpens() {
       response.end();
       return;
     }
+    const tabSearchPages = {
+      "/tab-search-plain": `<title>Plain page</title><script>window.pageKeys=[];document.addEventListener("keydown",(e)=>pageKeys.push(e.key));</script><p>Plain</p>`,
+      "/tab-search-target": `<title>Quarterly planning doc</title><p>Target</p>`,
+      "/tab-search-site": `<title>Site search</title><script>window.siteSearch=0;document.addEventListener("keydown",(e)=>{if((e.metaKey||e.ctrlKey)&&e.key==="k"){e.preventDefault();siteSearch++;}});</script><p>Site</p>`
+    };
+    if (tabSearchPages[request.url]) {
+      sendHtml(response, `<!doctype html><meta charset="utf-8">${tabSearchPages[request.url]}`);
+      return;
+    }
     sendHtml(
       response,
       `<!doctype html><html><head><meta charset="utf-8"></head>
@@ -2486,6 +2495,82 @@ async function verifyExtensionPopupOpens() {
     console.log(
       "Visit delay extension passed (live settings, Twitter-to-X redirect, completion accounting)."
     );
+
+    // Tab search: Cmd/Ctrl+K lists this window's tabs, but only when the page
+    // does not use the key itself.
+    await evaluate(
+      workerClient,
+      `(async()=>{const s=await SmoothSurferStorage.loadSettings();await SmoothSurferStorage.saveSettings({...s,visitDelayDomains:[],tabSearchEnabled:true});})()`
+    );
+    const origin = `http://127.0.0.1:${barePort}`;
+    await navigate(client, `${origin}/tab-search-plain`);
+    await waitForExpression(client, `document.title==='Plain page'`);
+    const searchTabs = await evaluate(
+      workerClient,
+      `(async()=>{const page=(await chrome.tabs.query({})).find((tab)=>tab.url===${JSON.stringify(origin + "/tab-search-plain")});const target=await chrome.tabs.create({windowId:page.windowId,url:${JSON.stringify(origin + "/tab-search-target")},active:false});return {page:page.id,target:target.id};})()`
+    );
+    await waitForExpression(
+      workerClient,
+      `(async()=>(await chrome.tabs.get(${searchTabs.target})).title==='Quarterly planning doc')()`
+    );
+    await client.send("Page.bringToFront");
+    const mac = await evaluate(client, `/Mac/.test(navigator.platform)`);
+    const pressKey = async (key, code, keyCode, modifiers = 0, text) => {
+      for (const type of ["keyDown", "keyUp"])
+        await client.send("Input.dispatchKeyEvent", {
+          type,
+          key,
+          code,
+          windowsVirtualKeyCode: keyCode,
+          modifiers,
+          ...(type === "keyDown" && text ? { text } : {})
+        });
+    };
+    const searchShortcut = () => pressKey("k", "KeyK", 75, mac ? 4 : 2);
+    const searchTree = async () =>
+      JSON.stringify(await client.send("DOM.getDocument", { depth: -1, pierce: true }));
+    await searchShortcut();
+    await waitForExpression(client, `Boolean(document.querySelector('.smooth-surfer-tab-search'))`);
+    assert.equal(
+      await evaluate(client, `document.querySelector('.smooth-surfer-tab-search').shadowRoot`),
+      null,
+      "page scripts cannot read other tabs from the search"
+    );
+    assert.match(await searchTree(), /Quarterly planning doc/);
+    await pressKey("q", "KeyQ", 81, 0, "q");
+    await client.send("Input.insertText", { text: "uarterly" });
+    await delay(200);
+    assert.deepEqual(
+      (await evaluate(client, `window.pageKeys`)).filter(
+        (key) => key !== "k" && key !== "Meta" && key !== "Control"
+      ),
+      [],
+      "typing in the search never reaches page shortcuts"
+    );
+    assert.match(await searchTree(), /1 of \d+ tabs/);
+    await pressKey("Enter", "Enter", 13, 0, "\r");
+    await waitForExpression(
+      workerClient,
+      `(async()=>(await chrome.tabs.get(${searchTabs.target})).active)()`
+    );
+    assert.equal(
+      await evaluate(client, `Boolean(document.querySelector('.smooth-surfer-tab-search'))`),
+      false
+    );
+    await evaluate(workerClient, `chrome.tabs.update(${searchTabs.page},{active:true})`);
+    await navigate(client, `${origin}/tab-search-site`);
+    await waitForExpression(client, `document.title==='Site search'`);
+    await client.send("Page.bringToFront");
+    await searchShortcut();
+    await waitForExpression(client, `window.siteSearch===1`);
+    await delay(300);
+    assert.equal(
+      await evaluate(client, `Boolean(document.querySelector('.smooth-surfer-tab-search'))`),
+      false,
+      "a site's own Cmd+K wins"
+    );
+    await evaluate(workerClient, `chrome.tabs.remove(${searchTabs.target})`);
+    console.log("Tab search passed (page first, closed overlay, isolated typing, filter, switch).");
     workerClient.close();
     client.close();
     console.log(

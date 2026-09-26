@@ -51,6 +51,7 @@
     enabled: true,
     crossWindowPinsEnabled: true,
     lazyPinnedTabs: true,
+    tabSearchEnabled: true,
     filterCriteria: [...DEFAULT_FILTER_CRITERIA],
     youtubeGrayscaleThumbnails: true,
     youtubeHideRecommendations: true,
@@ -185,6 +186,7 @@
     next.settingsHotkeyEnabled = Boolean(next.settingsHotkeyEnabled);
     next.crossWindowPinsEnabled = Boolean(next.crossWindowPinsEnabled);
     next.lazyPinnedTabs = Boolean(next.lazyPinnedTabs);
+    next.tabSearchEnabled = Boolean(next.tabSearchEnabled);
     next.focusScheduleEnabled = Boolean(next.focusScheduleEnabled);
     next.focusScheduleStart = normalizeTime(
       next.focusScheduleStart,
