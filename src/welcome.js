@@ -26,6 +26,8 @@
     });
   else if (!isMac) document.querySelector("[data-pin-shortcut]").textContent = "Alt+P";
 
+  if (!isMac) document.querySelector("[data-search-shortcut]").textContent = "Ctrl+K";
+
   Promise.all([loadSettings(), loadSecrets()]).then(([loaded, secrets]) => {
     settings = normalizeSettings(loaded);
     key.value = secrets.anthropicApiKey || "";

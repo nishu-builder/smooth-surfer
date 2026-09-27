@@ -20,6 +20,7 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import zlib from "node:zlib";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = path.join(root, "docs", "store-assets");
@@ -31,6 +32,54 @@ const RULES = {
   bait: "Engagement bait that asks for replies, likes, reposts, follows, bookmarks, or quote tweets.",
   tags: "Promotional posts overloaded with hashtags or cashtags."
 };
+
+// Sample tabs for the tab search capture, served locally under *.example.
+const SAMPLE_TABS = [
+  {
+    key: "reading",
+    host: "read.example",
+    path: "/weekend",
+    title: "Weekend reading list",
+    color: [0x5b, 0x8c, 0x5a]
+  },
+  {
+    key: "inbox",
+    host: "mail.example",
+    path: "/inbox",
+    title: "Inbox (3)",
+    color: [0x26, 0x6d, 0xd3],
+    pinned: true
+  },
+  {
+    key: "roadmap",
+    host: "plans.example",
+    path: "/q3",
+    title: "Q3 roadmap",
+    color: [0x6e, 0x4b, 0xc9],
+    pinned: true
+  },
+  {
+    key: "review",
+    host: "docs.example",
+    path: "/design-review",
+    title: "Design review notes",
+    color: [0xe0, 0x8a, 0x1e]
+  },
+  {
+    key: "pull",
+    host: "code.example",
+    path: "/smooth-surfer/pull/52",
+    title: "Pull request #52 · smooth-surfer",
+    color: [0x20, 0x22, 0x1e]
+  },
+  {
+    key: "tunes",
+    host: "tunes.example",
+    path: "/lofi",
+    title: "Lo-fi beats to focus to",
+    color: [0xd9, 0x3a, 0x3a]
+  }
+];
 
 // Composed cards, in store order. `shot` names a capture below.
 const CARDS = [
@@ -72,6 +121,14 @@ const CARDS = [
     eyebrow: "Pinned tabs",
     title: "Pins in every<br>window.",
     body: "Press ⌘⇧P (Alt+P on Windows) to pin a tab. It shows up in every Chrome window, always at the page you pinned."
+  },
+  {
+    file: "06-tab-search.png",
+    shot: "tab-search",
+    wide: true,
+    eyebrow: "Tab search",
+    title: "Find any tab<br>in this window.",
+    body: "Press ⌘K, type a few letters, press Enter. Sites that use ⌘K themselves keep it."
   }
 ];
 
@@ -271,12 +328,99 @@ async function setViewport(client, width, height, deviceScaleFactor) {
   });
 }
 
+// A 32x32 rounded square in one color, as a stand-in site icon.
+function solidPng([r, g, b]) {
+  const size = 32;
+  const rows = [];
+  for (let y = 0; y < size; y++) {
+    const row = [0];
+    for (let x = 0; x < size; x++) {
+      const dx = Math.max(0, Math.abs(x - 15.5) - 9);
+      const dy = Math.max(0, Math.abs(y - 15.5) - 9);
+      row.push(r, g, b, Math.hypot(dx, dy) <= 6.5 ? 255 : 0);
+    }
+    rows.push(Buffer.from(row));
+  }
+  const chunk = (type, data) => {
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(data.length);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(zlib.crc32(Buffer.concat([Buffer.from(type), data])));
+    return Buffer.concat([length, Buffer.from(type), data, crc]);
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(size, 0);
+  header.writeUInt32BE(size, 4);
+  header.set([8, 6, 0, 0, 0], 8);
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk("IHDR", header),
+    chunk("IDAT", zlib.deflateSync(Buffer.concat(rows))),
+    chunk("IEND", Buffer.alloc(0))
+  ]);
+}
+
+// Opens the sample tabs in their own window, presses the tab search shortcut
+// in the front one, and types a short query so matches are highlighted.
+async function captureTabSearch(port, worker) {
+  const workerClient = await CdpClient.connect(worker.webSocketDebuggerUrl);
+  const [first, ...rest] = SAMPLE_TABS.map((tab) => ({
+    ...tab,
+    url: `http://${tab.host}:${site.port}${tab.path}`
+  }));
+  await evaluate(
+    workerClient,
+    `(async () => {
+      const window = await chrome.windows.create({ url: ${JSON.stringify(first.url)}, focused: true });
+      for (const tab of ${JSON.stringify(rest)})
+        await chrome.tabs.create({ windowId: window.id, url: tab.url, pinned: Boolean(tab.pinned), active: false });
+      return true;
+    })()`
+  );
+  // Let every page load so Chrome caches its icon.
+  await delay(3000);
+  workerClient.close();
+  const target = (await requestJson(port, "/json/list")).find((entry) => entry.url === first.url);
+  const page = await CdpClient.connect(target.webSocketDebuggerUrl);
+  await page.send("Page.enable");
+  await page.send("Emulation.setEmulatedMedia", {
+    features: [{ name: "prefers-color-scheme", value: "light" }]
+  });
+  await page.send("Page.bringToFront");
+  await setViewport(page, 900, 560, 2);
+  const mac = await evaluate(page, `/Mac/.test(navigator.platform)`);
+  for (const type of ["keyDown", "keyUp"])
+    await page.send("Input.dispatchKeyEvent", {
+      type,
+      key: "k",
+      code: "KeyK",
+      windowsVirtualKeyCode: 75,
+      modifiers: mac ? 4 : 2
+    });
+  await delay(600);
+  await page.send("Input.insertText", { text: "re" });
+  await delay(400);
+  await capture(page, "tab-search");
+  page.close();
+}
+
 // A stand-in page for the countdown capture; the overlay covers it entirely.
 function startSiteServer() {
   return new Promise((resolve) => {
     const server = http.createServer((request, response) => {
+      const host = (request.headers.host || "").split(":")[0];
+      const sample = SAMPLE_TABS.find((tab) => tab.host === host);
+      if (sample && request.url === "/icon.png") {
+        response.writeHead(200, { "content-type": "image/png" });
+        response.end(solidPng(sample.color));
+        return;
+      }
       response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-      response.end("<!doctype html><title>Home / X</title><body></body>");
+      response.end(
+        sample
+          ? `<!doctype html><title>${sample.title}</title><link rel="icon" href="/icon.png"><body style="margin:0;padding:48px 64px;font:17px/1.6 Georgia,serif;color:#333;background:#fff"><h1 style="font:600 30px system-ui">${sample.title}</h1>${"<p>Notes, links, and a few long reads saved for a slow Saturday morning.</p>".repeat(6)}</body>`
+          : "<!doctype html><title>Home / X</title><body></body>"
+      );
     });
     server.listen(0, "127.0.0.1", () =>
       resolve({ port: server.address().port, close: () => server.close() })
@@ -457,7 +601,12 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Run after the class and helpers above are initialized.
+// Run after the class and helpers above are initialized. A stuck Chrome
+// (for example, a port clash with a leftover instance) fails instead of hanging.
+const watchdog = setTimeout(() => {
+  console.error("Timed out after 120s. Close leftover Chrome for Testing windows and retry.");
+  process.exit(1);
+}, 120000);
 await mkdir(outDir, { recursive: true });
 const chromeBin = await findChrome();
 console.log("using chrome:", chromeBin);
@@ -465,11 +614,25 @@ console.log("using chrome:", chromeBin);
 const site = await startSiteServer();
 try {
   await withChrome(
-    [`--load-extension=${root}`, `--host-resolver-rules=MAP x.com 127.0.0.1`],
+    [
+      `--load-extension=${root}`,
+      `--host-resolver-rules=MAP x.com 127.0.0.1, MAP *.example 127.0.0.1`
+    ],
     async (client, port) => {
       const worker = await waitForWorker(port);
       const extension = `chrome-extension://${new URL(worker.url).hostname}`;
       const workerClient = await CdpClient.connect(worker.webSocketDebuggerUrl);
+      // The worker target appears before its scripts finish loading, and an
+      // evaluation sent that early can stall. Poll until storage is ready.
+      for (let attempt = 0; ; attempt += 1) {
+        const ready = await Promise.race([
+          evaluate(workerClient, `typeof SmoothSurferStorage === "object"`).catch(() => false),
+          delay(1000).then(() => false)
+        ]);
+        if (ready) break;
+        if (attempt > 30) throw new Error("The extension worker never finished loading.");
+        await delay(250);
+      }
       await evaluate(workerClient, seedExpression());
       workerClient.close();
       // Close the first-install welcome tab so the capture tab stays visible;
@@ -511,6 +674,7 @@ try {
       await setViewport(client, 760, 480, 2);
       await navigate(client, `http://x.com:${site.port}/home`, 2600);
       await capture(client, "countdown");
+      await captureTabSearch(port, worker);
 
       for (const card of CARDS) {
         await setViewport(client, 1280, 800, 1);
@@ -525,3 +689,4 @@ try {
   await rm(workDir, { recursive: true, force: true });
 }
 console.log("store assets written to", outDir);
+clearTimeout(watchdog);
