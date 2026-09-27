@@ -1,6 +1,6 @@
 # Chrome Web Store listing
 
-Source copy for the Chrome Web Store developer dashboard, updated for 0.3.0.
+Source copy for the Chrome Web Store developer dashboard, updated for 0.4.0.
 Package publishing does not update the long description, privacy answers, or
 screenshots automatically; apply those fields in the dashboard before submission.
 
@@ -31,8 +31,12 @@ that day. It's on for the built-in sites by default, and you can add any other.
 
 Pinned tabs in every window
 Pin a tab with Cmd+Shift+P (Alt+P on Windows/Linux) and it appears in every
-Chrome window. Pins stay at their saved page, and closing one brings it back
-instead of losing it.
+Chrome window. Pins stay at their saved page, closing one brings it back
+instead of losing it, and copies in other windows sleep until you open them.
+
+Find any tab
+Press Cmd+K (Ctrl+K) to search this window's tabs and jump to one. Sites that
+use Cmd+K themselves keep it.
 
 Everything works as soon as you install it, and every setting explains itself.
 No account, no analytics, and no Smooth Surfer servers. Open source:
@@ -40,14 +44,17 @@ https://github.com/nishu-builder/smooth-surfer
 
 **Category:** Productivity → Workflow & Planning
 
-**Screenshots** (1280×800, in this order, from [store-assets/](store-assets/);
-regenerate with `node scripts/capture-store-assets.mjs`):
+**Screenshots** (1280×800, from [store-assets/](store-assets/); regenerate with
+`node scripts/capture-store-assets.mjs`). The store allows five; upload these,
+in this order:
 
 1. `01-overview.png`: Calmer feeds, no setup needed.
-2. `02-ai-filter.png`: Hide posts you'd rather not see.
-3. `03-hidden-posts.png`: Check every call.
+2. `06-tab-search.png`: Find any tab in this window.
+3. `02-ai-filter.png`: Hide posts you'd rather not see.
 4. `04-loading-delay.png`: A pause before habit sites.
 5. `05-pinned-tabs.png`: Pins in every window.
+
+`03-hidden-posts.png` (Check every call) is used in the README only.
 
 **Small promo tile** (440×280): `promo-tile-440x280.png`
 

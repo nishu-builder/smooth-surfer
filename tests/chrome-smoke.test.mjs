@@ -1218,6 +1218,10 @@ async function verifyExtensionPopupOpens() {
 
     await client.send("Page.enable");
     await client.send("Runtime.enable");
+    // Color checks below assume the light palette, whatever the OS theme is.
+    await client.send("Emulation.setEmulatedMedia", {
+      features: [{ name: "prefers-color-scheme", value: "light" }]
+    });
     await client.send("Page.bringToFront");
     await navigate(client, `http://127.0.0.1:${barePort}/bare-video.html`);
     await evaluate(

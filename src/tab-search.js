@@ -46,7 +46,7 @@
     .title, .url { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .title { font-weight: 700; }
     .url { color: var(--ss-muted, #64655b); font-size: 12px; }
-    mark { background: var(--ss-accent, #e3ff73); color: inherit; border-radius: 2px; }
+    mark { background: var(--ss-accent, #e3ff73); color: var(--ss-accent-ink, #20221e); border-radius: 2px; }
     .badge {
       padding: 0 7px; border: 1px solid var(--ss-line, #d7d7c9); border-radius: 999px; color: var(--ss-muted, #64655b);
       font: 10.5px/1.6 var(--ss-mono, "SFMono-Regular", Consolas, monospace);

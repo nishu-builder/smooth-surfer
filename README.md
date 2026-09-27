@@ -139,6 +139,8 @@ you pinned. Sharing is on by default; turn it off to keep pins per window.
 
 ### Everywhere
 
+![Tab search: find any tab in this window with Cmd+K](docs/store-assets/06-tab-search.png)
+
 - **Pause deep scrolling:** after about 16 screens of a feed, a surf break waits
   for you to choose Keep going.
 - **Gray distracting media:** mutes images and video in feeds. Both of these
@@ -149,7 +151,7 @@ you pinned. Sharing is on by default; turn it off to keep pins per window.
 - **Focus hours:** run Smooth Surfer only between set times, including overnight
   ranges.
 - **Tab search:** press Cmd+K (Ctrl+K) to search this window's tabs by title or
-  address, then Enter to switch. Sites that use Cmd+K themselves, like GitHub or
+  address, with their icons, then Enter to switch. Sites that use Cmd+K themselves, like GitHub or
   Slack, keep it. It can't open on Chrome's own pages, such as the New Tab page;
   Chrome's Search tabs (Cmd+Shift+A) covers every window.
 - **Settings shortcut:** press Cmd+Shift+S (Ctrl+Shift+S) twice to open the menu.

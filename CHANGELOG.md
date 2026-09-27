@@ -3,11 +3,12 @@
 Notable changes per released version. Versions match `manifest.json`, and a
 release is a `v*` tag; see [docs/RELEASING.md](docs/RELEASING.md).
 
-## Unreleased
+## 0.4.0
 
 - In a window that holds only pinned tabs, closing a pin with Cmd+W now closes the window instead of bringing the pin straight back. Saved pins are kept.
 - Pinned copies in other windows load once for their title and icon, then sleep until you open them. Turn off **Load pins when opened** in Pinned tabs to keep every copy live.
 - Add tab search: Cmd+K (Ctrl+K) lists this window's tabs, with their icons, to filter and switch. The page gets the key first, so sites with their own Cmd+K keep it. Turn it off under Everywhere. Icons come from Chrome's local icon cache through the new `favicon` permission.
+- Add a tab search store screenshot and refresh the pinned tabs one; the capture script now waits for the extension worker before seeding sample data.
 
 ## 0.3.0
 
