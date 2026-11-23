@@ -22,6 +22,19 @@
     substack: "substackFilterContent",
     "hacker-news": "hackerNewsFilterContent"
   };
+  // Root classes that switch on a site's CSS-only effects: [class, site, setting].
+  const ROOT_CLASS_SETTINGS = [
+    ["smooth-surfer-youtube-gray", "youtube", "youtubeGrayscaleThumbnails"],
+    ["smooth-surfer-youtube-hide-recs", "youtube", "youtubeHideRecommendations"],
+    ["smooth-surfer-youtube-hide-shorts", "youtube", "youtubeHideShorts"],
+    ["smooth-surfer-youtube-hide-live-chat", "youtube", "youtubeHideLiveChat"],
+    ["smooth-surfer-youtube-hide-end-screens", "youtube", "youtubeHideEndScreens"],
+    ["smooth-surfer-youtube-hide-engagement", "youtube", "youtubeHideEngagementStats"],
+    ["smooth-surfer-youtube-hide-comments", "youtube", "youtubeHideComments"],
+    ["smooth-surfer-twitter-hide-trends", "twitter", "twitterHideTrends"],
+    ["smooth-surfer-reddit-hide-comments", "reddit", "redditHideComments"],
+    ["smooth-surfer-hacker-news-hide-scores", "hacker-news", "hackerNewsHideScores"]
+  ];
   const SCROLL_PAUSE_KEYS = new Set([
     " ",
     "ArrowDown",
@@ -96,7 +109,7 @@
   const recordedStatKeys = new Set();
   const recordedConsumptionKeys = new Set();
 
-  const platform = getPlatform();
+  const platform = getPlatformForUrl(window.location.href);
   installMessageListener();
   installVideoSpeedHotkeys();
   installSettingsHotkey();
@@ -104,7 +117,7 @@
   start();
 
   function start() {
-    Promise.all([loadSettings(), loadSecrets(), loadReview ? loadReview() : null]).then(
+    Promise.all([loadSettings(), loadSecrets(), loadReview()]).then(
       ([loadedSettings, loadedSecrets, review]) => {
         restoredPosts = new Set(review?.restored || []);
         settings = loadedSettings;
@@ -117,15 +130,14 @@
       }
     );
 
-    if (watchReview)
-      watchReview((review) => {
-        const next = new Set(review.restored);
-        if (next.size === restoredPosts.size && [...next].every((key) => restoredPosts.has(key)))
-          return;
-        restoredPosts = next;
-        resetClassifications(false);
-        scanPage();
-      });
+    watchReview((review) => {
+      const next = new Set(review.restored);
+      if (next.size === restoredPosts.size && [...next].every((key) => restoredPosts.has(key)))
+        return;
+      restoredPosts = next;
+      resetClassifications(false);
+      scanPage();
+    });
 
     watchSettings((nextSettings) => {
       const contentSettings = [
@@ -164,10 +176,6 @@
     });
   }
 
-  function getPlatform() {
-    return getPlatformForUrl(window.location.href);
-  }
-
   function effectsEnabled() {
     if (!settings.enabled) {
       return false;
@@ -181,22 +189,10 @@
   }
 
   function installMessageListener() {
-    if (
-      typeof chrome === "undefined" ||
-      !chrome.runtime ||
-      !chrome.runtime.onMessage ||
-      typeof chrome.runtime.onMessage.addListener !== "function"
-    ) {
-      return;
-    }
-
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      if (!message || message.type !== "getSmoothSurferPlatform") {
-        return false;
-      }
-
-      sendResponse({ platform });
-      return false;
+    // Checks and previews load this script without an extension runtime.
+    if (typeof chrome === "undefined") return;
+    chrome.runtime?.onMessage?.addListener((message, sender, sendResponse) => {
+      if (message?.type === "getSmoothSurferPlatform") sendResponse({ platform });
     });
   }
 
@@ -220,46 +216,9 @@
     const active = effectsEnabled();
 
     lastEffectsActive = active;
-    root.classList.toggle(
-      "smooth-surfer-youtube-gray",
-      active && platform === "youtube" && settings.youtubeGrayscaleThumbnails
-    );
-    root.classList.toggle(
-      "smooth-surfer-youtube-hide-recs",
-      active && platform === "youtube" && settings.youtubeHideRecommendations
-    );
-    root.classList.toggle(
-      "smooth-surfer-youtube-hide-shorts",
-      active && platform === "youtube" && settings.youtubeHideShorts
-    );
-    root.classList.toggle(
-      "smooth-surfer-youtube-hide-live-chat",
-      active && platform === "youtube" && settings.youtubeHideLiveChat
-    );
-    root.classList.toggle(
-      "smooth-surfer-youtube-hide-end-screens",
-      active && platform === "youtube" && settings.youtubeHideEndScreens
-    );
-    root.classList.toggle(
-      "smooth-surfer-youtube-hide-engagement",
-      active && platform === "youtube" && settings.youtubeHideEngagementStats
-    );
-    root.classList.toggle(
-      "smooth-surfer-youtube-hide-comments",
-      active && platform === "youtube" && settings.youtubeHideComments
-    );
-    root.classList.toggle(
-      "smooth-surfer-twitter-hide-trends",
-      active && platform === "twitter" && settings.twitterHideTrends
-    );
-    root.classList.toggle(
-      "smooth-surfer-reddit-hide-comments",
-      active && platform === "reddit" && settings.redditHideComments
-    );
-    root.classList.toggle(
-      "smooth-surfer-hacker-news-hide-scores",
-      active && platform === "hacker-news" && settings.hackerNewsHideScores
-    );
+    for (const [className, site, setting] of ROOT_CLASS_SETTINGS) {
+      root.classList.toggle(className, active && platform === site && settings[setting]);
+    }
     root.classList.toggle(
       "smooth-surfer-soften-distracting",
       active && settings.softenDistractingElements && !isWorkSite()
@@ -446,7 +405,7 @@
       !effectsEnabled() ||
       (!settings.twitterHideAds && !canFilterContent && !hasFormatFilters())
     ) {
-      restoreHiddenTweets();
+      restoreHiddenElementsByKind("tweet");
       return;
     }
 
@@ -495,7 +454,7 @@
       }
       if (enabled) {
         tweetIdentities.set(container, identity);
-        hideTweet(container, reasons, true);
+        hideTweet(container, reasons);
         return;
       }
       tweetContextBlocks.delete(article);
@@ -506,15 +465,9 @@
       restoreElement(container);
       tweetIdentities.set(container, identity);
     }
-    const reasons = [];
-
     if (settings.twitterHideAds && isPromotedTweet(article)) {
-      reasons.push("ad");
-    }
-
-    if (reasons.length > 0) {
-      rememberTweetBlock(container, reasons, "ad");
-      hideTweet(container, reasons, true);
+      rememberTweetBlock(container, ["ad"], "ad");
+      hideTweet(container, ["ad"]);
       return;
     }
 
@@ -535,11 +488,11 @@
       };
       recordReviewPost(container, text, classification, images);
       rememberTweetBlock(container, classification.reasons, "format", formats);
-      hideTweet(container, classification.reasons, true);
+      hideTweet(container, classification.reasons);
       return;
     }
     if (canFilterContent) {
-      requestModelClassification(container, getTweetText(article), "tweet");
+      requestModelClassification(container, text, "tweet");
     } else {
       restoreElement(container);
     }
@@ -598,7 +551,10 @@
       return;
     }
 
-    scanRedditRecommendationModules();
+    scanRecommendationModules(settings.redditHideRecommendations, "reddit-module", [
+      "communities you might like",
+      "popular communities"
+    ]);
 
     getRedditPostContainers().forEach((container) =>
       processRedditPost(container, canFilterContent)
@@ -679,9 +635,10 @@
     posts.forEach((container) => processRedditPost(container, canFilterContent));
   }
 
-  function scanRedditRecommendationModules() {
-    if (!effectsEnabled() || !settings.redditHideRecommendations) {
-      restoreHiddenElementsByKind("reddit-module");
+  // Sidebar and inline modules that push more to read, matched by their text.
+  function scanRecommendationModules(enabled, kind, phrases) {
+    if (!enabled) {
+      restoreHiddenElementsByKind(kind);
       return;
     }
 
@@ -689,14 +646,10 @@
       .querySelectorAll("aside, section, [data-testid*='recommend'], [class*='recommend']")
       .forEach((module) => {
         const text = getElementText(module).toLowerCase();
-        const shouldHide =
-          hasRecommendationText(text) ||
-          text.includes("communities you might like") ||
-          text.includes("popular communities");
 
-        if (shouldHide) {
-          hideElement(module, ["recommendation"], "reddit-module");
-        } else if (module.dataset.smoothSurferHiddenKind === "reddit-module") {
+        if (hasRecommendationText(text) || phrases.some((phrase) => text.includes(phrase))) {
+          hideElement(module, ["recommendation"], kind);
+        } else if (module.dataset.smoothSurferHiddenKind === kind) {
           restoreElement(module);
         }
       });
@@ -711,7 +664,11 @@
       return;
     }
 
-    scanSubstackRecommendationModules();
+    scanRecommendationModules(settings.substackHideRecommendations, "substack-module", [
+      "recommended reads",
+      "more from substack",
+      "discover more"
+    ]);
 
     if (!canFilterContent) {
       restoreHiddenElementsByKind("substack-post");
@@ -725,30 +682,6 @@
 
       requestModelClassification(container, getElementText(container), "substack-post");
     });
-  }
-
-  function scanSubstackRecommendationModules() {
-    if (!effectsEnabled() || !settings.substackHideRecommendations) {
-      restoreHiddenElementsByKind("substack-module");
-      return;
-    }
-
-    document
-      .querySelectorAll("aside, section, [data-testid*='recommend'], [class*='recommend']")
-      .forEach((module) => {
-        const text = getElementText(module).toLowerCase();
-        const shouldHide =
-          hasRecommendationText(text) ||
-          text.includes("recommended reads") ||
-          text.includes("more from substack") ||
-          text.includes("discover more");
-
-        if (shouldHide) {
-          hideElement(module, ["recommendation"], "substack-module");
-        } else if (module.dataset.smoothSurferHiddenKind === "substack-module") {
-          restoreElement(module);
-        }
-      });
   }
 
   function scanHackerNewsPage() {
@@ -843,14 +776,10 @@
   }
 
   function showScrollPause() {
-    if (scrollPause) {
-      document.documentElement.classList.add("smooth-surfer-scroll-paused");
-      installScrollPauseInputBlockers();
-      return;
-    }
-
     document.documentElement.classList.add("smooth-surfer-scroll-paused");
     installScrollPauseInputBlockers();
+    if (scrollPause) return;
+
     scrollPause = document.createElement("div");
     scrollPause.className = "smooth-surfer-scroll-pause";
     scrollPause.innerHTML = `
@@ -969,12 +898,9 @@
       meta: event.metaKey
     };
 
-    if (required === "none") {
-      return !held.alt && !held.ctrl && !held.shift && !held.meta;
-    }
-
     // The chosen modifier must be down and no other modifier may be, so the
-    // shortcut doesn't collide with combos like Ctrl+Alt+].
+    // shortcut doesn't collide with combos like Ctrl+Alt+]. "none" names no
+    // key, so it requires every modifier to be up.
     return Object.keys(held).every((key) => (key === required ? held[key] : !held[key]));
   }
 
@@ -1084,12 +1010,11 @@
     }
   }
 
-  function cacheClassification(key, result) {
-    modelClassifications.delete(key);
-    modelClassifications.set(key, result);
-    if (modelClassifications.size > CLASSIFICATION_CACHE_LIMIT) {
-      modelClassifications.delete(modelClassifications.keys().next().value);
-    }
+  // Insert as the newest entry, evicting the oldest once past the limit.
+  function setBounded(map, key, value, limit) {
+    map.delete(key);
+    map.set(key, value);
+    if (map.size > limit) map.delete(map.keys().next().value);
   }
 
   function requestModelClassification(container, text, kind) {
@@ -1103,7 +1028,6 @@
 
     if (isReviewPostRestored(container, normalizedText, reviewImages)) {
       pendingClassifications.delete(container);
-      delete container.dataset.smoothSurferPendingKey;
       restoreContentElement(container, kind);
       return;
     }
@@ -1111,7 +1035,6 @@
     const cached = modelClassifications.get(key);
     if (cached && (!cached.retryAt || cached.retryAt > Date.now())) {
       pendingClassifications.delete(container);
-      delete container.dataset.smoothSurferPendingKey;
       applyModelClassification(container, cached, kind, normalizedText, reviewImages, true);
       recordConsumptionStat(key, cached, container);
       return;
@@ -1137,7 +1060,6 @@
       review: captureReviewPost(container, normalizedText, reviewImages)
     };
     pendingClassifications.set(container, request);
-    container.dataset.smoothSurferPendingKey = key;
     if (kind === "tweet" || container.dataset.smoothSurferCleared !== "true") {
       markPendingContent(container, kind);
     }
@@ -1161,7 +1083,8 @@
           if (result.classifier === "error" || result.classifier === "disabled") {
             result.retryAt = Date.now() + CLASSIFICATION_RETRY_MS;
           }
-          if (request.epoch === classificationEpoch) cacheClassification(key, result);
+          if (request.epoch === classificationEpoch)
+            setBounded(modelClassifications, key, result, CLASSIFICATION_CACHE_LIMIT);
           resolve(result);
         };
         const timeout = window.setTimeout(
@@ -1201,13 +1124,7 @@
       if (request.epoch !== classificationEpoch || !canFilterPlatformContent(platform)) return;
       if (result.blocked && request.review && !isReviewSnapshotRestored(request.review))
         recordReviewSnapshot(request.review, result);
-      if (
-        !container.isConnected ||
-        pendingClassifications.get(container) !== request ||
-        request.epoch !== classificationEpoch ||
-        !canFilterPlatformContent(platform)
-      )
-        return;
+      if (!container.isConnected || pendingClassifications.get(container) !== request) return;
       if (kind === "tweet") {
         const article = getTweetArticle(container);
         if (
@@ -1219,7 +1136,6 @@
       }
       if (kind === "reddit-post" && request.identity !== getRedditPostId(container)) return;
       pendingClassifications.delete(container);
-      delete container.dataset.smoothSurferPendingKey;
       applyModelClassification(container, result, kind, normalizedText, reviewImages);
       recordConsumptionStat(key, result, container);
     });
@@ -1257,7 +1173,7 @@
   function isReviewPostRestored(container, text, images = []) {
     if (restoredPosts.has(reviewKey(text, images))) return true;
     const article = platform === "twitter" ? getTweetArticle(container) : container;
-    const url = article?.querySelector('a[href*="/status/"] time')?.closest("a")?.href;
+    const url = getTweetPermalink(article)?.href;
     return Boolean(url && restoredPosts.has(reviewKey(text, images, url)));
   }
 
@@ -1374,11 +1290,7 @@
   }
 
   function hasChromeRuntime() {
-    return (
-      typeof chrome !== "undefined" &&
-      chrome.runtime &&
-      typeof chrome.runtime.sendMessage === "function"
-    );
+    return typeof chrome !== "undefined" && typeof chrome.runtime?.sendMessage === "function";
   }
 
   function isPromotedTweet(article) {
@@ -1435,9 +1347,17 @@
     };
   }
 
+  // The timestamp link is a tweet's own permalink; quoted tweets have none.
+  function getTweetPermalink(article) {
+    return article?.querySelector('a[href*="/status/"] time')?.closest("a");
+  }
+
   function getTweetId(article) {
-    const link = article?.querySelector('a[href*="/status/"] time')?.closest("a");
-    return link?.getAttribute("href")?.match(/\/status\/([^/?#]+)/)?.[1] || "";
+    return (
+      getTweetPermalink(article)
+        ?.getAttribute("href")
+        ?.match(/\/status\/([^/?#]+)/)?.[1] || ""
+    );
   }
 
   function rememberTweetBlock(container, reasons, kind, formats = []) {
@@ -1460,20 +1380,17 @@
       tweetContextBlocks.set(article, block);
       if (formats.length === 1) return;
     }
-    tweetBlocks.delete(id);
-    tweetBlocks.set(id, {
-      ...block,
-      formats: formats.filter((key) => key !== "twitterHideReposts")
-    });
-    if (tweetBlocks.size > CLASSIFICATION_CACHE_LIMIT) {
-      tweetBlocks.delete(tweetBlocks.keys().next().value);
-    }
+    setBounded(
+      tweetBlocks,
+      id,
+      { ...block, formats: formats.filter((key) => key !== "twitterHideReposts") },
+      CLASSIFICATION_CACHE_LIMIT
+    );
   }
 
   function getTweetIdentity(article) {
     if (!article) return "";
-    const permalink = article.querySelector('a[href*="/status/"] time')?.closest("a");
-    return `${permalink?.getAttribute("href") || ""}|${getTweetText(article)}|${getPostImages(article).join("|")}|${getTweetFormats(article).join("|")}`;
+    return `${getTweetPermalink(article)?.getAttribute("href") || ""}|${getTweetText(article)}|${getPostImages(article).join("|")}|${getTweetFormats(article).join("|")}`;
   }
 
   function getTweetText(article) {
@@ -1489,7 +1406,7 @@
     });
     const text = normalizeInlineText(parts.join(" "));
     if (!text && !getPostImages(article).length && getTweetFormats(article).length) {
-      const link = article.querySelector('a[href*="/status/"] time')?.closest("a");
+      const link = getTweetPermalink(article);
       if (link) return `Media post: ${link.href}`;
     }
     return text;
@@ -1540,14 +1457,15 @@
   }
 
   function getRedditPostContainers() {
-    return uniqueElements(
-      Array.from(document.querySelectorAll(REDDIT_POST_SELECTOR))
-        .map(
+    return [
+      ...new Set(
+        Array.from(
+          document.querySelectorAll(REDDIT_POST_SELECTOR),
           (element) =>
             element.closest("shreddit-post, article, [data-testid='post-container']") || element
         )
-        .filter((element) => element && document.body.contains(element))
-    );
+      )
+    ].filter((element) => document.body.contains(element));
   }
 
   function getRedditPostId(container) {
@@ -1568,10 +1486,7 @@
     let decision = redditPostDecisions.get(id);
     if (!decision) {
       decision = { rules: new Set(), epoch: -1, result: null };
-      redditPostDecisions.set(id, decision);
-      if (redditPostDecisions.size > REDDIT_DECISION_LIMIT) {
-        redditPostDecisions.delete(redditPostDecisions.keys().next().value);
-      }
+      setBounded(redditPostDecisions, id, decision, REDDIT_DECISION_LIMIT);
     }
     return decision;
   }
@@ -1606,18 +1521,17 @@
   }
 
   function getSubstackPostContainers() {
-    return uniqueElements(
-      Array.from(
-        document.querySelectorAll(
-          "article, [data-testid*='post'], [class*='post-preview'], [class*='feed-item'], [class*='note']"
-        )
-      )
-        .map(
+    return [
+      ...new Set(
+        Array.from(
+          document.querySelectorAll(
+            "article, [data-testid*='post'], [class*='post-preview'], [class*='feed-item'], [class*='note']"
+          ),
           (element) =>
             element.closest("article, [data-testid*='post'], [class*='post-preview']") || element
         )
-        .filter((element) => element && document.body.contains(element))
-    );
+      )
+    ].filter((element) => document.body.contains(element));
   }
 
   function getRedditPostText(container) {
@@ -1673,21 +1587,8 @@
     return normalizeInlineText(element.textContent || "");
   }
 
-  function uniqueElements(elements) {
-    const seen = new Set();
-
-    return elements.filter((element) => {
-      if (seen.has(element)) {
-        return false;
-      }
-
-      seen.add(element);
-      return true;
-    });
-  }
-
-  function hideTweet(container, reasons, immediate = false) {
-    hideElement(container, reasons, "tweet", immediate);
+  function hideTweet(container, reasons) {
+    hideElement(container, reasons, "tweet", true);
   }
 
   function markPendingContent(container, kind) {
@@ -1759,7 +1660,6 @@
     }
 
     pendingClassifications.delete(element);
-    delete element.dataset.smoothSurferPendingKey;
     delete element.dataset.smoothSurferPending;
     if (kind === "tweet") {
       hideTweetWithoutScrollJump(element, immediate);
@@ -1856,17 +1756,6 @@
     delete element.dataset.smoothSurferHiddenKind;
     delete element.dataset.smoothSurferPending;
     delete element.dataset.smoothSurferReasons;
-    delete element.dataset.smoothSurferPendingKey;
-  }
-
-  function restoreTweet(container) {
-    restoreElement(container);
-  }
-
-  function restoreHiddenTweets() {
-    document.querySelectorAll('[data-smooth-surfer-hidden-kind="tweet"]').forEach((element) => {
-      restoreTweet(element);
-    });
   }
 
   function restoreHiddenElementsByKind(kind) {
