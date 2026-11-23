@@ -3,6 +3,10 @@
 Notable changes per released version. Versions match `manifest.json`, and a
 release is a `v*` tag; see [docs/RELEASING.md](docs/RELEASING.md).
 
+## 0.4.1
+
+- Fix pinned tabs reopening every time the extension was turned on or Chrome restarted. A pin whose address redirects, such as a renamed GitHub repository, was saved a second time under its new address and reopened in every window. Redirects are now remembered, the two pins merge into one, and each window keeps a single copy of each pin.
+
 ## 0.4.0
 
 - In a window that holds only pinned tabs, closing a pin with Cmd+W now closes the window instead of bringing the pin straight back. Saved pins are kept.

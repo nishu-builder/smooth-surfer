@@ -52,6 +52,7 @@ function harness(saved = {}) {
   const creates = [];
   const moves = [];
   const discards = [];
+  const removals = [];
   const errors = [];
   const area = (data) => ({
     get: async (keys) =>
@@ -92,6 +93,8 @@ function harness(saved = {}) {
         const w = windows.find((item) => item.id === options.windowId);
         if (!w) throw new Error("Window closed");
         const tab = { id: nextId++, incognito: w.incognito, status: "complete", ...options };
+        // A page that redirects lands at its target by the time it completes.
+        if (saved.redirects?.[options.url]) tab.url = saved.redirects[options.url];
         creates.push(options);
         w.tabs.push(tab);
         api.tabs.onCreated.emit(structuredClone(tab));
@@ -101,6 +104,14 @@ function harness(saved = {}) {
         const tab = find(id);
         if (!tab) throw new Error("Tab closed");
         return structuredClone(tab);
+      },
+      remove: async (id) => {
+        const tab = find(id);
+        if (!tab) throw new Error("Tab closed");
+        removals.push(id);
+        const w = windows.find((item) => item.id === tab.windowId);
+        w.tabs.splice(w.tabs.indexOf(tab), 1);
+        api.tabs.onRemoved.emit(id, { windowId: w.id, isWindowClosing: false });
       },
       discard: async (id) => {
         const tab = find(id);
@@ -148,6 +159,7 @@ function harness(saved = {}) {
     creates,
     moves,
     discards,
+    removals,
     find,
     settle,
     focusWindow: (id) => (focusedWindowId = id),
@@ -496,6 +508,95 @@ const pins = (h, id) => h.windows.find((w) => w.id === id).tabs.filter((tab) => 
     "restore the saved URL, not its redirect"
   );
 
+  // Turning the extension off and on (or restarting Chrome) clears session
+  // storage. A copy that redirected must still be recognized as its pin.
+  const moved = {
+    "https://github.com/old-org/repo": "https://github.com/new-org/repo"
+  };
+  const before = harness({
+    redirects: moved,
+    local: { smoothSurferPinnedTabs: ["https://github.com/old-org/repo"] },
+    windows: [
+      {
+        id: 1,
+        type: "normal",
+        tabs: [{ id: 1, windowId: 1, url: "https://github.com/old-org/repo", pinned: true }]
+      },
+      {
+        id: 2,
+        type: "normal",
+        tabs: [{ id: 2, windowId: 2, url: "https://example.com/", pinned: false, active: true }]
+      }
+    ]
+  });
+  await before.settle();
+  assert.equal(pins(before, 2)[0].url, "https://github.com/new-org/repo");
+  for (let turn = 0; turn < 3; turn++) {
+    const after = harness({
+      redirects: moved,
+      local: before.local,
+      session: {},
+      windows: before.windows
+    });
+    await after.settle();
+    assert.equal(after.creates.length, 0, "re-enabling must not reopen a redirected pin");
+    assert.deepEqual(after.local.smoothSurferPinnedTabs, ["https://github.com/old-org/repo"]);
+  }
+
+  // State left by the old bug: the redirect target was added as its own pin
+  // and every restart added another copy to each window.
+  const polluted = harness({
+    redirects: moved,
+    local: {
+      smoothSurferPinnedTabs: [
+        "https://github.com/old-org/repo",
+        "https://mail.google.com/",
+        "https://github.com/new-org/repo"
+      ]
+    },
+    windows: [1, 2].map((windowId) => ({
+      id: windowId,
+      type: "normal",
+      tabs: [
+        { id: windowId * 10, windowId, url: "https://github.com/new-org/repo", pinned: true },
+        { id: windowId * 10 + 1, windowId, url: "https://mail.google.com/", pinned: true },
+        { id: windowId * 10 + 2, windowId, url: "https://github.com/new-org/repo", pinned: true },
+        {
+          id: windowId * 10 + 3,
+          windowId,
+          url: "https://github.com/new-org/repo",
+          pinned: true,
+          active: windowId === 2
+        },
+        { id: windowId * 10 + 4, windowId, url: "https://example.com/", pinned: false }
+      ]
+    }))
+  });
+  await polluted.settle();
+  assert.deepEqual(
+    polluted.local.smoothSurferPinnedTabs,
+    ["https://github.com/new-org/repo", "https://mail.google.com/"],
+    "a pin that redirects to another pin merges into it, keeping its place"
+  );
+  for (const windowId of [1, 2])
+    assert.deepEqual(
+      pins(polluted, windowId).map((tab) => tab.url),
+      ["https://github.com/new-org/repo", "https://mail.google.com/"],
+      "each window keeps one copy of each pin"
+    );
+  assert.equal(polluted.find(20).active, true, "the kept copy is shown in place of a duplicate");
+  assert.ok(polluted.find(14), "regular tabs are untouched");
+  const settled = polluted.creates.length;
+  const pollutedRestart = harness({
+    redirects: moved,
+    local: polluted.local,
+    session: {},
+    windows: polluted.windows
+  });
+  await pollutedRestart.settle();
+  assert.equal(pollutedRestart.creates.length, 0);
+  assert.equal(polluted.creates.length, settled);
+
   const stale = harness({
     local: { smoothSurferPinnedTabs: ["https://original.example/"] },
     session: { smoothSurferPinnedTabBindings: { 1: "https://original.example/" } }
@@ -579,7 +680,7 @@ const pins = (h, id) => h.windows.find((w) => w.id === id).tabs.filter((tab) => 
   await paused.settle();
   assert.equal(paused.find(2).pinned, true);
   console.log(
-    "Pinned tabs passed (shortcut, URL departures, redirects, reload, permissions, windows, unpin/close, concurrency, restart, privacy)."
+    "Pinned tabs passed (shortcut, URL departures, redirects, re-enable, duplicates, reload, permissions, windows, unpin/close, concurrency, restart, privacy)."
   );
 })().catch((error) => {
   console.error(error);

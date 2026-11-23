@@ -5,6 +5,10 @@
   const PINS_KEY = "smoothSurferPinnedTabs";
   const BINDINGS_KEY = "smoothSurferPinnedTabBindings";
   const PAGES_KEY = "smoothSurferPinnedTabPages";
+  // Where each saved URL's copies last landed after redirects, e.g. a renamed
+  // GitHub repository. Kept with the pins because tab bindings live in session
+  // storage, which Chrome clears when the extension is re-enabled or restarted.
+  const LANDINGS_KEY = "smoothSurferPinnedTabLandings";
 
   function webUrl(value) {
     try {
@@ -21,6 +25,7 @@
     let urls = [];
     let bindings = {};
     let pages = {};
+    let landings = {};
     const pendingChanges = [];
     // Pin changes this module requested, keyed by tab ID. Any other pin change
     // came from Chrome's tab menu or a drag and is undone while sharing is on.
@@ -40,17 +45,21 @@
     async function load() {
       if (initialized) return;
       const [local, session] = await Promise.all([
-        api.storage.local.get(PINS_KEY),
+        api.storage.local.get([PINS_KEY, LANDINGS_KEY]),
         api.storage.session.get([BINDINGS_KEY, PAGES_KEY])
       ]);
       urls = [...new Set((local[PINS_KEY] || []).map(webUrl).filter(Boolean))];
+      landings = local[LANDINGS_KEY] || {};
       bindings = session[BINDINGS_KEY] || {};
       pages = session[PAGES_KEY] || {};
       initialized = true;
     }
 
     async function save() {
-      await api.storage.local.set({ [PINS_KEY]: urls });
+      landings = Object.fromEntries(
+        Object.entries(landings).filter(([url, landing]) => urls.includes(url) && landing !== url)
+      );
+      await api.storage.local.set({ [PINS_KEY]: urls, [LANDINGS_KEY]: landings });
       await api.storage.session.set({ [BINDINGS_KEY]: bindings, [PAGES_KEY]: pages });
     }
 
@@ -60,10 +69,11 @@
       lazy = settings.lazyPinnedTabs !== false;
       if (!settings.crossWindowPinsEnabled) {
         pendingChanges.length = 0;
-        if (!urls.length && !Object.keys(bindings).length) return;
+        if (!urls.length && !Object.keys(bindings).length && !Object.keys(landings).length) return;
         urls = [];
         bindings = {};
         pages = {};
+        landings = {};
         await save();
         return;
       }
@@ -141,6 +151,27 @@
         ).length;
         await moveIfPresent(id, index);
       }
+      // A restored URL may redirect (for example to sign-in). Let its first
+      // load settle before detecting later navigation, or restoring the pin
+      // would repeatedly create tabs. The saved URL itself never changes, but
+      // where it landed is remembered so the copy is still recognized after
+      // session storage is cleared.
+      for (const tab of tabs) {
+        const url = bindings[tab.id];
+        if (!tab.pinned || !url || !pages[tab.id]?.loading) continue;
+        if (tab.status !== "complete" || tab.pendingUrl) continue;
+        pages[tab.id] = { url: tab.url || url };
+        const landing = webUrl(tab.url);
+        if (landing && landing !== url) landings[url] = landing;
+        else if (landing) delete landings[url];
+      }
+      // A saved URL that redirects to another saved URL is the same pin. This
+      // happened when a restart re-saved a copy under its redirect target.
+      const merged = (url) => (urls.includes(landings[url]) ? landings[url] : url);
+      if (urls.some((url) => merged(url) !== url)) {
+        urls = [...new Set(urls.map(merged))];
+        for (const [id, url] of Object.entries(bindings)) bindings[id] = merged(url);
+      }
       // Bindings always retain the URL at pin time, across navigation and
       // worker restarts. Page state only tracks a copy's initial redirects.
       for (const [id, url] of Object.entries(bindings)) {
@@ -154,11 +185,43 @@
       for (const tab of tabs) {
         if (!tab.pinned || bindings[tab.id]) continue;
         const pinned = changes.findLast((event) => event.tabId === tab.id && event.pinnedUrl);
-        const url = pinned?.pinnedUrl || webUrl(tab.pendingUrl || tab.url);
-        if (!url) continue;
+        const current = pinned?.pinnedUrl || webUrl(tab.pendingUrl || tab.url);
+        if (!current) continue;
+        // After session storage is lost, a copy sits at its redirect target.
+        const url = urls.includes(current)
+          ? current
+          : urls.find((saved) => landings[saved] === current) || current;
         if (!urls.includes(url)) urls.push(url);
         bindings[tab.id] = url;
-        pages[tab.id] = { url };
+        pages[tab.id] = { url: current };
+      }
+      // A window holds one copy of each pin. Duplicates come from earlier
+      // restarts, or a startup that restored pins after they were recreated.
+      // Keep the leftmost copy, and show it if a closed duplicate was showing.
+      for (const window of windows) {
+        const kept = new Map();
+        for (const tab of window.tabs.filter((item) => item.pinned && bindings[item.id])) {
+          const url = bindings[tab.id];
+          const keeper = kept.get(url);
+          if (!keeper) {
+            kept.set(url, tab);
+            continue;
+          }
+          delete bindings[tab.id];
+          delete pages[tab.id];
+          window.tabs = window.tabs.filter((other) => other.id !== tab.id);
+          tabs.splice(tabs.indexOf(tab), 1);
+          live.delete(tab.id);
+          if (tab.active && !keeper.active) {
+            await updateIfPresent(keeper.id, { active: true });
+            keeper.active = true;
+          }
+          try {
+            await api.tabs.remove(tab.id);
+          } catch {
+            // The user may have closed it already.
+          }
+        }
       }
       // Remember the last user-arranged pinned order for future windows.
       // Ignore ordinary-tab moves, private windows, and shutdown unpins.
@@ -189,13 +252,8 @@
         const url = bindings[tab.id];
         if (!tab.pinned || !url) continue;
         const page = pages[tab.id];
-        // A restored URL may redirect (for example to sign-in). Let its first
-        // load settle before detecting later navigation, or restoring the pin
-        // would repeatedly create tabs. The saved URL itself never changes.
-        if (page?.loading) {
-          if (tab.status === "complete" && !tab.pendingUrl) pages[tab.id] = { url: tab.url || url };
-          continue;
-        }
+        // A copy that is still loading may yet redirect; see above.
+        if (page?.loading) continue;
         if (!tab.url || tab.pendingUrl === url || tab.url === url || tab.url === page?.url)
           continue;
         // Keep the live document, history, and focus in the departing tab.
