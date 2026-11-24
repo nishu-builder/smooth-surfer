@@ -5,6 +5,7 @@ release is a `v*` tag; see [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Unreleased
 
+- Rewrite the README and store listing in plainer words, and replace the headline cards in `docs/store-assets/` with plain screenshots. The extension's description in `chrome://extensions` changes to match.
 - Stop leaving a `data-smooth-surfer-pending-key` attribute on posts while they are being checked. It held your filter rules and the post text where the page itself could read it, and nothing used it.
 - Internal cleanup with no change in behavior: shared helpers replace copies across the popup, review, filter-set and welcome pages; the worker's Anthropic request, write queues and daily logs each have one implementation; unused code and styles are gone.
 - `npm run check` now uses Node's test runner and syntax-checks every script in `src/` (six were never checked). CI also runs ESLint and Prettier.

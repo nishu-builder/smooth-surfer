@@ -1,6 +1,6 @@
 # Chrome Web Store listing
 
-Source copy for the Chrome Web Store developer dashboard, updated for 0.4.0.
+Source copy for the Chrome Web Store developer dashboard, updated after 0.4.1.
 Package publishing does not update the long description, privacy answers, or
 screenshots automatically; apply those fields in the dashboard before submission.
 
@@ -9,54 +9,42 @@ screenshots automatically; apply those fields in the dashboard before submission
 **Name:** Smooth Surfer
 
 **Summary (132 chars max):**
-Calmer feeds, a pause before habit sites, and pinned tabs that follow you into every Chrome window.
+Make sites less attention-grabbing, filter posts with rules you write, delay distracting sites, and pin tabs across windows.
 
 **Description:**
 
-Smooth Surfer makes the web a little less sticky.
+A Chrome extension for making the web less distracting. Some of the things you can do with it:
 
-Cleaner feeds
-Hide recommendations, Shorts, ads, trends, and engagement counts on YouTube,
-X, Reddit, Substack, and Hacker News. Turn each one on or off per site.
+- Make things hijack your attention less: hide view counts, Shorts, suggested next videos, make thumbnails, pictures and videos more grayscale, auto-select 'Following' feeds over 'For you', hide 'recommended' posts. There are switches for YouTube, X, Reddit, Substack and Hacker News.
 
-Filter posts with your own rules
-Describe what you don't want to see in plain English, and Smooth Surfer hides
-matching posts. Use Claude with your own Anthropic API key, or Chrome's
-on-device model. Check each hidden post as a right or wrong call, then improve
-your rules from your answers.
+- Filter out content you don't like (e.g. posts on X/Substack/Reddit) according to LLM-judged rules you set up. And you can review which were filtered out later and note if you agree or not, and why. It uses Claude with your own Anthropic API key, or Chrome's on-device model.
 
-A pause before habit sites
-Distracting sites open behind a short countdown that grows each time you visit
-that day. It's on for the built-in sites by default, and you can add any other.
+- Stop bad habits: can introduce delays that grow with each visit before loading sites you're prone to getting distracted by.
 
-Pinned tabs in every window
-Pin a tab with Cmd+Shift+P (Alt+P on Windows/Linux) and it appears in every
-Chrome window. Pins stay at their saved page, closing one brings it back
-instead of losing it, and copies in other windows sleep until you open them.
+- Use some sorely missing browser controls: pinned tabs that work more like Arc's (Cmd+Shift+P, or Alt+P on Windows/Linux, pins a tab in every window), keyboard shortcuts for changing the speed of a video on your screen, search across tabs (Cmd+K or Ctrl+K).
 
-Find any tab
-Press Cmd+K (Ctrl+K) to search this window's tabs and jump to one. Sites that
-use Cmd+K themselves keep it.
+- See an unserious reflection of your information diet, a la Emmett's idea here: https://x.com/eshear/status/1534692002952097792
 
-Everything works as soon as you install it, and every setting explains itself.
-No account, no analytics, and no Smooth Surfer servers. Open source:
-https://github.com/nishu-builder/smooth-surfer
+No account, no analytics, and no server of mine involved. Post text leaves your browser only if you turn on the filter with Claude, and then it goes to Anthropic with your own key.
+
+Source: https://github.com/nishu-builder/smooth-surfer
 
 **Category:** Productivity → Workflow & Planning
 
 **Screenshots** (1280×800, from [store-assets/](store-assets/); regenerate with
-`node scripts/capture-store-assets.mjs`). The store allows five; upload these,
-in this order:
+`node scripts/capture-store-assets.mjs`). They are plain captures of the
+extension with no added copy. The store allows five; upload these, in this
+order, one per item in the description:
 
-1. `01-overview.png`: Calmer feeds, no setup needed.
-2. `06-tab-search.png`: Find any tab in this window.
-3. `02-ai-filter.png`: Hide posts you'd rather not see.
-4. `04-loading-delay.png`: A pause before habit sites.
-5. `05-pinned-tabs.png`: Pins in every window.
+1. `01-attention.png`: the menu and the YouTube switches.
+2. `02-filter.png`: the filter settings and the Hidden posts page.
+3. `03-loading-delay.png`: a countdown and the list of delayed sites.
+4. `04-browser-controls.png`: pinned tabs, video speed keys, and tab search settings.
+5. `05-consumption-facts.png`: a Consumption Facts label and the Stats page.
 
-`03-hidden-posts.png` (Check every call) is used in the README only.
+`06-tab-search.png` (tab search open over a page) is used in the README only.
 
-**Small promo tile** (440×280): `promo-tile-440x280.png`
+**Small promo tile** (440×280): `promo-tile-440x280.png` (the icon and the name).
 
 **Language:** English
 
@@ -115,10 +103,8 @@ https://github.com/nishu-builder/smooth-surfer/blob/main/PRIVACY.md
 ## Store assets
 
 - Icon: `icons/icon128.png` (128x128).
-- Screenshots: `docs/store-assets/shot-1-menu.png` through `shot-5-menu.png`
-  (1280x800): YouTube controls, other site controls, loading delays and pinned
-  tabs, filtering and cross-site controls, and Consumption Facts.
-- Regenerate screenshots with `npm run screenshots` using Chrome for Testing.
+- Screenshots and promo tile: listed under [Store listing tab](#store-listing-tab).
+- Regenerate them with `npm run screenshots` using Chrome for Testing.
 
 ## Submission checklist
 

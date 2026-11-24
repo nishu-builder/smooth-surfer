@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Smooth Surfer",
   "version": "0.4.1",
-  "description": "Calmer feeds, a pause before habit sites, and pinned tabs that follow you into every Chrome window.",
+  "description": "Make sites less attention-grabbing, filter posts with rules you write, delay distracting sites, and pin tabs across windows.",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
