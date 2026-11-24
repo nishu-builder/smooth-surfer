@@ -15,13 +15,14 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { verifyFeedRendering } from "./feed-render.test.mjs";
-
-import { verifyTwitterFeed, twitterFilterFixture } from "./twitter-feed.test.mjs";
+import { verifyFeedRendering } from "./smoke/feed-render.mjs";
+import { verifyTwitterFeed, twitterFilterFixture } from "./smoke/twitter-feed.mjs";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cacheDir = path.join(root, ".cache");
 
+// Screenshots and fixtures for people to look at; nothing asserts on them.
+await mkdir(cacheDir, { recursive: true });
 const chromePath = await resolveChrome();
 
 if (!chromePath) {
@@ -1038,7 +1039,6 @@ try {
   await navigate(client, visitUrl);
   await waitForExpression(client, `${visitState}.meta.startsWith("Visit 1 today")`);
   const firstVisit = await evaluate(client, visitState);
-  await mkdir(cacheDir, { recursive: true });
   await writeFile(
     path.join(cacheDir, "visit-delay.png"),
     Buffer.from((await client.send("Page.captureScreenshot", { format: "png" })).data, "base64")
@@ -1278,7 +1278,6 @@ async function verifyExtensionPopupOpens() {
     assert.ok(popupLayout.height >= 300, "the popup has a usable rendered height");
     assert.equal(popupLayout.visibility, "visible");
     assert.ok(popupLayout.inputs > 10, "the popup renders its settings controls");
-    await mkdir(cacheDir, { recursive: true });
     const popupScreenshot = await popupClient.send("Page.captureScreenshot", { format: "png" });
     await writeFile(
       path.join(cacheDir, "extension-popup.png"),
@@ -1418,7 +1417,6 @@ async function verifyExtensionPopupOpens() {
       deviceScaleFactor: 1,
       mobile: false
     });
-    await mkdir(cacheDir, { recursive: true });
     const desktop = await client.send("Page.captureScreenshot", { format: "png" });
     await writeFile(path.join(cacheDir, "review-desktop.png"), Buffer.from(desktop.data, "base64"));
     await client.send("Emulation.setDeviceMetricsOverride", {
@@ -2637,8 +2635,14 @@ async function resolveChrome() {
 
   const candidates = [
     process.env.CHROME_BIN,
-    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-    path.join(cacheDir, "chrome-linux64", "chrome")
+    // Chrome for Testing loads the extension; branded Chrome 137+ cannot, so
+    // it only runs the page-level checks.
+    path.join(cacheDir, "chrome-linux64", "chrome"),
+    path.join(
+      cacheDir,
+      "chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"
+    ),
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
   ].filter(Boolean);
 
   for (const candidate of candidates) {

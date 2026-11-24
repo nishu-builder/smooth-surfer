@@ -3,6 +3,12 @@
 Notable changes per released version. Versions match `manifest.json`, and a
 release is a `v*` tag; see [docs/RELEASING.md](docs/RELEASING.md).
 
+## Unreleased
+
+- Stop leaving a `data-smooth-surfer-pending-key` attribute on posts while they are being checked. It held your filter rules and the post text where the page itself could read it, and nothing used it.
+- Internal cleanup with no change in behavior: shared helpers replace copies across the popup, review, filter-set and welcome pages; the worker's Anthropic request, write queues and daily logs each have one implementation; unused code and styles are gone.
+- `npm run check` now uses Node's test runner and syntax-checks every script in `src/` (six were never checked). CI also runs ESLint and Prettier.
+
 ## 0.4.1
 
 - Fix pinned tabs reopening every time the extension was turned on or Chrome restarted. A pin whose address redirects, such as a renamed GitHub repository, was saved a second time under its new address and reopened in every window. Redirects are now remembered, the two pins merge into one, and each window keeps a single copy of each pin.

@@ -71,3 +71,14 @@ for (const file of [
 ]) {
   assert.ok(fs.existsSync(path.join(root, file)), `${file} exists`);
 }
+
+// A release tag is checked against the manifest; the package files must agree.
+const lock = require("../package-lock.json");
+for (const version of [
+  require("../package.json").version,
+  lock.version,
+  lock.packages[""].version
+]) {
+  assert.equal(version, manifest.version, "manifest and package versions match");
+}
+console.log("manifest tests passed");
