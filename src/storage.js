@@ -265,4 +265,4 @@
     watchSettings,
     watchStats
   };
-})(typeof globalThis !== "undefined" ? globalThis : window);
+})(globalThis);

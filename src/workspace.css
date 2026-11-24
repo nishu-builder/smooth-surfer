@@ -28,8 +28,7 @@ html.workspace { width: auto; min-width: 0; overflow-x: visible; color-scheme: l
 .workspace .popup h1 { font: 700 34px/1.1 var(--ss-mono); letter-spacing: -1.6px; }
 .workspace .popup .status-line { margin-top: 8px; font-size: 12px; }
 .workspace .popup .attention, .workspace .popup .model-notice { max-width: 640px; }
-.workspace .popup > section > details > summary { min-height: 52px; cursor: default; }
-.workspace .popup > section > details > summary { cursor: pointer; }
+.workspace .popup > section > details > summary { min-height: 52px; cursor: pointer; }
 .workspace .popup .section-state { max-width: 220px; }
 .workspace .popup .pill-label { white-space: normal; }
 

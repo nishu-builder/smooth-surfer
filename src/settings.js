@@ -40,13 +40,6 @@
   // Modifier required alongside the video speed keys (] [ \). "none" keeps the
   // old bare-key behaviour; the others require that modifier and no other.
   const VIDEO_SPEED_MODIFIERS = ["none", "alt", "ctrl", "shift", "meta"];
-  const SITE_RULES = [
-    { id: "youtube", label: "YouTube" },
-    { id: "twitter", label: "X / Twitter" },
-    { id: "reddit", label: "Reddit" },
-    { id: "substack", label: "Substack" },
-    { id: "hacker-news", label: "Hacker News" }
-  ];
   const DEFAULT_SETTINGS = {
     enabled: true,
     crossWindowPinsEnabled: true,
@@ -146,48 +139,18 @@
     const source = value || {};
     const next = { ...DEFAULT_SETTINGS, ...source };
 
-    next.enabled = Boolean(next.enabled);
+    for (const [key, fallback] of Object.entries(DEFAULT_SETTINGS)) {
+      if (typeof fallback === "boolean") next[key] = Boolean(next[key]);
+    }
     next.aiProvider = ["local", "anthropic"].includes(source.aiProvider)
       ? source.aiProvider
       : DEFAULT_SETTINGS.aiProvider;
     next.filterCriteria = normalizeFilterCriteria(
       source.filterCriteria || source.twitterFilterCriteria || DEFAULT_FILTER_CRITERIA
     );
-    next.youtubeGrayscaleThumbnails = Boolean(next.youtubeGrayscaleThumbnails);
-    next.youtubeHideRecommendations = Boolean(next.youtubeHideRecommendations);
-    next.youtubeHideShorts = Boolean(next.youtubeHideShorts);
-    next.youtubeBlockShorts = Boolean(next.youtubeBlockShorts);
-    next.youtubeHideGames = Boolean(next.youtubeHideGames);
-    next.youtubeHideLiveChat = Boolean(next.youtubeHideLiveChat);
-    next.youtubeDisableAutoplay = Boolean(next.youtubeDisableAutoplay);
-    next.youtubeHideEndScreens = Boolean(next.youtubeHideEndScreens);
-    next.youtubeHideEngagementStats = Boolean(next.youtubeHideEngagementStats);
-    next.youtubeHideComments = Boolean(next.youtubeHideComments);
-    next.twitterHideAds = Boolean(next.twitterHideAds);
-    for (const key of [...FORMAT_KEYS, "imageAnalysisEnabled"]) next[key] = Boolean(next[key]);
-    next.twitterFilterContent = Boolean(next.twitterFilterContent);
-    next.twitterHideTrends = Boolean(next.twitterHideTrends);
-    next.twitterEnforceFollowing = Boolean(next.twitterEnforceFollowing);
-    next.redditHideAds = Boolean(next.redditHideAds);
-    next.redditHideRecommendations = Boolean(next.redditHideRecommendations);
-    next.redditFilterContent = Boolean(next.redditFilterContent);
-    next.redditHideComments = Boolean(next.redditHideComments);
-    next.substackHideRecommendations = Boolean(next.substackHideRecommendations);
-    next.substackFilterContent = Boolean(next.substackFilterContent);
-    next.hackerNewsFilterContent = Boolean(next.hackerNewsFilterContent);
-    next.hackerNewsHideScores = Boolean(next.hackerNewsHideScores);
-    next.consumptionFactsEnabled = Boolean(next.consumptionFactsEnabled);
     // Retired: floating iframe detection also hid ordinary forms and dialogs.
     delete next.hideStickyVideoPlayers;
-    next.pauseDeepScrolling = Boolean(next.pauseDeepScrolling);
-    next.softenDistractingElements = Boolean(next.softenDistractingElements);
-    next.videoSpeedHotkeys = Boolean(next.videoSpeedHotkeys);
     next.videoSpeedModifier = normalizeModifier(next.videoSpeedModifier);
-    next.settingsHotkeyEnabled = Boolean(next.settingsHotkeyEnabled);
-    next.crossWindowPinsEnabled = Boolean(next.crossWindowPinsEnabled);
-    next.lazyPinnedTabs = Boolean(next.lazyPinnedTabs);
-    next.tabSearchEnabled = Boolean(next.tabSearchEnabled);
-    next.focusScheduleEnabled = Boolean(next.focusScheduleEnabled);
     next.focusScheduleStart = normalizeTime(
       next.focusScheduleStart,
       DEFAULT_SETTINGS.focusScheduleStart
@@ -312,14 +275,12 @@
   function matchVisitDomain(hostname, domains) {
     const host = normalizeHost(hostname).replace(/\.$/, "");
     const listed = (Array.isArray(domains) ? [...domains] : []).sort((a, b) => b.length - a.length);
-    const direct = listed.find((domain) => host === domain || host.endsWith(`.${domain}`));
+    const direct = listed.find((domain) => coversHost(host, domain));
     if (direct) return direct;
     // Twitter redirects to X. Keep the listed name as the statistics/pass key,
     // while covering both domains without changing the user's saved settings.
-    if (host === "x.com" || host.endsWith(".x.com"))
-      return listed.includes("twitter.com") ? "twitter.com" : "";
-    if (host === "twitter.com" || host.endsWith(".twitter.com"))
-      return listed.includes("x.com") ? "x.com" : "";
+    if (coversHost(host, "x.com")) return listed.includes("twitter.com") ? "twitter.com" : "";
+    if (coversHost(host, "twitter.com")) return listed.includes("x.com") ? "x.com" : "";
     return "";
   }
 
@@ -332,7 +293,7 @@
 
   // Days roll over at 03:00 local time, so a late night stays with its evening.
   function getVisitDelayDayKey(value) {
-    const at = value instanceof Date ? new Date(value.getTime()) : new Date(value ?? Date.now());
+    const at = new Date(value ?? Date.now());
 
     at.setHours(at.getHours() - VISIT_DELAY_RESET_HOUR);
 
@@ -341,7 +302,7 @@
 
   function getVisitDelayMs(step, baseSeconds) {
     const base = normalizeVisitDelaySeconds(baseSeconds);
-    const count = Math.max(0, Math.floor(Number(step)) || 0);
+    const count = toCount(step);
     const seconds = Math.min(VISIT_DELAY_CAP_SECONDS, base * VISIT_DELAY_GROWTH ** count);
 
     return Math.round(seconds) * 1000;
@@ -462,9 +423,7 @@
 
   function getVisitDelayStatus(state, domain, baseSeconds, at) {
     const dayKey = getVisitDelayDayKey(at);
-    const entry =
-      (state && state.days && state.days[dayKey] && state.days[dayKey][domain]) ||
-      emptyVisitEntry();
+    const entry = state?.days?.[dayKey]?.[domain] || emptyVisitEntry();
 
     return {
       domain,
@@ -476,105 +435,59 @@
     };
   }
 
-  function normalizeStats(value) {
-    const source = value && typeof value === "object" ? value : {};
-    const sourceDays = source.days && typeof source.days === "object" ? source.days : {};
+  const isObject = (value) => Boolean(value) && typeof value === "object";
+
+  // Shared shape of the daily logs: { days: { "YYYY-MM-DD": { platform: entry } } }.
+  // normalizeEntry returns the cleaned entry, or null to drop it.
+  function normalizeDays(value, normalizeEntry) {
+    const sourceDays = isObject(value) && isObject(value.days) ? value.days : {};
     const days = {};
 
-    Object.keys(sourceDays).forEach((day) => {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
-        return;
-      }
-
-      const sourcePlatforms = sourceDays[day];
-
-      if (!sourcePlatforms || typeof sourcePlatforms !== "object") {
-        return;
-      }
+    for (const [day, sourcePlatforms] of Object.entries(sourceDays)) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !isObject(sourcePlatforms)) continue;
 
       const platforms = {};
 
-      Object.keys(sourcePlatforms).forEach((platformName) => {
-        const sourceReasons = sourcePlatforms[platformName];
+      for (const [name, source] of Object.entries(sourcePlatforms)) {
+        const entry = isObject(source) ? normalizeEntry(source) : null;
 
-        if (!sourceReasons || typeof sourceReasons !== "object") {
-          return;
-        }
-
-        const reasons = {};
-
-        Object.keys(sourceReasons).forEach((reason) => {
-          const count = Math.floor(Number(sourceReasons[reason]));
-
-          if (count > 0) {
-            reasons[reason] = count;
-          }
-        });
-
-        if (Object.keys(reasons).length > 0) {
-          platforms[platformName] = reasons;
-        }
-      });
-
-      if (Object.keys(platforms).length > 0) {
-        days[day] = platforms;
+        if (entry) platforms[name] = entry;
       }
-    });
+
+      if (Object.keys(platforms).length > 0) days[day] = platforms;
+    }
 
     return { days };
   }
 
-  function normalizeConsumption(value) {
-    const source = value && typeof value === "object" ? value : {};
-    const sourceDays = source.days && typeof source.days === "object" ? source.days : {};
-    const days = {};
+  function positiveCounts(source, keys) {
+    const counts = {};
 
-    Object.keys(sourceDays).forEach((day) => {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
-        return;
-      }
+    for (const key of keys) {
+      const count = Math.floor(Number(source[key]));
 
-      const sourcePlatforms = sourceDays[day];
+      if (count > 0) counts[key] = count;
+    }
 
-      if (!sourcePlatforms || typeof sourcePlatforms !== "object") {
-        return;
-      }
+    return counts;
+  }
 
-      const platforms = {};
+  function normalizeStats(value) {
+    return normalizeDays(value, (sourceReasons) => {
+      const reasons = positiveCounts(sourceReasons, Object.keys(sourceReasons));
 
-      Object.keys(sourcePlatforms).forEach((platformName) => {
-        const entry = sourcePlatforms[platformName];
-
-        if (!entry || typeof entry !== "object") {
-          return;
-        }
-
-        const posts = Math.floor(Number(entry.posts));
-
-        if (!(posts > 0)) {
-          return;
-        }
-
-        const sourceTags = entry.tags && typeof entry.tags === "object" ? entry.tags : {};
-        const tags = {};
-
-        CONSUMPTION_TAGS.forEach((tag) => {
-          const count = Math.floor(Number(sourceTags[tag]));
-
-          if (count > 0) {
-            tags[tag] = count;
-          }
-        });
-
-        platforms[platformName] = { posts, tags };
-      });
-
-      if (Object.keys(platforms).length > 0) {
-        days[day] = platforms;
-      }
+      return Object.keys(reasons).length > 0 ? reasons : null;
     });
+  }
 
-    return { days };
+  function normalizeConsumption(value) {
+    return normalizeDays(value, (entry) => {
+      const posts = Math.floor(Number(entry.posts));
+
+      return posts > 0
+        ? { posts, tags: positiveCounts(isObject(entry.tags) ? entry.tags : {}, CONSUMPTION_TAGS) }
+        : null;
+    });
   }
 
   function normalizeFilterCriteria(value) {
@@ -608,35 +521,24 @@
     }
   }
 
+  function coversHost(host, domain) {
+    return host === domain || host.endsWith(`.${domain}`);
+  }
+
+  const PLATFORM_DOMAINS = [
+    ["youtube", "youtube.com"],
+    ["twitter", "x.com"],
+    ["twitter", "twitter.com"],
+    ["reddit", "reddit.com"],
+    ["substack", "substack.com"]
+  ];
+
   function getPlatformForHost(value) {
     const host = normalizeHost(value);
 
-    if (host === "youtube.com" || host.endsWith(".youtube.com")) {
-      return "youtube";
-    }
+    if (host === "news.ycombinator.com") return "hacker-news";
 
-    if (
-      host === "x.com" ||
-      host.endsWith(".x.com") ||
-      host === "twitter.com" ||
-      host.endsWith(".twitter.com")
-    ) {
-      return "twitter";
-    }
-
-    if (host === "reddit.com" || host.endsWith(".reddit.com")) {
-      return "reddit";
-    }
-
-    if (host === "substack.com" || host.endsWith(".substack.com")) {
-      return "substack";
-    }
-
-    if (host === "news.ycombinator.com") {
-      return "hacker-news";
-    }
-
-    return "unknown";
+    return PLATFORM_DOMAINS.find(([, domain]) => coversHost(host, domain))?.[0] ?? "unknown";
   }
 
   function normalizeHost(value) {
@@ -1091,7 +993,6 @@
     FORMAT_LABELS,
     FILTER_SETS_KEY,
     BUILTIN_FILTER_SETS,
-    REVIEW_LIMIT,
     reviewItemsWithFeedback,
     normalizeFilterSet,
     normalizeFilterSets,
@@ -1110,7 +1011,6 @@
     DEFAULT_SETTINGS,
     DEFAULT_STATS,
     SECRETS_KEY,
-    SITE_RULES,
     STATS_KEY,
     STORAGE_KEY,
     VIDEO_SPEED_MODIFIERS,
@@ -1144,4 +1044,4 @@
   if (typeof module !== "undefined" && module.exports) {
     module.exports = api;
   }
-})(typeof globalThis !== "undefined" ? globalThis : window);
+})(globalThis);
