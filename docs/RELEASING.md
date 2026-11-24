@@ -84,3 +84,21 @@ submission; verify the public listing separately before reporting a version as l
 If auto-publish is ever turned off, the fallback is manual: download the zip
 from the workflow artifact (or run `npm run package`) and upload it in the
 developer dashboard.
+
+## When the upload or publish step fails (human)
+
+Both failures seen so far are fixed in the developer dashboard, not in this
+repo.
+
+- `ITEM_NOT_UPDATABLE` at upload: an earlier submission is still pending
+  review or staged, and the store takes no new package until it is published,
+  cancelled, or reviewed. Resolve it in the dashboard, then re-run the failed
+  job.
+- `Publish condition not met … Privacy practices tab` at publish: the package
+  did upload and is now a draft, but a required privacy field is empty. This
+  happens when a version adds a permission that has no justification yet. Fill
+  in the Privacy practices tab from [store-listing.md](store-listing.md), then
+  choose **Submit for review** in the dashboard. Don't re-run the job; the
+  draft already holds that version.
+
+Don't push the next `v*` tag while a submission is in review.

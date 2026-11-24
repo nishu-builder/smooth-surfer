@@ -2,10 +2,11 @@
 // Renders the Chrome Web Store graphics (and the README images, which reuse
 // them) into docs/store-assets/.
 //
-// It loads the real extension with realistic sample data, captures the popup,
-// the Hidden posts page, and a live loading-delay countdown, then composes each
-// capture into a 1280x800 card from an HTML template. A 440x280 promo tile is
-// rendered the same way. No ffmpeg or network access is needed.
+// It loads the real extension with sample data, captures the popup, the Hidden
+// posts and Stats pages, a live loading-delay countdown, and tab search, then
+// lays each image's captures side by side on a plain 1280x800 page (the size
+// the store requires). The images carry no copy of their own. A 440x280 promo
+// tile is rendered the same way. No ffmpeg or network access is needed.
 //
 // Usage: node scripts/capture-store-assets.mjs
 //
@@ -81,55 +82,46 @@ const SAMPLE_TABS = [
   }
 ];
 
-// Composed cards, in store order. `shot` names a capture below.
+// Images, in store order. Each lists the captures it shows, left to right, with
+// the width each is drawn at. `bare` captures are popup sections that already
+// carry their own border and shadow.
 const CARDS = [
   {
-    file: "01-overview.png",
-    shot: "popup-overview",
-    eyebrow: "YouTube · X · Reddit · Substack · Hacker News",
-    title: "Calmer feeds,<br>no setup needed.",
-    body: "No Shorts, feed ads, or recommendation rabbit holes. Every switch says what it does, and every section says what’s on."
+    file: "01-attention.png",
+    shots: [
+      { name: "popup-overview", width: 360 },
+      { name: "popup-youtube", width: 366, bare: true }
+    ]
   },
   {
-    file: "02-ai-filter.png",
-    shot: "popup-ai",
-    bare: true,
-    eyebrow: "AI filter",
-    title: "Hide posts you’d<br>rather not see.",
-    body: "Describe them in plain words. Use Claude with your own key, or Chrome’s on-device model."
+    file: "02-filter.png",
+    shots: [
+      { name: "popup-ai", width: 366, bare: true },
+      { name: "review", width: 760 }
+    ]
   },
   {
-    file: "03-hidden-posts.png",
-    shot: "review",
-    wide: true,
-    eyebrow: "Hidden posts",
-    title: "Check every call.",
-    body: "Mark each hidden post a right or wrong call, then improve your rules from your answers."
+    file: "03-loading-delay.png",
+    shots: [
+      { name: "countdown", width: 760 },
+      { name: "popup-delays", width: 366, bare: true }
+    ]
   },
   {
-    file: "04-loading-delay.png",
-    shot: "countdown",
-    wide: true,
-    eyebrow: "Loading delays",
-    title: "A pause before<br>habit sites.",
-    body: "A short countdown that grows each time you visit the same site that day. Leaving early doesn’t count."
+    file: "04-browser-controls.png",
+    shots: [
+      { name: "popup-pins", width: 366, bare: true },
+      { name: "popup-everywhere", width: 366, bare: true }
+    ]
   },
   {
-    file: "05-pinned-tabs.png",
-    shot: "popup-pins",
-    bare: true,
-    eyebrow: "Pinned tabs",
-    title: "Pins in every<br>window.",
-    body: "Press ⌘⇧P (Alt+P on Windows) to pin a tab. It shows up in every Chrome window, always at the page you pinned."
+    file: "05-consumption-facts.png",
+    shots: [
+      { name: "facts", width: 420, bare: true },
+      { name: "stats", width: 700 }
+    ]
   },
-  {
-    file: "06-tab-search.png",
-    shot: "tab-search",
-    wide: true,
-    eyebrow: "Tab search",
-    title: "Find any tab<br>in this window.",
-    body: "Press ⌘K, type a few letters, press Enter. Sites that use ⌘K themselves keep it."
-  }
+  { file: "06-tab-search.png", shots: [{ name: "tab-search", width: 1060 }] }
 ];
 
 // ---------------------------------------------------------------- Sample data
@@ -209,6 +201,10 @@ function seedExpression() {
       "youtube.com": entry(1, 5000, [[20, 1]])
     } } });
     await store.saveReview(${JSON.stringify(review)});
+    await store.saveConsumption({ days: { [day]: { twitter: { posts: 184, tags: {
+      "curiosity-beauty": 41, humor: 33, joy: 18, "outrage-political": 27, "outrage-callout": 12,
+      "fear-societal": 9, "fear-existential": 6, poll: 4
+    } } } } });
     return true;
   })()`;
 }
@@ -238,50 +234,30 @@ function popupExpression(open) {
 // ------------------------------------------------------------------ Templates
 
 function cardHtml(card) {
-  const image = pathToFileURL(path.join(workDir, `${card.shot}.png`)).href;
   return page(
     `
-    .card { position: relative; display: grid; grid-template-columns: ${card.wide ? "360px 1fr" : "1fr 420px"}; gap: ${card.wide ? 48 : 64}px; align-items: center; height: 100%; padding: 0 72px; }
-    .dots { position: absolute; inset: 40px 0 60px ${card.wide ? 380 : 620}px; background-image: radial-gradient(#cecfbb 1px, transparent 1px); background-size: 14px 14px; mask-image: radial-gradient(ellipse, #000 25%, transparent 70%); }
-    .copy { position: relative; display: grid; gap: 20px; }
-    .eyebrow { display: flex; align-items: center; gap: 10px; color: #64655b; font: 13px/1.5 var(--mono); }
-    .eyebrow::before { content: ""; width: 9px; height: 9px; border: 1px solid #20221e; border-radius: 50%; background: #e3ff73; }
-    h1 { margin: 0; font: 700 ${card.wide ? 46 : 58}px/1.05 var(--mono); letter-spacing: -3px; }
-    p { margin: 0; max-width: 460px; color: #53564c; font: 20px/1.55 Arial, Helvetica, sans-serif; }
-    .shot { position: relative; justify-self: center; max-height: 660px; max-width: 100%; border: 1px solid #20221e; border-radius: 10px; background: #fffef9; box-shadow: 6px 7px 0 #e7e7dc; overflow: hidden; }
-    .shot img { display: block; max-height: 658px; max-width: ${card.wide ? 740 : 420}px; }
+    .card { display: flex; gap: 40px; align-items: center; justify-content: center; height: 100%; }
+    .shot { flex: none; border: 1px solid #20221e; border-radius: 10px; background: #fffef9; box-shadow: 6px 7px 0 #e7e7dc; overflow: hidden; }
+    .shot img { display: block; max-height: 716px; }
     .shot.bare { border: 0; border-radius: 0; background: none; box-shadow: none; }
-    .brand { position: absolute; left: 72px; bottom: 34px; display: flex; align-items: center; gap: 10px; font: 700 15px var(--mono); letter-spacing: -0.5px; }
-    .brand img { width: 26px; height: 26px; border-radius: 6px; }
-    .url { position: absolute; right: 72px; bottom: 38px; color: #64655b; font: 12px var(--mono); }
     `,
-    `<div class="card">
-      <div class="dots"></div>
-      ${copy(card)}${figure(image, card.bare)}
-      <div class="brand"><img src="${iconUrl()}" alt="">Smooth Surfer</div>
-      <div class="url">github.com/nishu-builder/smooth-surfer</div>
-    </div>`
+    `<div class="card">${card.shots.map(figure).join("")}</div>`
   );
 }
 
-function copy(card) {
-  return `<div class="copy"><div class="eyebrow">${card.eyebrow}</div><h1>${card.title}</h1><p>${card.body}</p></div>`;
-}
-
-function figure(image, bare) {
-  return `<div class="shot${bare ? " bare" : ""}"><img src="${image}" alt=""></div>`;
+function figure(shot) {
+  const image = pathToFileURL(path.join(workDir, `${shot.name}.png`)).href;
+  return `<div class="shot${shot.bare ? " bare" : ""}"><img src="${image}" alt="" style="max-width: ${shot.width}px"></div>`;
 }
 
 function tileHtml() {
   return page(
     `
-    .tile { position: relative; display: grid; align-content: center; gap: 14px; height: 100%; padding: 0 34px; background-image: radial-gradient(#cecfbb 1px, transparent 1px); background-size: 12px 12px; }
-    .row { display: flex; align-items: center; gap: 14px; }
-    .row img { width: 64px; height: 64px; border: 1px solid #20221e; border-radius: 14px; box-shadow: 3px 4px 0 #e7e7dc; transform: rotate(-3deg); }
-    h1 { margin: 0; padding: 0 6px; background: #fffdf4; font: 700 30px/1.1 var(--mono); letter-spacing: -1.5px; }
-    p { justify-self: start; margin: 0; padding: 6px 12px; border: 1px solid #20221e; border-radius: 5px; background: #e3ff73; box-shadow: 2px 3px 0 #dfdfd1; font: 14px/1.4 var(--mono); }
+    .tile { display: flex; align-items: center; justify-content: center; gap: 18px; height: 100%; }
+    .tile img { width: 72px; height: 72px; border: 1px solid #20221e; border-radius: 16px; }
+    h1 { margin: 0; font: 700 32px/1.1 var(--mono); letter-spacing: -1.5px; }
     `,
-    `<div class="tile"><div class="row"><img src="${iconUrl()}" alt=""><h1>Smooth<br>Surfer</h1></div><p>Calmer feeds, no setup needed.</p></div>`
+    `<div class="tile"><img src="${iconUrl()}" alt=""><h1>Smooth<br>Surfer</h1></div>`
   );
 }
 
@@ -654,8 +630,11 @@ try {
       await setViewport(client, 360, 1400, 2);
       for (const [name, open] of [
         ["popup-overview", []],
+        ["popup-youtube", ['[data-site-section="youtube"]']],
         ["popup-ai", ["[data-filter-panel]"]],
-        ["popup-pins", ["[data-pinned-tabs-panel]"]]
+        ["popup-delays", ["[data-visit-delay-panel]"]],
+        ["popup-pins", ["[data-pinned-tabs-panel]"]],
+        ["popup-everywhere", ["[data-everywhere-panel]"]]
       ]) {
         await navigate(client, `${extension}/popup.html`, 1200);
         const clip = await evaluate(client, popupExpression(open));
@@ -670,6 +649,15 @@ try {
       );
       await delay(500);
       await capture(client, "review");
+
+      await navigate(client, `${extension}/popup.html?view=stats`, 1500);
+      await capture(client, "stats");
+      // The Consumption Facts label sits below the fold; capture it on its own.
+      const facts = await evaluate(
+        client,
+        `(() => { const box = document.querySelector("[data-facts-label]").getBoundingClientRect(); return { x: box.left - 2, y: box.top - 2 + scrollY, width: box.width + 10, height: box.height + 11 }; })()`
+      );
+      await capture(client, "facts", facts);
 
       await setViewport(client, 760, 480, 2);
       await navigate(client, `http://x.com:${site.port}/home`, 2600);

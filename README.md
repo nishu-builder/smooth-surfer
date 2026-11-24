@@ -3,20 +3,34 @@
 [![CI](https://github.com/nishu-builder/smooth-surfer/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/nishu-builder/smooth-surfer/actions/workflows/ci.yml)
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/cgmineplcpnmdfokdblnnapnbpknfghe?label=Chrome%20Web%20Store)](https://chromewebstore.google.com/detail/smooth-surfer/cgmineplcpnmdfokdblnnapnbpknfghe)
 
-Calmer feeds, a pause before habit sites, and pinned tabs that follow you into
-every Chrome window. It works as soon as you install it: no account, no
-analytics, and no Smooth Surfer servers.
+A Chrome extension for making the web less distracting. Some of the things you
+can do with it:
 
-**[Install from the Chrome Web Store →](https://chromewebstore.google.com/detail/smooth-surfer/cgmineplcpnmdfokdblnnapnbpknfghe)**
+- Make things hijack your attention less: hide view counts, Shorts, suggested
+  next videos, make thumbnails, pictures and videos more grayscale, auto-select
+  ‘Following’ feeds over ‘For you’, hide ‘recommended’ posts
+- Filter out content you don’t like (e.g. posts on X/Substack/Reddit) according
+  to LLM-judged rules you set up. And you can review which were filtered out
+  later and note if you agree or not, and why
+- Stop bad habits: can introduce delays that grow with each visit before
+  loading sites you’re prone to getting distracted by
+- Use some sorely missing browser controls: pinned tabs that work more like
+  Arc’s, keyboard shortcuts for changing the speed of a video on your screen,
+  search across tabs
+- See an unserious reflection of your information diet, a la Emmett’s idea
+  [here](https://x.com/eshear/status/1534692002952097792)
 
-![The Smooth Surfer menu: each site and tool shows what is on at a glance](docs/store-assets/01-overview.png)
+It’s on the [Chrome Web Store](https://chromewebstore.google.com/detail/smooth-surfer/cgmineplcpnmdfokdblnnapnbpknfghe),
+or you can [run it from source](#install). There’s no account, no analytics,
+and no server of mine involved. The rest of this page is the detail on each of
+the above.
 
-## What it does
+## Making sites less attention-grabbing
 
-### Calmer feeds
+![The menu, and the YouTube switches](docs/store-assets/01-attention.png)
 
-Cleanup switches for five sites, most on by default. Open the toolbar menu on a
-site and its section opens first, with every switch described in one line.
+Each supported site has its own list of switches in the toolbar menu. Most are
+on by default.
 
 | Site | Switches |
 | --- | --- |
@@ -26,43 +40,49 @@ site and its section opens first, with every switch described in one line.
 | Substack | Hide recommendations |
 | Hacker News | Hide scores |
 
-X, Reddit, Substack, and Hacker News can also use the AI filter below. On X,
-posts stay in place while they are checked; matches fade out, and removals above
-your reading position keep their space so the page never jumps.
+Two more apply on every site except work tools like Docs, GitHub, and Slack:
 
-### AI filter
+- **Gray distracting media** mutes the color of images and video in feeds.
+- **Pause deep scrolling** stops you after about 16 screens of a feed until you
+  choose Keep going.
 
-![Hide posts you'd rather not see, with rules written in plain words](docs/store-assets/02-ai-filter.png)
+**Focus hours** limits all of this to set times of day, including overnight
+ranges.
 
-Describe posts you'd rather not see, like “engagement bait” or “posts that stoke
-FOMO,” and matching posts are hidden. It starts with four editable rules.
+## Filtering posts with rules you write
+
+![The filter settings, and the page listing what it hid](docs/store-assets/02-filter.png)
+
+On X, Reddit, Substack, and Hacker News you can write rules like “engagement
+bait” or “posts that stoke FOMO”, and an LLM hides the posts that match. The
+menu calls this the AI filter. It starts with four rules you can edit.
 
 - **Claude Haiku 4.5** (default) runs with your own Anthropic API key. Optional
   **Analyze images** also sends up to two public post images; it is off by
   default and adds cost and latency.
-- **Gemini Nano** (experimental) runs on this computer through Chrome's
+- **Gemini Nano** (experimental) runs on this computer through Chrome’s
   built-in model. It handles text only and never falls back to the cloud. See
   [on-device setup and limits](docs/LOCAL_MODELS.md).
 
-If the filter is switched on but can't run yet (no key, or no model), the menu
-says so in its header and on each site, with one click to set it up or turn it
-off. If a request fails, posts stay visible and retries are spaced out.
+If the filter is on but can’t run (no key, or no model), the menu says so, with
+one click to set it up or turn it off. If a request fails, posts stay visible
+and retries are spaced out. On X, posts stay in place while they are checked;
+matches fade out, and removals above your reading position keep their space so
+the page doesn’t jump.
 
 On X, the **Less like this** button beside a post opens a rule editor. Write a
 rule, or choose **Suggest rules** and edit one before adding it. Suggestions
 never change your rules on their own.
 
-### Hidden posts
+### Reviewing what was hidden
 
-![Check every call on the Hidden posts page](docs/store-assets/03-hidden-posts.png)
-
-Every post the filter hid appears in **Hidden posts**, with the rule that matched.
-Mark each one a **Right call** or **Wrong call** (← and → on the keyboard),
-optionally explaining why, then choose **Improve rules**. Your selected model
-proposes rewordings and replays your saved examples. A revision is kept only
-if it fixes mistakes without introducing new ones, and the last 30 revisions can
-be undone. It is calibration against your examples, not a guarantee; see
-[the algorithm](docs/CALIBRATION.md).
+Every post the filter hid is listed on the **Hidden posts** page with the rule
+that matched. Mark each one a **Right call** or **Wrong call** (← and → on the
+keyboard) and optionally say why. **Improve rules** then has the model propose
+rewordings and replays your saved examples against them. A revision is kept
+only if it fixes mistakes without introducing new ones, and the last 30
+revisions can be undone. It is calibration against your examples, not a
+guarantee; see [the algorithm](docs/CALIBRATION.md).
 
 <details>
 <summary>Inboxes, keyboard, and storage</summary>
@@ -73,9 +93,9 @@ be undone. It is calibration against your examples, not a guarantee; see
   explain the selected call; Enter returns to the keys.
 - X posts show as native embeds, with saved copies as a fallback.
 - Up to 2,000 hidden and archived posts within 6 MB stay on this device. Hidden
-  posts expire after seven days; archived ones don't. **Archive the rest** moves
+  posts expire after seven days; archived ones don’t. **Archive the rest** moves
   everything still to review into Archived. Calls are stored separately (up to
-  2,000 within 2 MB), so archiving never erases what you taught the filter.
+  2,000 within 2 MB), so archiving never erases them.
 - Improving rules runs in the background and resumes after Chrome restarts.
 
 </details>
@@ -84,13 +104,13 @@ be undone. It is calibration against your examples, not a guarantee; see
 presets, and import or export sets as JSON. Importing adds only what you check,
 up to 20 sets per device, and never includes API keys.
 
-### A pause before habit sites
+## Delays before distracting sites
 
-![A loading delay countdown before x.com](docs/store-assets/04-loading-delay.png)
+![The countdown before x.com, and the list of delayed sites](docs/store-assets/03-loading-delay.png)
 
-Listed sites open behind a short countdown. It's on for YouTube, X, Reddit,
-Substack, and Hacker News by default, and you can add any site from the menu,
-including the one you're on.
+Sites on the list open behind a countdown that gets longer each time you visit
+that day. YouTube, X, Reddit, Substack, and Hacker News are on the list by
+default, and you can add any site from the menu, including the one you’re on.
 
 <details>
 <summary>How the countdown grows</summary>
@@ -98,7 +118,7 @@ including the one you're on.
 - The first wait is 1 second by default (1–300 seconds). Each wait you finish
   that day makes the next one 1.5× longer, up to 20 minutes. Counts reset at
   03:00 local time.
-- The countdown runs only while the tab is visible. Closing the tab early doesn't
+- The countdown runs only while the tab is visible. Closing the tab early doesn’t
   advance the next wait. **Reset count** returns to the first wait.
 - A finished tab keeps its pass across reloads, and waits again after 30 minutes
   in the background. `twitter.com` and `x.com` cover each other.
@@ -107,13 +127,16 @@ including the one you're on.
 
 </details>
 
-### Pinned tabs in every window
+## Browser controls
 
-![Pinned tabs shared across every Chrome window](docs/store-assets/05-pinned-tabs.png)
+![The pinned tabs settings, and the settings that apply on every site](docs/store-assets/04-browser-controls.png)
+
+### Pinned tabs
 
 Press **Cmd+Shift+P** (Alt+P on Windows and Linux) to pin or unpin a tab. Pins
-appear in every regular Chrome window, including new ones, always at the page
-you pinned. Sharing is on by default; turn it off to keep pins per window.
+appear in every regular Chrome window, including new ones, and always sit at
+the page you pinned. Sharing is on by default; turn it off to keep pins per
+window.
 
 <details>
 <summary>How shared pins behave</summary>
@@ -128,36 +151,43 @@ you pinned. Sharing is on by default; turn it off to keep pins per window.
   page in keeps it live. Turn off **Load pins when opened** to keep every copy
   live, for example for unread counts.
 - While sharing is on, the shortcut is the only way to change pins. Pinning or
-  unpinning from Chrome's tab menu is undone. Change the shortcut at
+  unpinning from Chrome’s tab menu is undone. Change the shortcut at
   `chrome://extensions/shortcuts`.
 - Drag pins to reorder them; new windows use the last order you arranged.
 - Private windows are excluded, and saved URLs stay on this device. Chrome may
-  still ask you to press Cmd+W twice to close a pinned tab; extensions can't
+  still ask you to press Cmd+W twice to close a pinned tab; extensions can’t
   change that.
 
 </details>
 
-### Everywhere
+### Video speed keys
 
-![Tab search: find any tab in this window with Cmd+K](docs/store-assets/06-tab-search.png)
+On any site, hold Alt/Option with → or `]` to speed up the video on screen, ←
+or `[` to slow it down, and `\` to reset. The modifier is configurable, or off
+entirely (brackets only).
 
-- **Pause deep scrolling:** after about 16 screens of a feed, a surf break waits
-  for you to choose Keep going.
-- **Gray distracting media:** mutes images and video in feeds. Both of these
-  skip work tools like Docs, GitHub, and Slack.
-- **Video speed keys:** on any site, hold Alt/Option with → or `]` to speed up,
-  ← or `[` to slow down, and `\` to reset. The modifier is configurable, or off
-  entirely (brackets only).
-- **Focus hours:** run Smooth Surfer only between set times, including overnight
-  ranges.
-- **Tab search:** press Cmd+K (Ctrl+K) to search this window's tabs by title or
-  address, with their icons, then Enter to switch. Sites that use Cmd+K themselves, like GitHub or
-  Slack, keep it. It can't open on Chrome's own pages, such as the New Tab page;
-  Chrome's Search tabs (Cmd+Shift+A) covers every window.
+### Tab search
+
+![Tab search over a page](docs/store-assets/06-tab-search.png)
+
+Press Cmd+K (Ctrl+K) to search this window’s tabs by title or address, then
+Enter to switch. Sites that use Cmd+K themselves, like GitHub or Slack, keep
+it. It can’t open on Chrome’s own pages, such as the New Tab page; Chrome’s
+Search tabs (Cmd+Shift+A) covers every window.
+
+## Consumption Facts
+
+![A Consumption Facts label next to the Stats page](docs/store-assets/05-consumption-facts.png)
+
+With **Track consumption** on, the filter’s model also labels the mood of the
+posts you actually saw, and the Stats page shows the day’s totals as a
+nutrition label: what share of your feed was outrage, humor, fear, and so on.
+It is not a serious measurement. The same page counts what was hidden per site
+and why.
+
+## Other settings
+
 - **Settings shortcut:** press Cmd+Shift+S (Ctrl+Shift+S) twice to open the menu.
-- **Stats** counts what was hidden per site and why. With **Track consumption**
-  on, a nutrition-style **Consumption Facts** label breaks down the mood of the
-  posts you actually saw today.
 - **Backup:** export or import every setting as JSON. Your API key is never
   included.
 
@@ -170,11 +200,11 @@ with your own key. See [PRIVACY.md](PRIVACY.md) for details.
 
 ## Install
 
-Most people want the [Chrome Web Store build](https://chromewebstore.google.com/detail/smooth-surfer/cgmineplcpnmdfokdblnnapnbpknfghe),
-which updates automatically. A welcome page opens after installing; pin Smooth
-Surfer from Chrome's extensions menu to keep it one click away.
+The [Chrome Web Store build](https://chromewebstore.google.com/detail/smooth-surfer/cgmineplcpnmdfokdblnnapnbpknfghe)
+updates automatically, but each version waits on Google’s review, so it can be
+behind `main`.
 
-To run it from source (for development or an unreleased version):
+To run it from source instead:
 
 ```sh
 git clone git@github.com:nishu-builder/smooth-surfer.git
@@ -183,6 +213,9 @@ git clone git@github.com:nishu-builder/smooth-surfer.git
 1. Open `chrome://extensions` and turn on **Developer mode**.
 2. Click **Load unpacked** and select the `smooth-surfer` folder.
 3. After pulling changes, reload the extension there and refresh open tabs.
+
+The store build and an unpacked copy are separate extensions with separate
+settings. Run one at a time, and use Backup to move settings between them.
 
 ### iPhone
 
