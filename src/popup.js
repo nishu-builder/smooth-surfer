@@ -12,6 +12,7 @@
     normalizeVisitDomains,
     matchVisitDomain,
     getVisitDelayDayKey,
+    getLocalDayKey,
     getVisitDelayStatus,
     isWithinFocusWindow,
     REVIEW_KEY,
@@ -31,8 +32,11 @@
     saveStats: writeStats,
     watchConsumption,
     watchStats,
-    watchVisitDelay
+    watchVisitDelay,
+    send
   } = window.SmoothSurferStorage;
+  // False in extension-less previews and checks, which save to localStorage.
+  const canMessage = typeof chrome !== "undefined" && Boolean(chrome.runtime?.sendMessage);
   const STATS_SITE_LABELS = {
     youtube: "YouTube",
     twitter: "X / Twitter",
@@ -89,7 +93,7 @@
   });
   document.querySelector("[data-local-model-setup]").addEventListener("click", async () => {
     try {
-      if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage)
+      if (!canMessage)
         throw new Error("Open the installed Chrome extension to set up on-device AI.");
       await chrome.runtime.sendMessage({ type: "openLocalModelSetup" });
     } catch (error) {
@@ -139,32 +143,25 @@
     secrets = normalizeSecrets(loadedSecrets);
     render();
   });
-  loadStats().then((loadedStats) => {
-    stats = loadedStats;
+  const showStats = (next) => {
+    stats = next;
     renderStats();
     renderStatusLine();
-  });
-  watchStats((nextStats) => {
-    stats = nextStats;
-    renderStats();
-    renderStatusLine();
-  });
-  loadConsumption().then((loadedConsumption) => {
-    consumption = loadedConsumption;
+  };
+  loadStats().then(showStats);
+  watchStats(showStats);
+  const showConsumption = (next) => {
+    consumption = next;
     renderFacts();
-  });
-  watchConsumption((nextConsumption) => {
-    consumption = nextConsumption;
-    renderFacts();
-  });
-  loadVisitDelay().then((loaded) => {
-    visitDelay = loaded;
-    renderVisitDelay();
-  });
-  watchVisitDelay((next) => {
+  };
+  loadConsumption().then(showConsumption);
+  watchConsumption(showConsumption);
+  const showVisitDelay = (next) => {
     visitDelay = next;
     renderVisitDelay();
-  });
+  };
+  loadVisitDelay().then(showVisitDelay);
+  watchVisitDelay(showVisitDelay);
   // Keep multi-megabyte review records out of the popup's rendering thread.
   // The worker returns only a count; navigation and settings never wait for it.
   let reviewCountTimer = 0,
@@ -175,7 +172,7 @@
     if (reviewCountTimer || reviewCountLoading) return;
     reviewCountTimer = window.setTimeout(() => {
       reviewCountTimer = 0;
-      if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) return;
+      if (!canMessage) return;
       reviewCountLoading = true;
       reviewCountDirty = false;
       chrome.runtime.sendMessage({ type: "getReviewCount" }, (response) => {
@@ -442,19 +439,9 @@
     const expectedCriteria = [...settings.filterCriteria];
     settings = normalizeSettings({ ...settings, ...partial });
     render();
-    const operation =
-      typeof chrome !== "undefined" && chrome.runtime?.sendMessage
-        ? new Promise((resolve, reject) =>
-            chrome.runtime.sendMessage(
-              { type: "updateSettings", patch: partial, expectedCriteria },
-              (response) => {
-                if (chrome.runtime.lastError || !response?.ok)
-                  reject(new Error(response?.error || "Not saved"));
-                else resolve();
-              }
-            )
-          )
-        : writeSettings(settings);
+    const operation = canMessage
+      ? send({ type: "updateSettings", patch: partial, expectedCriteria }, "Not saved")
+      : writeSettings(settings);
     operation.then(
       () => setStatus("Saved"),
       async (error) => {
@@ -653,7 +640,7 @@
   }
 
   function hiddenToday() {
-    const platforms = stats.days[localDayKey(new Date())] || {};
+    const platforms = stats.days[getLocalDayKey()] || {};
     let total = 0;
     for (const reasons of Object.values(platforms))
       for (const count of Object.values(reasons)) total += count;
@@ -725,21 +712,10 @@
 
   // The worker owns visit counts; extension-less previews apply the same rules locally.
   function visitDelayCommand(domain, event) {
-    if (typeof chrome !== "undefined" && chrome.runtime?.sendMessage) {
-      return new Promise((resolve, reject) =>
-        chrome.runtime.sendMessage({ type: "visitDelayEvent", domain, event }, (response) => {
-          if (chrome.runtime.lastError || !response?.ok)
-            reject(new Error(response?.error || "Not saved"));
-          else resolve(response);
-        })
-      );
-    }
+    if (canMessage) return send({ type: "visitDelayEvent", domain, event }, "Not saved");
 
     return applyVisitDelayEvent({ domain, event }).then((status) => {
-      loadVisitDelay().then((next) => {
-        visitDelay = next;
-        renderVisitDelay();
-      });
+      loadVisitDelay().then(showVisitDelay);
       return status;
     });
   }
@@ -1054,7 +1030,7 @@
     statsList.textContent = "";
 
     const weekKeys = new Set(lastDayKeys(7));
-    const todayKey = localDayKey(new Date());
+    const todayKey = getLocalDayKey();
     const totals = new Map();
     const reasons = new Map();
 
@@ -1131,7 +1107,7 @@
   function renderFacts() {
     factsLabel.textContent = "";
 
-    const platforms = consumption.days[localDayKey(new Date())] || {};
+    const platforms = consumption.days[getLocalDayKey()] || {};
     let posts = 0;
     const tagCounts = {};
 
@@ -1206,13 +1182,6 @@
     return element;
   }
 
-  function localDayKey(date) {
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-
-    return `${date.getFullYear()}-${month}-${day}`;
-  }
-
   function lastDayKeys(count) {
     const keys = [];
 
@@ -1220,19 +1189,14 @@
       const date = new Date();
 
       date.setDate(date.getDate() - offset);
-      keys.push(localDayKey(date));
+      keys.push(getLocalDayKey(date));
     }
 
     return keys;
   }
 
   function isAnyContentFilterEnabled() {
-    return (
-      settings.twitterFilterContent ||
-      settings.redditFilterContent ||
-      settings.substackFilterContent ||
-      settings.hackerNewsFilterContent
-    );
+    return Object.keys(AI_SETTINGS).some((key) => settings[key]);
   }
 
   function detectActiveTab() {

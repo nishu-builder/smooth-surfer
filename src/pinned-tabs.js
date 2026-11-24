@@ -225,15 +225,12 @@
       }
       // Remember the last user-arranged pinned order for future windows.
       // Ignore ordinary-tab moves, private windows, and shutdown unpins.
-      const reorder = changes
-        .slice()
-        .reverse()
-        .find(
-          (event) =>
-            event.orderWindowId !== undefined &&
-            live.get(event.tabId)?.pinned &&
-            windows.some((window) => window.id === event.orderWindowId)
-        );
+      const reorder = changes.findLast(
+        (event) =>
+          event.orderWindowId !== undefined &&
+          live.get(event.tabId)?.pinned &&
+          windows.some((window) => window.id === event.orderWindowId)
+      );
       if (reorder) {
         const source = windows.find((window) => window.id === reorder.orderWindowId);
         const ordered = [

@@ -63,7 +63,8 @@
     }
   `;
   // Keys typed into the search must never reach the page's own shortcuts.
-  const ISOLATED_EVENTS = ["keydown", "keypress", "keyup", "beforeinput", "input"];
+  // keydown has its own listener, which also handles the search's own keys.
+  const ISOLATED_EVENTS = ["keypress", "keyup", "beforeinput", "input"];
 
   let enabled = false;
   let open = null;
@@ -94,7 +95,7 @@
     },
     true
   );
-  for (const type of ISOLATED_EVENTS.slice(1)) {
+  for (const type of ISOLATED_EVENTS) {
     window.addEventListener(
       type,
       (event) => {
@@ -235,9 +236,10 @@
     open.query = query;
     const words = query.split(/\s+/).filter(Boolean);
     open.results = open.tabs
-      .map((tab, order) => ({ tab, order, score: score(tab, words) }))
+      .map((tab) => ({ tab, score: score(tab, words) }))
       .filter((entry) => entry.score >= 0)
-      .sort((a, b) => b.score - a.score || a.order - b.order)
+      // Sorting is stable, so equal scores keep the tab strip's order.
+      .sort((a, b) => b.score - a.score)
       .map((entry) => entry.tab);
     // With no query, start on the most useful tab: anything but this one.
     const firstOther = open.results.findIndex((tab) => !tab.active);

@@ -1,7 +1,11 @@
 (function installCalibration(root) {
   "use strict";
-  const { normalizeCalibration, resolveCalibratedRule, reviewItemsWithFeedback } =
-    root.SmoothSurferSettings;
+  const {
+    normalizeCalibration,
+    normalizeCriteria,
+    resolveCalibratedRule,
+    reviewItemsWithFeedback
+  } = root.SmoothSurferSettings;
   function create(deps) {
     let writes = Promise.resolve();
     let running = false;
@@ -301,6 +305,21 @@
               )
                 throw new Error("Settings changed during recalibration. Try again.");
             };
+            const replay = async (criterion, label) => {
+              const results = [];
+              for (let i = 0; i < examples.length; i += 20) {
+                await checkContext();
+                results.push(
+                  ...(await deps.evaluate(examples.slice(i, i + 20), [criterion], credential))
+                );
+              }
+              if (
+                results.length !== examples.length ||
+                results.some((item) => !Array.isArray(item.matchedCriteria))
+              )
+                throw new Error(`The ${label} was incomplete. No rule changed.`);
+              return results;
+            };
             await checkContext();
             const proposalExamples = examples.filter((item) => !heldOut.has(item.postKey));
             const additions = new Map();
@@ -364,32 +383,8 @@
                 throw new Error("No distinct, valid revision was proposed.");
               after = proposal.rule.trim();
               await progress("Checking saved judgments", rule);
-              if (!baseline) {
-                baseline = [];
-                for (let i = 0; i < examples.length; i += 20) {
-                  await checkContext();
-                  baseline.push(
-                    ...(await deps.evaluate(examples.slice(i, i + 20), [rule], credential))
-                  );
-                }
-                if (
-                  baseline.length !== examples.length ||
-                  baseline.some((item) => !Array.isArray(item.matchedCriteria))
-                )
-                  throw new Error("The baseline replay was incomplete. No rule changed.");
-              }
-              const predictions = [];
-              for (let i = 0; i < examples.length; i += 20) {
-                await checkContext();
-                predictions.push(
-                  ...(await deps.evaluate(examples.slice(i, i + 20), [after], credential))
-                );
-              }
-              if (
-                predictions.length !== examples.length ||
-                predictions.some((item) => !Array.isArray(item.matchedCriteria))
-              )
-                throw new Error("The replay was incomplete. No rule changed.");
+              baseline ??= await replay(rule, "baseline replay");
+              const predictions = await replay(after, "replay");
               oldErrors = 0;
               newErrors = 0;
               let regressions = 0;
@@ -578,7 +573,7 @@
             if (suggestion.status !== "pending")
               throw new Error("This suggestion has already been handled.");
             suggestion.created = !settings.filterCriteria.includes(suggestion.rule);
-            settings.filterCriteria = root.SmoothSurferSettings.normalizeCriteria([
+            settings.filterCriteria = normalizeCriteria([
               ...settings.filterCriteria,
               suggestion.rule
             ]);
@@ -619,4 +614,4 @@
   root.SmoothSurferCalibration = { create };
   if (typeof module !== "undefined" && module.exports)
     module.exports = root.SmoothSurferCalibration;
-})(typeof globalThis !== "undefined" ? globalThis : self);
+})(globalThis);

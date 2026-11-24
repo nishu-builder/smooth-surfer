@@ -8,7 +8,8 @@
     loadCalibration,
     watchCalibration,
     loadCalibrationJob,
-    watchCalibrationJob
+    watchCalibrationJob,
+    send
   } = window.SmoothSurferStorage;
   const { safePostUrl, FORMAT_LABELS, resolveCalibratedRule, reviewItemsWithFeedback } =
     window.SmoothSurferSettings;
@@ -743,10 +744,10 @@
       if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
         event.preventDefault();
         selectRuling(key, true);
-        if (vote && input.value !== vote.explanation) void save(null, vote.judgment, false);
+        if (vote && input.value !== vote.explanation) void save(vote.judgment, false);
       }
     });
-    const save = async (node, judgment, advance = true) => {
+    const save = async (judgment, advance = true) => {
       if (saving) return;
       saving = true;
       renderSafety();
@@ -790,14 +791,14 @@
       }
     };
     for (const judgment of ["bad", "good"]) {
-      const node = button(judgment === "good" ? "Right call →" : "← Wrong call", (button) =>
-        save(button, judgment)
+      const node = button(judgment === "good" ? "Right call →" : "← Wrong call", () =>
+        save(judgment)
       );
       node.dataset.judgment = judgment;
       node.setAttribute("aria-pressed", String(vote?.judgment === judgment));
       controls.append(node);
     }
-    const saveNote = button("Save explanation", (node) => save(node, vote?.judgment, false));
+    const saveNote = button("Save explanation", () => save(vote?.judgment, false));
     saveNote.hidden = !vote || input.value === vote.explanation;
     const hint = el(
       "p",
@@ -812,19 +813,22 @@
     const rulings = el("div", "rulings", "");
     rulings.append(el("h2", "ruling-heading", "Matched rules"));
     if (inbox === "archived") {
-      const back = button("Move back to To review", async (node) => {
-        node.disabled = true;
-        try {
-          await send({ type: "unarchiveReviewPost", id: item.id });
-          review = await loadReview();
-          render();
-          status("Moved back to To review.");
-        } catch (error) {
-          status(error.message);
-          node.disabled = false;
-        }
-      });
-      back.className = "return-to-queue";
+      const back = button(
+        "Move back to To review",
+        async (node) => {
+          node.disabled = true;
+          try {
+            await send({ type: "unarchiveReviewPost", id: item.id });
+            review = await loadReview();
+            render();
+            status("Moved back to To review.");
+          } catch (error) {
+            status(error.message);
+            node.disabled = false;
+          }
+        },
+        "return-to-queue"
+      );
       rulings.append(back);
     }
     const rules = visibleRulesFor(item);
@@ -1009,15 +1013,6 @@
           row.append(undo);
         }
         return row;
-      })
-    );
-  }
-  function send(message) {
-    return new Promise((resolve, reject) =>
-      chrome.runtime.sendMessage(message, (response) => {
-        if (chrome.runtime.lastError || !response?.ok)
-          reject(new Error(response?.error || "Could not save. Try again."));
-        else resolve(response);
       })
     );
   }

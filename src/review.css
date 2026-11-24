@@ -8,7 +8,7 @@ a:hover { text-decoration-thickness: 2px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .brand { display: inline-flex; align-items: center; gap: 8px; color: var(--ss-ink); font: 700 14px var(--ss-mono); letter-spacing: -0.5px; text-decoration: none; }
 .brand img { width: 24px; height: 24px; border-radius: 6px; }
-.heading, .list-heading, .dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.heading, .list-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .heading { flex-wrap: wrap; align-items: flex-start; margin: 4px 0 16px; }
 .heading-text { flex: 1 1 0; min-width: 0; }
 h1 { margin: 0; font: 700 clamp(26px, 3.4vw, 34px)/1.1 var(--ss-mono); letter-spacing: -1.6px; }
@@ -68,26 +68,17 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 5px; border: 1px soli
 
 /* Posts */
 .post { margin-bottom: 16px; padding: 16px; border: 1px solid var(--ss-ink); border-radius: var(--ss-radius-lg); background: var(--ss-paper); box-shadow: var(--ss-shadow); }
-.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--ss-muted); font-size: 12px; }
-.preview { margin: 8px 0; font-size: 14px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
-.reason { padding: 6px 10px; border-left: 2px solid var(--ss-ink); border-radius: 0 var(--ss-radius) var(--ss-radius) 0; background: var(--ss-gray); font-size: 12.5px; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
 .post a { margin-left: auto; padding: 4px; font: 11px var(--ss-mono); text-underline-offset: 3px; }
 .empty { display: grid; justify-items: center; gap: 8px; padding: 48px 16px; border: 1px dashed var(--ss-control-line); border-radius: var(--ss-radius-lg); background-image: radial-gradient(var(--ss-dot) 1px, transparent 1px); background-size: 14px 14px; color: var(--ss-muted); text-align: center; }
 .empty strong { padding: 2px 8px; background: var(--ss-canvas); color: var(--ss-ink); font: 700 16px var(--ss-mono); letter-spacing: -0.4px; }
-.empty p { background: var(--ss-canvas); }
 .empty a { font: 12px var(--ss-mono); background: var(--ss-canvas); }
-.empty p { max-width: 420px; margin: 0; }
+.empty p { max-width: 420px; margin: 0; background: var(--ss-canvas); }
 footer { display: grid; gap: 6px; max-width: 730px; margin: 24px 0 0; color: var(--ss-muted); font-size: 12.5px; }
 footer p { margin: 0; }
 footer details p { margin: 6px 0 0; }
 footer summary { cursor: pointer; color: var(--ss-ink); font: 12px var(--ss-mono); }
 #more { display: block; margin: 16px auto; }
-
-dialog { width: min(560px, calc(100% - 32px)); padding: 20px; border: 1px solid var(--ss-ink); border-radius: var(--ss-radius-lg); color: var(--ss-ink); background: var(--ss-paper); box-shadow: var(--ss-shadow-lg); }
-dialog::backdrop { background: rgb(8 16 24 / 45%); }
-dialog label { margin-top: 10px; }
-dialog p { color: var(--ss-muted); }
 
 /* Review cards: post first, then compact rule calls. */
 .review-page main { max-width: 760px; }
@@ -141,8 +132,6 @@ dialog p { color: var(--ss-muted); }
 .quoted-post .author-handle { margin-left: 5px; }
 .quoted-post .tweet-text { margin-bottom: 0; font-size: 14px; }
 .post-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; color: var(--ss-muted); font-size: 12px; }
-.review-images { display: flex; flex-wrap: wrap; gap: 8px; }
-.review-images img { max-width: 100%; max-height: 240px; margin-bottom: 8px; object-fit: contain; }
 .tweet-embed { display: block; width: 100%; height: 0; border: 0; }
 .embed-status { margin: 6px 0; color: var(--ss-muted); font-size: 12px; }
 .embedded-post[data-ready="true"] > .tweet-preview, .embed-status:empty { display: none; }

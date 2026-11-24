@@ -68,7 +68,7 @@ are GitHub dashboard toggles only a maintainer can set:
 4. If the UI changed, refresh the store and README graphics:
    `node scripts/capture-store-assets.mjs`
    (uses `CHROME_BIN` or Chrome for Testing under `.cache/`, downloading it on
-   Linux; plain Chrome 137+ ignores `--load-extension`). It writes five 1280×800
+   Linux; plain Chrome 137+ ignores `--load-extension`). It writes six 1280×800
    screenshots and a 440×280 promo tile to `docs/store-assets/`.
 5. Apply updated description, privacy answers, and screenshots from
    [store-listing.md](store-listing.md) in the developer dashboard. The package
