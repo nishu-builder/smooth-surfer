@@ -222,7 +222,20 @@
     }
   }
 
+  // Ask the background worker. Rejects with its error, or `fallback` when it
+  // could not answer.
+  function send(message, fallback = "Could not save. Try again.") {
+    return new Promise((resolve, reject) =>
+      chrome.runtime.sendMessage(message, (response) => {
+        if (chrome.runtime.lastError || !response?.ok)
+          reject(new Error(response?.error || fallback));
+        else resolve(response);
+      })
+    );
+  }
+
   root.SmoothSurferStorage = {
+    send,
     loadVisitDelay,
     saveVisitDelay,
     watchVisitDelay,

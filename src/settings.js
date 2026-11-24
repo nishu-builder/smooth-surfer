@@ -323,7 +323,7 @@
     return "";
   }
 
-  function getLocalDayKey(date) {
+  function getLocalDayKey(date = new Date()) {
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
 
@@ -648,6 +648,13 @@
   }
 
   const FORMAT_KEYS = ["twitterHideReposts", "twitterHideQuotes", "twitterHideVideos"];
+  // The setting that turns on AI filtering for each site that supports it.
+  const CONTENT_FILTER_SETTINGS = {
+    twitter: "twitterFilterContent",
+    reddit: "redditFilterContent",
+    substack: "substackFilterContent",
+    "hacker-news": "hackerNewsFilterContent"
+  };
   const FORMAT_LABELS = {
     twitterHideReposts: "Reposts",
     twitterHideQuotes: "Quote posts",
@@ -1080,6 +1087,7 @@
     resolveCalibratedRule,
     normalizePostDisplay,
     FORMAT_KEYS,
+    CONTENT_FILTER_SETTINGS,
     FORMAT_LABELS,
     FILTER_SETS_KEY,
     BUILTIN_FILTER_SETS,
@@ -1120,6 +1128,7 @@
     getVisitDelayStatus,
     getVisitDelayMs,
     getVisitDelayDayKey,
+    getLocalDayKey,
     getPlatformForHost,
     getPlatformForUrl,
     isWithinFocusWindow,

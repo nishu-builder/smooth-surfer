@@ -12,23 +12,7 @@
   const enabled = () =>
     settings.enabled &&
     settings.aiProvider === "local" &&
-    [
-      "twitterFilterContent",
-      "redditFilterContent",
-      "substackFilterContent",
-      "hackerNewsFilterContent"
-    ].some((key) => settings[key]);
-  function summary() {
-    if (!settings.enabled) return "Paused";
-    if (!enabled()) return "Ready";
-    if (!state) return "Checking model…";
-    if (state.state === "available" && !state.error) return "Model ready";
-    return state.state === "downloadable"
-      ? "Setup required"
-      : state.state === "downloading"
-        ? "Model downloading"
-        : "AI filtering paused";
-  }
+    Object.values(window.SmoothSurferSettings.CONTENT_FILTER_SETTINGS).some((key) => settings[key]);
   function render() {
     const messages = {
       downloadable: "AI filtering is paused. Download Gemini Nano to start filtering posts.",
@@ -90,11 +74,7 @@
     render();
     if (enabled() && !wasEnabled) void check();
   }
-  window.SmoothSurferModelStatus = {
-    check,
-    summary,
-    subscribe: (listener) => listeners.push(listener)
-  };
+  window.SmoothSurferModelStatus = { subscribe: (listener) => listeners.push(listener) };
   buttons.forEach((button) => button.addEventListener("click", check));
   window.SmoothSurferStorage.loadSettings().then(updateSettings);
   window.SmoothSurferStorage.watchSettings(updateSettings);

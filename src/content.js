@@ -3,8 +3,14 @@
 
   const { loadReview, watchReview, loadSecrets, loadSettings, watchSecrets, watchSettings } =
     window.SmoothSurferStorage;
-  const { getPlatformForUrl, isWithinFocusWindow, normalizeImageUrls, FORMAT_KEYS, FORMAT_LABELS } =
-    window.SmoothSurferSettings;
+  const {
+    getPlatformForUrl,
+    isWithinFocusWindow,
+    normalizeImageUrls,
+    CONTENT_FILTER_SETTINGS,
+    FORMAT_KEYS,
+    FORMAT_LABELS
+  } = window.SmoothSurferSettings;
   const SCAN_DEBOUNCE_MS = 120;
   const SCROLL_BREAK_SCREENFULS = 16;
   const CLASSIFICATION_TIMEOUT_MS = 12000;
@@ -16,12 +22,6 @@
   const SPEED_MAX = 4;
   const SPEED_STEP = 0.25;
   const SETTINGS_HOTKEY_DOUBLE_TAP_MS = 500;
-  const CONTENT_FILTER_SETTING_BY_PLATFORM = {
-    twitter: "twitterFilterContent",
-    reddit: "redditFilterContent",
-    substack: "substackFilterContent",
-    "hacker-news": "hackerNewsFilterContent"
-  };
   // Root classes that switch on a site's CSS-only effects: [class, site, setting].
   const ROOT_CLASS_SETTINGS = [
     ["smooth-surfer-youtube-gray", "youtube", "youtubeGrayscaleThumbnails"],
@@ -150,7 +150,7 @@
         "focusScheduleEnabled",
         "focusScheduleStart",
         "focusScheduleEnd",
-        ...Object.values(CONTENT_FILTER_SETTING_BY_PLATFORM)
+        ...Object.values(CONTENT_FILTER_SETTINGS)
       ];
       if (
         contentSettings.some(
@@ -1279,7 +1279,7 @@
   }
 
   function canFilterPlatformContent(targetPlatform) {
-    const settingName = CONTENT_FILTER_SETTING_BY_PLATFORM[targetPlatform];
+    const settingName = CONTENT_FILTER_SETTINGS[targetPlatform];
 
     return Boolean(
       effectsEnabled() &&

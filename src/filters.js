@@ -2,21 +2,19 @@
   "use strict";
   const { normalizeFilterSet, BUILTIN_FILTER_SETS, FORMAT_KEYS, FORMAT_LABELS } =
     window.SmoothSurferSettings;
-  const { loadFilterSets, watchFilterSets } = window.SmoothSurferStorage;
+  const { loadFilterSets, watchFilterSets, send } = window.SmoothSurferStorage;
   const $ = (id) => document.getElementById(id);
   let selected = null;
   let saved = [];
   let busy = false;
-  loadFilterSets()
-    .then((sets) => {
-      saved = sets;
-      renderSaved();
-    })
-    .catch(() => status("Could not load sets. Reload to try again."));
-  watchFilterSets((sets) => {
+  const showSaved = (sets) => {
     saved = sets;
     renderSaved();
-  });
+  };
+  loadFilterSets()
+    .then(showSaved)
+    .catch(() => status("Could not load sets. Reload to try again."));
+  watchFilterSets(showSaved);
   BUILTIN_FILTER_SETS.forEach((pack) => $("presets").append(setRow(pack)));
   $("save-set").addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -27,8 +25,7 @@
     try {
       const name = $("set-name").value.trim();
       await send({ type: "saveFilterSet", name });
-      saved = await loadFilterSets();
-      renderSaved();
+      showSaved(await loadFilterSets());
       const pack = saved.find((entry) => entry.name === name);
       if (pack) preview(pack);
       status("Set saved.");
@@ -113,8 +110,7 @@
         remove.disabled = true;
         try {
           await send({ type: "deleteFilterSet", name: pack.name });
-          saved = await loadFilterSets();
-          renderSaved();
+          showSaved(await loadFilterSets());
           status("Saved set removed. Active rules are unchanged.");
         } catch (error) {
           status(error.message);
@@ -159,14 +155,5 @@
     });
     $("apply-set").disabled = false;
     $("export-set").disabled = false;
-  }
-  function send(message) {
-    return new Promise((resolve, reject) =>
-      chrome.runtime.sendMessage(message, (response) => {
-        if (chrome.runtime.lastError || !response?.ok)
-          reject(new Error(response?.error || "Could not save. Try again."));
-        else resolve(response);
-      })
-    );
   }
 })();

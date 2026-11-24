@@ -1,18 +1,14 @@
 (function installWelcome() {
   "use strict";
-  const { normalizeSettings } = window.SmoothSurferSettings;
+  const { normalizeSettings, CONTENT_FILTER_SETTINGS } = window.SmoothSurferSettings;
   const {
     loadSettings,
     loadSecrets,
     saveSecrets,
-    saveSettings: writeSettings
+    saveSettings: writeSettings,
+    send
   } = window.SmoothSurferStorage;
-  const AI_SETTINGS = [
-    "twitterFilterContent",
-    "redditFilterContent",
-    "substackFilterContent",
-    "hackerNewsFilterContent"
-  ];
+  const AI_SETTINGS = Object.values(CONTENT_FILTER_SETTINGS);
   const result = document.querySelector("[data-result]");
   const key = document.getElementById("key");
   const radios = [...document.querySelectorAll("input[name=provider]")];
@@ -98,12 +94,7 @@
   // Same save path as the popup: the worker merges the patch into current settings.
   function save(patch) {
     if (typeof chrome !== "undefined" && chrome.runtime?.sendMessage)
-      return new Promise((resolve, reject) =>
-        chrome.runtime.sendMessage({ type: "updateSettings", patch }, (response) => {
-          if (chrome.runtime.lastError || !response?.ok) reject(new Error("Not saved"));
-          else resolve();
-        })
-      );
+      return send({ type: "updateSettings", patch }, "Not saved");
     settings = normalizeSettings({ ...settings, ...patch });
     return writeSettings(settings);
   }

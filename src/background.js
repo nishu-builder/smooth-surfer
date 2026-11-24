@@ -19,12 +19,8 @@ importScripts(
   const MAX_BATCH_SIZE = 20;
   const STATS_RETENTION_DAYS = 30;
   const STATS_WRITE_DELAY_MS = 1000;
-  const FILTER_SETTING_BY_SOURCE = {
-    twitter: "twitterFilterContent",
-    reddit: "redditFilterContent",
-    substack: "substackFilterContent",
-    "hacker-news": "hackerNewsFilterContent"
-  };
+  const { CONTENT_FILTER_SETTINGS: FILTER_SETTING_BY_SOURCE, getLocalDayKey } =
+    self.SmoothSurferSettings;
   const SOURCE_LABELS = {
     twitter: "X/Twitter post",
     reddit: "Reddit post",
@@ -699,13 +695,6 @@ importScripts(
       statsWriteTimer = 0;
       saveStats(await statsPromise);
     }, STATS_WRITE_DELAY_MS);
-  }
-
-  function getLocalDayKey(date = new Date()) {
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-
-    return `${date.getFullYear()}-${month}-${day}`;
   }
 
   async function classifyContent(text, source, priority = 0, imageUrls = []) {

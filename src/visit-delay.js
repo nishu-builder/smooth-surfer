@@ -56,8 +56,6 @@
     button.link:hover { color: var(--ss-ink, #20221e); background: none; }
     button:disabled { cursor: default; opacity: 0.45; }
     button:focus-visible { outline: 3px solid var(--ss-focus, #355dad); outline-offset: 3px; }
-    .card:focus { outline: none; }
-    @media (prefers-reduced-motion: reduce) { .fill { transition: none; } }
   `;
 
   let settings = null;
@@ -330,7 +328,6 @@
     backdrop.append(card);
     root.append(style, backdrop);
     document.documentElement.append(host);
-    document.documentElement.classList.add(WAITING_CLASS);
     overlay = { host, card, domain, meta, time, fill, note, reset };
     holdPage();
     if (!document.body) {
@@ -454,16 +451,10 @@
 
   function send(payload) {
     return new Promise((resolve) => {
-      if (
-        typeof chrome !== "undefined" &&
-        chrome.runtime &&
-        typeof chrome.runtime.sendMessage === "function"
-      ) {
+      if (typeof chrome !== "undefined" && typeof chrome.runtime?.sendMessage === "function") {
         try {
           chrome.runtime.sendMessage({ type: "visitDelayEvent", ...payload }, (response) => {
-            const failed = chrome.runtime.lastError;
-
-            resolve(!failed && response && response.ok ? response : null);
+            resolve(!chrome.runtime.lastError && response?.ok ? response : null);
           });
         } catch {
           resolve(null);
