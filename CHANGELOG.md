@@ -5,6 +5,8 @@ release is a `v*` tag; see [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Unreleased
 
+- Fix a pin popping out into a regular tab, with a new pin opening beside it, every time you clicked it. This happened when the pinned page loads and then sends itself somewhere else, such as a signed-out app moving to its sign-in page. A redirect within five seconds of the page loading now stays in the pin, and so does any change in a pin you aren't looking at.
+- A redirect no longer merges two pins. 0.4.1 treated a pin that redirected to another pinned page as a duplicate and removed it, which could delete a pin whose signed-out page redirects to one you also have pinned. Both pins now stay.
 - Rewrite the README and store listing in plainer words, and replace the headline cards in `docs/store-assets/` with plain screenshots. The extension's description in `chrome://extensions` changes to match.
 - Stop leaving a `data-smooth-surfer-pending-key` attribute on posts while they are being checked. It held your filter rules and the post text where the page itself could read it, and nothing used it.
 - Internal cleanup with no change in behavior: shared helpers replace copies across the popup, review, filter-set and welcome pages; the worker's Anthropic request, write queues and daily logs each have one implementation; unused code and styles are gone.

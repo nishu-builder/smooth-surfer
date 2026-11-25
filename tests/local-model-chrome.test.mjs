@@ -306,5 +306,12 @@ try {
     if (child.exitCode !== null) resolve();
     else child.once("exit", resolve);
   });
-  await rm(profile, { recursive: true, force: true });
+  // Chrome's child processes keep writing to the profile briefly after the
+  // parent exits, so removal can hit ENOTEMPTY. Retry, and don't let a
+  // leftover temp directory fail a test that passed.
+  try {
+    await rm(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  } catch (error) {
+    console.log(`Warning: could not remove temp dir ${profile}: ${error.code || error.message}`);
+  }
 }

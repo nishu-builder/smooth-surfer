@@ -143,6 +143,10 @@ window.
 
 - Navigating away from a pin moves that page into a regular tab (keeping its
   history) and restores the pin at its saved URL. Reloading keeps it pinned.
+- A page that redirects itself stays pinned where it lands, for example a
+  signed-out app that sends you to its sign-in page. That covers a redirect
+  within five seconds of the page loading, and any change in a pin you aren't
+  looking at.
 - Closing a pin or a window keeps your pins; a closed pin comes back. In a window
   that holds only pins, closing one (Cmd+W) closes the window instead. Unpinning
   with the shortcut removes a pin everywhere without closing its copies.
