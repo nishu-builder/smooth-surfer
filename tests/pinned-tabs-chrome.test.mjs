@@ -74,10 +74,26 @@ async function until(operation) {
 }
 let socket;
 const pageSockets = [];
-const fixture = createServer((_request, response) => {
+// /app stands in for a signed-out web app: it loads, then moves itself to its
+// sign-in page. Its icon lets a background copy go to sleep as soon as it loads.
+const icon = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+  "base64"
+);
+const fixture = createServer((request, response) => {
+  if (request.url === "/app-icon.png") {
+    response.writeHead(200, { "Content-Type": "image/png" });
+    response.end(icon);
+    return;
+  }
   response.writeHead(200, { "Content-Type": "text/html" });
+  const app =
+    request.url === "/app"
+      ? `<link rel="icon" href="/app-icon.png">
+         <script>setTimeout(() => history.pushState(null, "", "/sign-in"), 1500)</script>`
+      : "";
   response.end(
-    '<!doctype html><title>Pin test</title><input id="draft"><a href="/linked">Follow link</a>'
+    `<!doctype html><title>Pin test</title>${app}<input id="draft"><a href="/linked">Follow link</a>`
   );
 });
 try {
@@ -173,6 +189,7 @@ try {
     `(()=>{self.__pinEvents=[];chrome.tabs.onUpdated.addListener((id,c,t)=>{if('pinned' in c)self.__pinEvents.push({id,c,windowId:t.windowId})});chrome.tabs.onRemoved.addListener((id,info)=>self.__pinEvents.push({id,info}));chrome.windows.onRemoved.addListener(id=>self.__pinEvents.push({windowRemoved:id}));})()`
   );
   const initial = (await snapshot())[0];
+  const settleMs = await evaluate(`SmoothSurferPinnedTabs.SETTLE_MS`);
   const command = (await evaluate(`chrome.commands.getAll()`)).find(
     (item) => item.name === "toggle-pin-tab"
   );
@@ -197,6 +214,10 @@ try {
   await until(async () =>
     (await snapshot()).every((window) => window.tabs.filter((tab) => tab.pinned).length === 1)
   );
+  // A URL change is the user leaving only in the selected tab, and only once
+  // the page's own redirects have had time to finish.
+  await evaluate(`chrome.tabs.update(${first.id},{active:true})`);
+  await delay(settleMs + 500);
   await evaluate(`chrome.tabs.update(${first.id},{url:'https://pins-one.example.test/message'})`);
   await until(async () => {
     const tabs = (await snapshot()).find((window) => window.id === initial.id).tabs;
@@ -218,7 +239,8 @@ try {
     .tabs.find((tab) => tab.pinned);
   assert.notEqual(restored.id, first.id);
   assert.equal(restored.index, first.index, "restore the pin in its previous position");
-  assert.equal((await evaluate(`chrome.tabs.get(${first.id})`)).active, false);
+  assert.equal(restored.active, false, "the restored pin does not take focus");
+  assert.equal((await evaluate(`chrome.tabs.get(${first.id})`)).active, true);
   await evaluate(
     `(async()=>self.__pinCommand('toggle-pin-tab', await chrome.tabs.get(${restored.id})))()`
   );
@@ -335,6 +357,9 @@ try {
   const shortcutTab = await evaluate(
     `chrome.tabs.create({windowId:${secondWindow.id},url:'https://shortcut.example.test/',active:true})`
   );
+  await until(
+    async () => (await evaluate(`chrome.tabs.get(${shortcutTab.id})`)).status === "complete"
+  );
   await evaluate(
     `(async()=>self.__pinCommand('toggle-pin-tab', await chrome.tabs.get(${shortcutTab.id})))()`
   );
@@ -426,6 +451,45 @@ try {
       .tabs.some((tab) => tab.pinned && tab.url === fixtureOrigin + "/link-start")
   );
 
+  // A page that loads and then sends itself to sign-in keeps its pin: as a
+  // fresh background copy, and when a sleeping copy is visited and loads again.
+  const appUrl = fixtureOrigin + "/app";
+  const signInUrl = fixtureOrigin + "/sign-in";
+  const appPin = await evaluate(
+    `chrome.tabs.create({windowId:${secondWindow.id},url:${JSON.stringify(appUrl)},pinned:true,active:false})`
+  );
+  const appCopies = async () =>
+    (await snapshot()).map((window) =>
+      window.tabs.filter((tab) => tab.pinned && [appUrl, signInUrl].includes(tab.url))
+    );
+  await until(async () => {
+    const copies = await appCopies();
+    return (
+      copies.every((tabs) => tabs.length === 1) &&
+      copies.flat().every((tab) => (tab.id === appPin.id ? tab.url === signInUrl : tab.discarded))
+    );
+  });
+  const sleepingApp = (await appCopies()).flat().find((tab) => tab.id !== appPin.id);
+  assert.equal(sleepingApp.url, appUrl, "the copy went to sleep before its page redirected");
+  await evaluate(`chrome.tabs.update(${sleepingApp.id},{active:true})`);
+  await until(async () => (await evaluate(`chrome.tabs.get(${sleepingApp.id})`)).url === signInUrl);
+  await delay(1000);
+  assert.equal(
+    (await evaluate(`chrome.tabs.get(${sleepingApp.id})`)).pinned,
+    true,
+    "a page that redirects itself after waking stays pinned"
+  );
+  assert.ok(
+    (await appCopies()).every((tabs) => tabs.length === 1),
+    "and no window gets a second copy"
+  );
+  assert.ok(
+    (await snapshot())
+      .flatMap((window) => window.tabs)
+      .every((tab) => tab.pinned || !tab.url.startsWith(fixtureOrigin + "/sign-in")),
+    "and nothing is left behind as a regular tab"
+  );
+
   // In a window that holds only pins, closing a pin (Cmd+W) closes the window
   // rather than restoring the pin. Saved pins and other windows are unchanged.
   const savedBefore = (await evaluate(`chrome.storage.local.get("smoothSurferPinnedTabs")`))
@@ -478,7 +542,7 @@ try {
   );
 
   console.log(
-    "Pinned tabs Chrome passed (registered shortcut and handler, windows, URL departures, links, SPA form state, history, unpin/close, sleeping copies, pins-only window close, saved ordering)."
+    "Pinned tabs Chrome passed (registered shortcut and handler, windows, URL departures, links, SPA form state, history, unpin/close, sleeping copies, self-redirecting pages, pins-only window close, saved ordering)."
   );
 } finally {
   socket?.close();

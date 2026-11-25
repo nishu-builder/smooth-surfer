@@ -9,6 +9,10 @@
   // GitHub repository. Kept with the pins because tab bindings live in session
   // storage, which Chrome clears when the extension is re-enabled or restarted.
   const LANDINGS_KEY = "smoothSurferPinnedTabLandings";
+  // How long after a copy finishes loading a URL change still counts as the
+  // page redirecting itself, e.g. an app that checks the session and then
+  // moves to its sign-in page. On telepathy.work that took about a second.
+  const SETTLE_MS = 5000;
 
   function webUrl(value) {
     try {
@@ -19,7 +23,10 @@
     }
   }
 
-  function create(api, storage) {
+  // A tab Chrome is holding without its page: discarded, or not yet restored.
+  const asleep = (tab) => Boolean(tab.discarded) || tab.status === "unloaded";
+
+  function create(api, storage, now = Date.now) {
     let queue = Promise.resolve();
     let initialized = false;
     let urls = [];
@@ -151,29 +158,22 @@
         ).length;
         await moveIfPresent(id, index);
       }
-      // A restored URL may redirect (for example to sign-in). Let its first
-      // load settle before detecting later navigation, or restoring the pin
-      // would repeatedly create tabs. The saved URL itself never changes, but
-      // where it landed is remembered so the copy is still recognized after
-      // session storage is cleared.
+      // A copy's URL may redirect (for example to sign-in). Let each load
+      // settle before detecting later navigation, or restoring the pin would
+      // repeatedly create tabs. The saved URL itself never changes, but where
+      // it landed is remembered so the copy is still recognized after session
+      // storage is cleared. A sleeping copy loads again when it is visited.
       for (const tab of tabs) {
         const url = bindings[tab.id];
-        if (!tab.pinned || !url || !pages[tab.id]?.loading) continue;
-        if (tab.status !== "complete" || tab.pendingUrl) continue;
-        pages[tab.id] = { url: tab.url || url };
-        const landing = webUrl(tab.url);
-        if (landing && landing !== url) landings[url] = landing;
-        else if (landing) delete landings[url];
-      }
-      // A saved URL that redirects to another saved URL is the same pin. This
-      // happened when a restart re-saved a copy under its redirect target.
-      const merged = (url) => (urls.includes(landings[url]) ? landings[url] : url);
-      if (urls.some((url) => merged(url) !== url)) {
-        urls = [...new Set(urls.map(merged))];
-        for (const [id, url] of Object.entries(bindings)) bindings[id] = merged(url);
+        if (!tab.pinned || !url) continue;
+        if (!asleep(tab)) {
+          if (!pages[tab.id]?.loading || tab.status !== "complete" || tab.pendingUrl) continue;
+          pages[tab.id] = { url: tab.url || url, settled: now() };
+        } else pages[tab.id] = { loading: true };
+        land(url, tab.url);
       }
       // Bindings always retain the URL at pin time, across navigation and
-      // worker restarts. Page state only tracks a copy's initial redirects.
+      // worker restarts. Page state tracks where a copy's own redirects left it.
       for (const [id, url] of Object.entries(bindings)) {
         // Retain missing-tab bindings until onRemoved is processed; it can
         // arrive while this asynchronous reconciliation is already running.
@@ -188,12 +188,21 @@
         const current = pinned?.pinnedUrl || webUrl(tab.pendingUrl || tab.url);
         if (!current) continue;
         // After session storage is lost, a copy sits at its redirect target.
-        const url = urls.includes(current)
-          ? current
-          : urls.find((saved) => landings[saved] === current) || current;
+        // Two pins can land on one page (a shared sign-in), so take the first
+        // that this window has no copy of. Otherwise this is a new pin.
+        const url =
+          [current, ...urls.filter((saved) => landings[saved] === current)].find(
+            (saved) =>
+              urls.includes(saved) &&
+              !tabs.some(
+                (other) =>
+                  other.windowId === tab.windowId && other.pinned && bindings[other.id] === saved
+              )
+          ) || current;
         if (!urls.includes(url)) urls.push(url);
         bindings[tab.id] = url;
-        pages[tab.id] = { url: current };
+        pages[tab.id] =
+          asleep(tab) || tab.status === "loading" ? { loading: true } : { url: current };
       }
       // A window holds one copy of each pin. Duplicates come from earlier
       // restarts, or a startup that restored pins after they were recreated.
@@ -253,6 +262,13 @@
         if (page?.loading) continue;
         if (!tab.url || tab.pendingUrl === url || tab.url === url || tab.url === page?.url)
           continue;
+        // Nobody navigates a tab they aren't looking at, and a page that
+        // moves just after loading is redirecting itself. Both stay pinned.
+        if (!tab.active || now() - page?.settled < SETTLE_MS) {
+          pages[tab.id] = { ...page, url: tab.url };
+          land(url, tab.url);
+          continue;
+        }
         // Keep the live document, history, and focus in the departing tab.
         // Remove its binding before unpinning so our own onUpdated event
         // cannot be mistaken for a user removing the pin everywhere.
@@ -325,6 +341,13 @@
       await save();
     }
 
+    // Remember where a saved URL's copy sits when that is somewhere else.
+    function land(url, current) {
+      const landing = webUrl(current);
+      if (landing && landing !== url) landings[url] = landing;
+      else if (landing) delete landings[url];
+    }
+
     async function updateIfPresent(id, patch, source = "sync") {
       if ("pinned" in patch) expectedPins.set(id, { pinned: patch.pinned, source });
       try {
@@ -395,7 +418,8 @@
         sleepWhenLoaded(tabId, tab);
       if (
         !tab.incognito &&
-        ("pinned" in change || (tab.pinned && (change.url || change.status === "complete")))
+        ("pinned" in change ||
+          (tab.pinned && (change.url || change.status === "complete" || change.discarded)))
       )
         schedule({
           tabId,
@@ -447,7 +471,7 @@
     return { settle: () => queue };
   }
 
-  root.SmoothSurferPinnedTabs = { create };
+  root.SmoothSurferPinnedTabs = { create, SETTLE_MS };
   if (typeof chrome !== "undefined" && chrome.windows?.onCreated && chrome.storage?.session)
     create(chrome, root.SmoothSurferStorage);
 })(typeof self !== "undefined" ? self : globalThis);

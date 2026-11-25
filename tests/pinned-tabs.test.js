@@ -46,6 +46,8 @@ function harness(saved = {}) {
   ];
   let nextId = Math.max(100, ...windows.flatMap((w) => w.tabs.map((tab) => tab.id + 1)));
   let focusedWindowId = 1;
+  // The module's clock. It only moves when a test waits.
+  let clock = saved.clock || 1000000;
   const settings = { enabled: true, crossWindowPinsEnabled: true, ...saved.settings };
   let permitted = saved.permitted !== false;
   const settingsEvent = event();
@@ -141,10 +143,14 @@ function harness(saved = {}) {
   };
   const context = { URL, console: { warn: (...args) => errors.push(args) } };
   vm.runInNewContext(source, context);
-  const controller = context.SmoothSurferPinnedTabs.create(api, {
-    loadSettings: async () => ({ ...settings }),
-    watchSettings: settingsEvent.addListener
-  });
+  const controller = context.SmoothSurferPinnedTabs.create(
+    api,
+    {
+      loadSettings: async () => ({ ...settings }),
+      watchSettings: settingsEvent.addListener
+    },
+    () => clock
+  );
   async function settle() {
     // Mutations can enqueue their own Chrome events after the current operation.
     for (let i = 0; i < 8; i++) await controller.settle();
@@ -163,6 +169,7 @@ function harness(saved = {}) {
     find,
     settle,
     focusWindow: (id) => (focusedWindowId = id),
+    wait: (ms) => (clock += ms),
     changeSettings: (patch) => {
       Object.assign(settings, patch);
       settingsEvent.emit();
@@ -459,11 +466,13 @@ const pins = (h, id) => h.windows.find((w) => w.id === id).tabs.filter((tab) => 
   await reload.api.tabs.update(1, { status: "complete" });
   await reload.settle();
   assert.equal(reload.creates.length, reloadCount, "reloading the same URL keeps its pin");
+  // Only the page itself can move a tab nobody is looking at, so it stays pinned.
   const background = pins(reload, 2)[0];
+  reload.wait(60000);
   await reload.api.tabs.update(background.id, { url: "https://example.com/background" });
   await reload.settle();
-  assert.equal(reload.find(background.id).active, false, "background navigation never takes focus");
-  assert.equal(reload.find(background.id).pinned, false);
+  assert.equal(reload.find(background.id).pinned, true, "a background copy that moves stays");
+  assert.equal(reload.creates.length, reloadCount, "and gets no replacement");
 
   // A newly created pin can redirect before finishing its initial load.
   const redirects = harness({
@@ -481,6 +490,7 @@ const pins = (h, id) => h.windows.find((w) => w.id === id).tabs.filter((tab) => 
             id: 1,
             windowId: 1,
             pinned: true,
+            active: true,
             status: "loading",
             url: "https://redirect.example/login"
           }
@@ -499,6 +509,7 @@ const pins = (h, id) => h.windows.find((w) => w.id === id).tabs.filter((tab) => 
   });
   await redirectedRestart.settle();
   assert.equal(redirectedRestart.creates.length, 0, "redirect baseline survives worker restarts");
+  redirectedRestart.wait(60000);
   await redirectedRestart.api.tabs.update(1, { url: "https://redirect.example/another-page" });
   await redirectedRestart.settle();
   assert.equal(redirectedRestart.find(1).pinned, false);
@@ -544,7 +555,9 @@ const pins = (h, id) => h.windows.find((w) => w.id === id).tabs.filter((tab) => 
   }
 
   // State left by the old bug: the redirect target was added as its own pin
-  // and every restart added another copy to each window.
+  // and every restart added another copy to each window. The extra copies
+  // go. Both saved pins stay: a redirect is no proof that two pins are one,
+  // since a signed-out page can redirect to another pinned page.
   const polluted = harness({
     redirects: moved,
     local: {
@@ -573,29 +586,102 @@ const pins = (h, id) => h.windows.find((w) => w.id === id).tabs.filter((tab) => 
     }))
   });
   await polluted.settle();
-  assert.deepEqual(
-    polluted.local.smoothSurferPinnedTabs,
-    ["https://github.com/new-org/repo", "https://mail.google.com/"],
-    "a pin that redirects to another pin merges into it, keeping its place"
-  );
+  assert.equal(polluted.local.smoothSurferPinnedTabs.length, 3, "a redirect never removes a pin");
   for (const windowId of [1, 2])
     assert.deepEqual(
-      pins(polluted, windowId).map((tab) => tab.url),
-      ["https://github.com/new-org/repo", "https://mail.google.com/"],
+      pins(polluted, windowId)
+        .map((tab) => tab.url)
+        .sort(),
+      [
+        "https://github.com/new-org/repo",
+        "https://github.com/new-org/repo",
+        "https://mail.google.com/"
+      ],
       "each window keeps one copy of each pin"
     );
   assert.equal(polluted.find(20).active, true, "the kept copy is shown in place of a duplicate");
   assert.ok(polluted.find(14), "regular tabs are untouched");
-  const settled = polluted.creates.length;
-  const pollutedRestart = harness({
-    redirects: moved,
-    local: polluted.local,
-    session: {},
-    windows: polluted.windows
+  for (let turn = 0; turn < 3; turn++) {
+    const pollutedRestart = harness({
+      redirects: moved,
+      local: polluted.local,
+      session: {},
+      windows: polluted.windows
+    });
+    await pollutedRestart.settle();
+    assert.equal(pollutedRestart.creates.length, 0, "two pins on one page survive restarts");
+    assert.equal(pollutedRestart.removals.length, 0);
+  }
+
+  // An app can load its page and only then move to sign-in, as
+  // telepathy.work/metrics does. That is the page redirecting, not the user
+  // leaving, whether the copy was just created or just woken from sleep.
+  const app = "https://app.example/metrics";
+  const signIn = "https://app.example/login";
+  const late = harness({
+    local: { smoothSurferPinnedTabs: [app] },
+    windows: [
+      {
+        id: 1,
+        type: "normal",
+        tabs: [
+          { id: 1, windowId: 1, url: app, pinned: true, active: true, status: "complete" },
+          { id: 2, windowId: 1, url: "https://example.com/", pinned: false }
+        ]
+      }
+    ]
   });
-  await pollutedRestart.settle();
-  assert.equal(pollutedRestart.creates.length, 0);
-  assert.equal(polluted.creates.length, settled);
+  await late.settle();
+  late.wait(60000);
+  // Chrome's memory saver, or this extension, puts the copy to sleep.
+  await late.api.tabs.update(1, { discarded: true, status: "unloaded", active: false });
+  await late.settle();
+  // Visiting it loads the saved URL; a second later the app moves to sign-in.
+  await late.api.tabs.update(1, { discarded: false, status: "loading", active: true });
+  await late.api.tabs.update(1, { status: "complete" });
+  await late.settle();
+  late.wait(1200);
+  await late.api.tabs.update(1, { url: signIn });
+  await late.settle();
+  assert.equal(late.find(1).pinned, true, "a redirect after waking keeps the pin");
+  assert.equal(late.creates.length, 0, "and opens no replacement");
+  assert.deepEqual(late.local.smoothSurferPinnedTabLandings, { [app]: signIn });
+  // Signing in returns to the saved page.
+  late.wait(60000);
+  await late.api.tabs.update(1, { url: app });
+  await late.settle();
+  assert.equal(late.find(1).pinned, true);
+  // Long after loading, a URL change in the selected tab is the user leaving.
+  await late.api.tabs.update(1, { url: "https://app.example/elsewhere" });
+  await late.settle();
+  assert.equal(late.find(1).pinned, false, "navigation after the page settled still departs");
+  assert.equal(pins(late, 1)[0].url, app);
+
+  // Two pins of one signed-out app both land on its sign-in page. After
+  // session storage is lost each copy is still matched to its own pin.
+  const home = "https://app.example/";
+  const shared = harness({
+    local: {
+      smoothSurferPinnedTabs: [home, app],
+      smoothSurferPinnedTabLandings: { [home]: signIn, [app]: signIn }
+    },
+    windows: [
+      {
+        id: 1,
+        type: "normal",
+        tabs: [
+          { id: 1, windowId: 1, url: signIn, pinned: true, status: "complete" },
+          { id: 2, windowId: 1, url: signIn, pinned: true, status: "complete" },
+          { id: 3, windowId: 1, url: "https://example.com/", pinned: false, active: true }
+        ]
+      }
+    ]
+  });
+  await shared.settle();
+  assert.equal(shared.creates.length, 0, "a shared sign-in page reopens nothing");
+  assert.equal(shared.removals.length, 0, "and closes nothing");
+  assert.deepEqual(shared.session.smoothSurferPinnedTabBindings, { 1: home, 2: app });
+  assert.deepEqual(shared.local.smoothSurferPinnedTabs, [home, app]);
 
   const stale = harness({
     local: { smoothSurferPinnedTabs: ["https://original.example/"] },
