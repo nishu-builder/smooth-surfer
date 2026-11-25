@@ -3,7 +3,7 @@
 Notable changes per released version. Versions match `manifest.json`, and a
 release is a `v*` tag; see [docs/RELEASING.md](docs/RELEASING.md).
 
-## Unreleased
+## 0.4.2
 
 - Fix a pin popping out into a regular tab, with a new pin opening beside it, every time you clicked it. This happened when the pinned page loads and then sends itself somewhere else, such as a signed-out app moving to its sign-in page. A redirect within five seconds of the page loading now stays in the pin, and so does any change in a pin you aren't looking at.
 - A redirect no longer merges two pins. 0.4.1 treated a pin that redirected to another pinned page as a duplicate and removed it, which could delete a pin whose signed-out page redirects to one you also have pinned. Both pins now stay.
